@@ -8,8 +8,9 @@ import { hasAuthenticatedUser } from "@/lib/auth";
 export const metadata: Metadata = { title: "Songs | Gracia Worship" };
 export const dynamic = "force-dynamic";
 
-export default async function SongsPage() {
+export default async function SongsPage({ searchParams }: { searchParams: Promise<{ deleted?: string | string[] }> }) {
   try {
+    const deleted = (await searchParams).deleted;
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase
       .schema("public")
@@ -30,7 +31,7 @@ export default async function SongsPage() {
       cover: song.cover_url || "/song-placeholder.svg",
     }));
 
-    return <LibraryView songs={songs} isAdmin={await hasAuthenticatedUser()} />;
+    return <LibraryView songs={songs} isAdmin={await hasAuthenticatedUser()} notice={deleted === "1" ? "Song deleted successfully." : undefined} />;
   } catch {
     return (
       <main className="min-h-screen py-8 sm:py-12">

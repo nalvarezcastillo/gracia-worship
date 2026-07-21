@@ -7,6 +7,12 @@ export async function middleware(request: NextRequest) {
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !anonKey) {
+    if (request.nextUrl.pathname.startsWith("/admin")) {
+      console.error("[auth middleware] Supabase environment variables are missing.", {
+        hasUrl: Boolean(url),
+        hasAnonKey: Boolean(anonKey),
+      });
+    }
     return protectAdminRoute(request, response, false);
   }
 
@@ -25,6 +31,12 @@ export async function middleware(request: NextRequest) {
   });
 
   const { data, error } = await supabase.auth.getClaims();
+  if (error && request.nextUrl.pathname.startsWith("/admin")) {
+    console.error("[auth middleware] Unable to validate the session.", {
+      pathname: request.nextUrl.pathname,
+      error,
+    });
+  }
   return protectAdminRoute(request, response, !error && Boolean(data?.claims?.sub));
 }
 

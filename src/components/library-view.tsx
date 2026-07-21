@@ -11,7 +11,7 @@ import { createSupabaseClient } from "@/lib/supabase";
 
 const FAVORITES_ENABLED = false;
 
-export function LibraryView({ songs, isAdmin }: { songs: SongSummary[]; isAdmin: boolean }) {
+export function LibraryView({ songs, isAdmin, notice }: { songs: SongSummary[]; isAdmin: boolean; notice?: string }) {
   const [localSongs, setLocalSongs] = useState(songs);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "favorites">("all");
@@ -55,6 +55,7 @@ export function LibraryView({ songs, isAdmin }: { songs: SongSummary[]; isAdmin:
     <main className="min-h-screen py-8 sm:py-12">
       <MainContainer>
         <PageHeader title="Songs" aside={<p className="text-sm text-zinc-500">{filteredSongs.length} songs</p>} />
+        {notice ? <p role="status" className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.07] px-4 py-3 text-sm font-medium text-emerald-300">{notice}</p> : null}
         <div className="sticky top-0 z-30 -mx-2 mt-4 border-b border-white/[0.04] bg-zinc-950/85 px-2 py-3 shadow-[0_10px_24px_rgba(0,0,0,0.16)] backdrop-blur-xl sm:mt-6">
           <div className="max-w-2xl">
             <SearchField value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search songs or artists" />

@@ -102,3 +102,36 @@ on storage.objects
 for delete
 to authenticated
 using (bucket_id = 'songs');
+
+create table if not exists public.active_setlist (
+  id smallint primary key default 1 check (id = 1),
+  service_name text not null default 'Saturday Service',
+  service_time text not null default 'Saturday • 7:00 PM',
+  song_ids uuid[] not null default '{}',
+  updated_at timestamptz not null default now()
+);
+
+insert into public.active_setlist (id, service_name, service_time)
+values (1, 'Saturday Service', 'Saturday • 7:00 PM')
+on conflict (id) do nothing;
+
+alter table public.active_setlist enable row level security;
+
+drop policy if exists "Public can read active setlist" on public.active_setlist;
+create policy "Public can read active setlist"
+on public.active_setlist
+for select
+to public
+using (true);
+
+drop policy if exists "Authenticated can update active setlist" on public.active_setlist;
+create policy "Authenticated can update active setlist"
+on public.active_setlist
+for update
+to authenticated
+using (id = 1)
+with check (id = 1);
+
+revoke insert, update, delete on public.active_setlist from anon;
+grant select on public.active_setlist to anon, authenticated;
+grant update (song_ids, updated_at) on public.active_setlist to authenticated;

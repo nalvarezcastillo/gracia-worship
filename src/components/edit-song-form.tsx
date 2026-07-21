@@ -13,6 +13,7 @@ export function EditSongForm({ song }: { song: SongRecord }) {
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
 
@@ -98,8 +99,6 @@ export function EditSongForm({ song }: { song: SongRecord }) {
   }
 
   async function handleDelete() {
-    if (!window.confirm("Are you sure you want to delete this song?")) return;
-
     setIsDeleting(true);
     setIsError(false);
     setMessage("Deleting song...");
@@ -113,22 +112,23 @@ export function EditSongForm({ song }: { song: SongRecord }) {
       if (paths.length > 0) {
         const { error } = await supabase.storage.from("songs").remove(paths);
         if (error) {
+          console.error("Unable to delete associated song files:", error);
           throw new Error("Unable to delete song files.");
         }
       }
 
       const { error } = await supabase.schema("public").from("songs").delete().eq("id", song.id);
       if (error) {
+        console.error("Unable to delete song record:", error);
         throw new Error("Unable to delete song details.");
       }
 
-      setMessage("Song deleted successfully");
-      window.setTimeout(() => {
-        router.push("/songs");
-        router.refresh();
-      }, 700);
+      router.replace("/songs?deleted=1");
+      router.refresh();
     } catch (error) {
+      console.error("Song deletion failed:", error);
       setIsDeleting(false);
+      setIsDeleteDialogOpen(false);
       setIsError(true);
       setMessage(error instanceof Error ? error.message : "Unable to delete song. Please try again.");
     }
@@ -165,7 +165,7 @@ export function EditSongForm({ song }: { song: SongRecord }) {
         <PrimaryButton type="submit" disabled={isSaving || isDeleting} className="min-h-14 w-full">{isSaving ? "Saving..." : "Save Changes"}</PrimaryButton>
         <button
           type="button"
-          onClick={handleDelete}
+          onClick={() => setIsDeleteDialogOpen(true)}
           disabled={isSaving || isDeleting}
           className="mt-4 inline-flex min-h-14 w-full items-center justify-center rounded-full border border-rose-400/25 bg-rose-400/[0.07] px-6 text-base font-semibold text-rose-300 shadow-sm shadow-black/20 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-rose-400/40 hover:bg-rose-400/12 active:translate-y-0 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -173,6 +173,22 @@ export function EditSongForm({ song }: { song: SongRecord }) {
         </button>
         <p role="status" aria-live="polite" className={`mt-4 min-h-6 text-center text-sm font-medium ${isError ? "text-rose-400" : "text-emerald-400"}`}>{message}</p>
       </div>
+
+      {isDeleteDialogOpen ? (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/70 px-4 backdrop-blur-sm" role="presentation">
+          <section role="dialog" aria-modal="true" aria-labelledby="delete-song-title" aria-describedby="delete-song-description" className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-900 p-6 shadow-2xl shadow-black/60 sm:p-7">
+            <h2 id="delete-song-title" className="text-2xl font-bold tracking-tight text-white">Delete Song</h2>
+            <div id="delete-song-description" className="mt-4 space-y-3 text-base leading-7 text-zinc-400">
+              <p>Are you sure you want to permanently delete this song?</p>
+              <p className="text-sm text-rose-300">This action cannot be undone.</p>
+            </div>
+            <div className="mt-7 grid grid-cols-2 gap-3">
+              <button type="button" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting} className="min-h-12 rounded-full border border-white/10 bg-white/[0.055] px-5 font-semibold text-white transition-all duration-200 hover:bg-white/10 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:opacity-50">Cancel</button>
+              <button type="button" onClick={handleDelete} disabled={isDeleting} className="min-h-12 rounded-full bg-rose-500 px-5 font-semibold text-white shadow-lg shadow-rose-950/30 transition-all duration-200 hover:bg-rose-400 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-400 disabled:opacity-50">{isDeleting ? "Deleting..." : "Delete"}</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </form>
   );
 }
