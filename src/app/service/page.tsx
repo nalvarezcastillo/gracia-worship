@@ -27,7 +27,7 @@ export default async function ServicePage() {
   return (
     <main className="min-h-screen py-8 sm:py-12">
       <MainContainer className="max-w-3xl">
-        <PageHeader eyebrow="Gracia Worship" title="Service" description="Build the order for the active service." />
+        <PageHeader eyebrow="Gracia Worship" title="Service" />
         <ServiceItems initialItems={items} songs={songs} isAdmin={isAdmin} loadError={loadError} />
       </MainContainer>
     </main>

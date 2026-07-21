@@ -142,7 +142,7 @@ create table if not exists public.service_items (
   type text not null check (type in ('text', 'worship')),
   title text not null,
   details text null,
-  song_ids text[] null,
+  song_ids jsonb null check (song_ids is null or jsonb_typeof(song_ids) = 'array'),
   created_at timestamptz not null default now()
 );
 
