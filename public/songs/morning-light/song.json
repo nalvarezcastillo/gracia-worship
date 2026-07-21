@@ -1,0 +1,19 @@
+{
+  "id": "6",
+  "title": "Morning Light",
+  "artist": "Evergreen Worship",
+  "key": "B",
+  "bpm": 80,
+  "duration": "4:35",
+  "lyrics": [
+    { "label": "Verse 1", "lines": ["Morning light is breaking through us", "New mercies meet us where we stand", "Every breath becomes a promise", "We are held within Your hands"] },
+    { "label": "Chorus", "lines": ["You are the morning light", "The hope that never fades", "With every rising sun", "We remember all Your grace"] }
+  ],
+  "notes": [
+    { "label": "Intro", "value": "Solo piano" },
+    { "label": "Verse", "value": "Pad solamente" },
+    { "label": "Chorus", "value": "Entra batería" },
+    { "label": "Bridge", "value": "Todos menos batería" },
+    { "label": "Ending", "value": "Libre" }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "id": "2",
+  "title": "Anchor of Hope",
+  "artist": "North Valley Worship",
+  "key": "G",
+  "bpm": 68,
+  "duration": "4:42",
+  "lyrics": [
+    { "label": "Verse 1", "lines": ["Steady through the deepest water", "Faithful through the longest night", "You remain our sure foundation", "You are constant, You are light"] },
+    { "label": "Chorus", "lines": ["You are the anchor of our hope", "The promise we can hold", "Through every wind and every wave", "Your love will lead us home"] }
+  ],
+  "notes": [
+    { "label": "Intro", "value": "Solo piano" },
+    { "label": "Verse", "value": "Pad solamente" },
+    { "label": "Chorus", "value": "Entra batería" },
+    { "label": "Bridge", "value": "Todos menos batería" },
+    { "label": "Ending", "value": "Libre" }
+  ]
+}

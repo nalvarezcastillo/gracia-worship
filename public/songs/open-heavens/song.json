@@ -1,0 +1,19 @@
+{
+  "id": "1",
+  "title": "Open Heavens",
+  "artist": "River & Light",
+  "key": "D",
+  "bpm": 72,
+  "duration": "5:18",
+  "lyrics": [
+    { "label": "Verse 1", "lines": ["We lift our eyes beyond the shadows", "Hope is rising with the dawn", "Every heart becomes an altar", "As we sing of who You are"] },
+    { "label": "Chorus", "lines": ["Open heavens, fill this place", "Let every voice awaken", "All our hope is in Your name", "Our hearts are Yours forever"] }
+  ],
+  "notes": [
+    { "label": "Intro", "value": "Solo piano" },
+    { "label": "Verse", "value": "Pad solamente" },
+    { "label": "Chorus", "value": "Entra batería" },
+    { "label": "Bridge", "value": "Todos menos batería" },
+    { "label": "Ending", "value": "Libre" }
+  ]
+}

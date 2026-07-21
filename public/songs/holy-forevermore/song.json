@@ -1,0 +1,19 @@
+{
+  "id": "3",
+  "title": "Holy Forevermore",
+  "artist": "The Gathering",
+  "key": "A",
+  "bpm": 76,
+  "duration": "5:06",
+  "lyrics": [
+    { "label": "Verse 1", "lines": ["Every generation joins the anthem", "Every voice will sing as one", "Glory fills the earth and heaven", "Holy is the risen Son"] },
+    { "label": "Chorus", "lines": ["Holy, holy forevermore", "All creation sings", "Honor, power and praise belong", "To the everlasting King"] }
+  ],
+  "notes": [
+    { "label": "Intro", "value": "Solo piano" },
+    { "label": "Verse", "value": "Pad solamente" },
+    { "label": "Chorus", "value": "Entra batería" },
+    { "label": "Bridge", "value": "Todos menos batería" },
+    { "label": "Ending", "value": "Libre" }
+  ]
+}

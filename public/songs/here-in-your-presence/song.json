@@ -1,0 +1,19 @@
+{
+  "id": "8",
+  "title": "Here in Your Presence",
+  "artist": "Sunday Collective",
+  "key": "Eb",
+  "bpm": 70,
+  "duration": "5:24",
+  "lyrics": [
+    { "label": "Verse 1", "lines": ["Here within the quiet moment", "Every restless thought is still", "We are listening for Your whisper", "We are waiting on Your will"] },
+    { "label": "Chorus", "lines": ["Here in Your presence", "All our fear is gone", "Here in Your presence", "Every heart belongs"] }
+  ],
+  "notes": [
+    { "label": "Intro", "value": "Solo piano" },
+    { "label": "Verse", "value": "Pad solamente" },
+    { "label": "Chorus", "value": "Entra batería" },
+    { "label": "Bridge", "value": "Todos menos batería" },
+    { "label": "Ending", "value": "Libre" }
+  ]
+}

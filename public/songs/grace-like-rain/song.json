@@ -1,0 +1,19 @@
+{
+  "id": "4",
+  "title": "Grace Like Rain",
+  "artist": "Harbor City Music",
+  "key": "E",
+  "bpm": 84,
+  "duration": "4:27",
+  "lyrics": [
+    { "label": "Verse 1", "lines": ["Mercy meets us in the waiting", "Grace is falling like the rain", "Every burden finds its freedom", "At the mention of Your name"] },
+    { "label": "Chorus", "lines": ["Grace like rain is falling", "Washing over every heart", "Hope is here and calling", "Leading us back to the start"] }
+  ],
+  "notes": [
+    { "label": "Intro", "value": "Solo piano" },
+    { "label": "Verse", "value": "Pad solamente" },
+    { "label": "Chorus", "value": "Entra batería" },
+    { "label": "Bridge", "value": "Todos menos batería" },
+    { "label": "Ending", "value": "Libre" }
+  ]
+}

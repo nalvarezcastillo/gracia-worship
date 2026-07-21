@@ -1,0 +1,19 @@
+{
+  "id": "7",
+  "title": "Faithful Through It All",
+  "artist": "Stone & Mercy",
+  "key": "F",
+  "bpm": 74,
+  "duration": "4:51",
+  "lyrics": [
+    { "label": "Verse 1", "lines": ["When the road is long before us", "When the answer feels delayed", "Still Your goodness walks beside us", "Still Your promise does not change"] },
+    { "label": "Chorus", "lines": ["Faithful through it all", "You will never let us fall", "Yesterday and now the same", "We will trust Your name"] }
+  ],
+  "notes": [
+    { "label": "Intro", "value": "Solo piano" },
+    { "label": "Verse", "value": "Pad solamente" },
+    { "label": "Chorus", "value": "Entra batería" },
+    { "label": "Bridge", "value": "Todos menos batería" },
+    { "label": "Ending", "value": "Libre" }
+  ]
+}

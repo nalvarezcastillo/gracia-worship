@@ -1,0 +1,19 @@
+{
+  "id": "5",
+  "title": "Kingdom Come",
+  "artist": "Common Ground",
+  "key": "C",
+  "bpm": 92,
+  "duration": "3:58",
+  "lyrics": [
+    { "label": "Verse 1", "lines": ["Let compassion move among us", "Let Your justice shape our song", "Here on earth as it is heaven", "May Your kingdom now belong"] },
+    { "label": "Chorus", "lines": ["Let Your kingdom come", "Let Your will be done", "Every heart and every home", "Make this place Your own"] }
+  ],
+  "notes": [
+    { "label": "Intro", "value": "Solo piano" },
+    { "label": "Verse", "value": "Pad solamente" },
+    { "label": "Chorus", "value": "Entra batería" },
+    { "label": "Bridge", "value": "Todos menos batería" },
+    { "label": "Ending", "value": "Libre" }
+  ]
+}

@@ -1,0 +1,186 @@
+[
+  {
+    "id": "1",
+    "title": "Open Heavens",
+    "artist": "River & Light",
+    "key": "D",
+    "bpm": 72,
+    "duration": "5:18",
+    "cover": "/songs/open-heavens/cover.svg",
+    "audio": "/songs/open-heavens/audio.wav",
+    "sheet": "/songs/open-heavens/sheet.pdf",
+    "video": "/songs/open-heavens/video-placeholder.txt",
+    "lyrics": [
+      { "label": "Verse 1", "lines": ["We lift our eyes beyond the shadows", "Hope is rising with the dawn", "Every heart becomes an altar", "As we sing of who You are"] },
+      { "label": "Chorus", "lines": ["Open heavens, fill this place", "Let every voice awaken", "All our hope is in Your name", "Our hearts are Yours forever"] }
+    ],
+    "notes": [
+      { "label": "Intro", "value": "Solo piano" },
+      { "label": "Verse", "value": "Pad solamente" },
+      { "label": "Chorus", "value": "Entra batería" },
+      { "label": "Bridge", "value": "Todos menos batería" },
+      { "label": "Ending", "value": "Libre" }
+    ]
+  },
+  {
+    "id": "2",
+    "title": "Anchor of Hope",
+    "artist": "North Valley Worship",
+    "key": "G",
+    "bpm": 68,
+    "duration": "4:42",
+    "cover": "/songs/anchor-of-hope/cover.svg",
+    "audio": "/songs/anchor-of-hope/audio.wav",
+    "sheet": "/songs/anchor-of-hope/sheet.pdf",
+    "video": "/songs/anchor-of-hope/video-placeholder.txt",
+    "lyrics": [
+      { "label": "Verse 1", "lines": ["Steady through the deepest water", "Faithful through the longest night", "You remain our sure foundation", "You are constant, You are light"] },
+      { "label": "Chorus", "lines": ["You are the anchor of our hope", "The promise we can hold", "Through every wind and every wave", "Your love will lead us home"] }
+    ],
+    "notes": [
+      { "label": "Intro", "value": "Solo piano" },
+      { "label": "Verse", "value": "Pad solamente" },
+      { "label": "Chorus", "value": "Entra batería" },
+      { "label": "Bridge", "value": "Todos menos batería" },
+      { "label": "Ending", "value": "Libre" }
+    ]
+  },
+  {
+    "id": "3",
+    "title": "Holy Forevermore",
+    "artist": "The Gathering",
+    "key": "A",
+    "bpm": 76,
+    "duration": "5:06",
+    "cover": "/songs/holy-forevermore/cover.svg",
+    "audio": "/songs/holy-forevermore/audio.wav",
+    "sheet": "/songs/holy-forevermore/sheet.pdf",
+    "video": "/songs/holy-forevermore/video-placeholder.txt",
+    "lyrics": [
+      { "label": "Verse 1", "lines": ["Every generation joins the anthem", "Every voice will sing as one", "Glory fills the earth and heaven", "Holy is the risen Son"] },
+      { "label": "Chorus", "lines": ["Holy, holy forevermore", "All creation sings", "Honor, power and praise belong", "To the everlasting King"] }
+    ],
+    "notes": [
+      { "label": "Intro", "value": "Solo piano" },
+      { "label": "Verse", "value": "Pad solamente" },
+      { "label": "Chorus", "value": "Entra batería" },
+      { "label": "Bridge", "value": "Todos menos batería" },
+      { "label": "Ending", "value": "Libre" }
+    ]
+  },
+  {
+    "id": "4",
+    "title": "Grace Like Rain",
+    "artist": "Harbor City Music",
+    "key": "E",
+    "bpm": 84,
+    "duration": "4:27",
+    "cover": "/songs/grace-like-rain/cover.svg",
+    "audio": "/songs/grace-like-rain/audio.wav",
+    "sheet": "/songs/grace-like-rain/sheet.pdf",
+    "video": "/songs/grace-like-rain/video-placeholder.txt",
+    "lyrics": [
+      { "label": "Verse 1", "lines": ["Mercy meets us in the waiting", "Grace is falling like the rain", "Every burden finds its freedom", "At the mention of Your name"] },
+      { "label": "Chorus", "lines": ["Grace like rain is falling", "Washing over every heart", "Hope is here and calling", "Leading us back to the start"] }
+    ],
+    "notes": [
+      { "label": "Intro", "value": "Solo piano" },
+      { "label": "Verse", "value": "Pad solamente" },
+      { "label": "Chorus", "value": "Entra batería" },
+      { "label": "Bridge", "value": "Todos menos batería" },
+      { "label": "Ending", "value": "Libre" }
+    ]
+  },
+  {
+    "id": "5",
+    "title": "Kingdom Come",
+    "artist": "Common Ground",
+    "key": "C",
+    "bpm": 92,
+    "duration": "3:58",
+    "cover": "/songs/kingdom-come/cover.svg",
+    "audio": "/songs/kingdom-come/audio.wav",
+    "sheet": "/songs/kingdom-come/sheet.pdf",
+    "video": "/songs/kingdom-come/video-placeholder.txt",
+    "lyrics": [
+      { "label": "Verse 1", "lines": ["Let compassion move among us", "Let Your justice shape our song", "Here on earth as it is heaven", "May Your kingdom now belong"] },
+      { "label": "Chorus", "lines": ["Let Your kingdom come", "Let Your will be done", "Every heart and every home", "Make this place Your own"] }
+    ],
+    "notes": [
+      { "label": "Intro", "value": "Solo piano" },
+      { "label": "Verse", "value": "Pad solamente" },
+      { "label": "Chorus", "value": "Entra batería" },
+      { "label": "Bridge", "value": "Todos menos batería" },
+      { "label": "Ending", "value": "Libre" }
+    ]
+  },
+  {
+    "id": "6",
+    "title": "Morning Light",
+    "artist": "Evergreen Worship",
+    "key": "B",
+    "bpm": 80,
+    "duration": "4:35",
+    "cover": "/songs/morning-light/cover.svg",
+    "audio": "/songs/morning-light/audio.wav",
+    "sheet": "/songs/morning-light/sheet.pdf",
+    "video": "/songs/morning-light/video-placeholder.txt",
+    "lyrics": [
+      { "label": "Verse 1", "lines": ["Morning light is breaking through us", "New mercies meet us where we stand", "Every breath becomes a promise", "We are held within Your hands"] },
+      { "label": "Chorus", "lines": ["You are the morning light", "The hope that never fades", "With every rising sun", "We remember all Your grace"] }
+    ],
+    "notes": [
+      { "label": "Intro", "value": "Solo piano" },
+      { "label": "Verse", "value": "Pad solamente" },
+      { "label": "Chorus", "value": "Entra batería" },
+      { "label": "Bridge", "value": "Todos menos batería" },
+      { "label": "Ending", "value": "Libre" }
+    ]
+  },
+  {
+    "id": "7",
+    "title": "Faithful Through It All",
+    "artist": "Stone & Mercy",
+    "key": "F",
+    "bpm": 74,
+    "duration": "4:51",
+    "cover": "/songs/faithful-through-it-all/cover.svg",
+    "audio": "/songs/faithful-through-it-all/audio.wav",
+    "sheet": "/songs/faithful-through-it-all/sheet.pdf",
+    "video": "/songs/faithful-through-it-all/video-placeholder.txt",
+    "lyrics": [
+      { "label": "Verse 1", "lines": ["When the road is long before us", "When the answer feels delayed", "Still Your goodness walks beside us", "Still Your promise does not change"] },
+      { "label": "Chorus", "lines": ["Faithful through it all", "You will never let us fall", "Yesterday and now the same", "We will trust Your name"] }
+    ],
+    "notes": [
+      { "label": "Intro", "value": "Solo piano" },
+      { "label": "Verse", "value": "Pad solamente" },
+      { "label": "Chorus", "value": "Entra batería" },
+      { "label": "Bridge", "value": "Todos menos batería" },
+      { "label": "Ending", "value": "Libre" }
+    ]
+  },
+  {
+    "id": "8",
+    "title": "Here in Your Presence",
+    "artist": "Sunday Collective",
+    "key": "Eb",
+    "bpm": 70,
+    "duration": "5:24",
+    "cover": "/songs/here-in-your-presence/cover.svg",
+    "audio": "/songs/here-in-your-presence/audio.wav",
+    "sheet": "/songs/here-in-your-presence/sheet.pdf",
+    "video": "/songs/here-in-your-presence/video-placeholder.txt",
+    "lyrics": [
+      { "label": "Verse 1", "lines": ["Here within the quiet moment", "Every restless thought is still", "We are listening for Your whisper", "We are waiting on Your will"] },
+      { "label": "Chorus", "lines": ["Here in Your presence", "All our fear is gone", "Here in Your presence", "Every heart belongs"] }
+    ],
+    "notes": [
+      { "label": "Intro", "value": "Solo piano" },
+      { "label": "Verse", "value": "Pad solamente" },
+      { "label": "Chorus", "value": "Entra batería" },
+      { "label": "Bridge", "value": "Todos menos batería" },
+      { "label": "Ending", "value": "Libre" }
+    ]
+  }
+]

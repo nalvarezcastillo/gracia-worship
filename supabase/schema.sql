@@ -1,0 +1,104 @@
+create extension if not exists pgcrypto;
+
+create table if not exists public.songs (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  artist text not null,
+  key text not null,
+  bpm integer not null check (bpm > 0),
+  duration text not null,
+  cover_url text not null,
+  audio_url text not null,
+  sheet_url text not null,
+  video_url text not null,
+  lyrics text not null,
+  notes text not null,
+  favorite boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+alter table public.songs
+add column if not exists favorite boolean not null default false;
+
+alter table public.songs enable row level security;
+
+drop policy if exists "Public can read songs" on public.songs;
+create policy "Public can read songs"
+on public.songs
+for select
+to public
+using (true);
+
+drop policy if exists "Public can insert songs" on public.songs;
+drop policy if exists "Authenticated can insert songs" on public.songs;
+create policy "Authenticated can insert songs"
+on public.songs
+for insert
+to authenticated
+with check (true);
+
+drop policy if exists "Public can update songs" on public.songs;
+drop policy if exists "Authenticated can update songs" on public.songs;
+create policy "Authenticated can update songs"
+on public.songs
+for update
+to authenticated
+using (true)
+with check (true);
+
+drop policy if exists "Public can update favorites" on public.songs;
+create policy "Public can update favorites"
+on public.songs
+for update
+to anon
+using (true)
+with check (true);
+
+drop policy if exists "Public can delete songs" on public.songs;
+drop policy if exists "Authenticated can delete songs" on public.songs;
+create policy "Authenticated can delete songs"
+on public.songs
+for delete
+to authenticated
+using (true);
+
+revoke insert, update, delete on public.songs from anon;
+grant select on public.songs to anon, authenticated;
+grant update (favorite) on public.songs to anon;
+grant insert, update, delete on public.songs to authenticated;
+
+insert into storage.buckets (id, name, public)
+values ('songs', 'songs', true)
+on conflict (id) do update set public = true;
+
+drop policy if exists "Public can read song files" on storage.objects;
+create policy "Public can read song files"
+on storage.objects
+for select
+to public
+using (bucket_id = 'songs');
+
+drop policy if exists "Public can upload song files" on storage.objects;
+drop policy if exists "Authenticated can upload song files" on storage.objects;
+create policy "Authenticated can upload song files"
+on storage.objects
+for insert
+to authenticated
+with check (bucket_id = 'songs');
+
+drop policy if exists "Public can update song files" on storage.objects;
+drop policy if exists "Authenticated can update song files" on storage.objects;
+create policy "Authenticated can update song files"
+on storage.objects
+for update
+to authenticated
+using (bucket_id = 'songs')
+with check (bucket_id = 'songs');
+
+drop policy if exists "Public can delete song files" on storage.objects;
+drop policy if exists "Authenticated can delete song files" on storage.objects;
+create policy "Authenticated can delete song files"
+on storage.objects
+for delete
+to authenticated
+using (bucket_id = 'songs');
