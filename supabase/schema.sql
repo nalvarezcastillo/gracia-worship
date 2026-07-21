@@ -135,3 +135,51 @@ with check (id = 1);
 revoke insert, update, delete on public.active_setlist from anon;
 grant select on public.active_setlist to anon, authenticated;
 grant update (song_ids, updated_at) on public.active_setlist to authenticated;
+
+create table if not exists public.service_items (
+  id uuid primary key default gen_random_uuid(),
+  position integer not null,
+  type text not null check (type in ('text', 'worship')),
+  title text not null,
+  details text null,
+  song_ids text[] null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.service_items
+add column if not exists details text null;
+
+alter table public.service_items enable row level security;
+
+drop policy if exists "Public can read service items" on public.service_items;
+create policy "Public can read service items"
+on public.service_items
+for select
+to public
+using (true);
+
+drop policy if exists "Authenticated can insert service items" on public.service_items;
+create policy "Authenticated can insert service items"
+on public.service_items
+for insert
+to authenticated
+with check (true);
+
+drop policy if exists "Authenticated can update service items" on public.service_items;
+create policy "Authenticated can update service items"
+on public.service_items
+for update
+to authenticated
+using (true)
+with check (true);
+
+drop policy if exists "Authenticated can delete service items" on public.service_items;
+create policy "Authenticated can delete service items"
+on public.service_items
+for delete
+to authenticated
+using (true);
+
+revoke insert, update, delete on public.service_items from anon;
+grant select on public.service_items to anon, authenticated;
+grant insert, update, delete on public.service_items to authenticated;

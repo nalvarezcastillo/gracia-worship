@@ -16,7 +16,7 @@ export default async function SongsPage({ searchParams }: { searchParams: Promis
       .schema("public")
       .from("songs")
       .select("id, title, artist, key, bpm, duration, cover_url")
-      .order("created_at", { ascending: false });
+      .order("title", { ascending: true });
 
     if (error) throw error;
 
