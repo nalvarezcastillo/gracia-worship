@@ -225,15 +225,13 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
                   <h3 className="truncate text-lg font-semibold tracking-tight text-white">{item.title}</h3>
                   {item.type === "text" && item.details ? <p className="mt-2 text-sm leading-6 text-zinc-400">{item.details}</p> : null}
                 </div>
-                {isAdmin && item.type === "worship" ? (
-                  <button type="button" onClick={() => setSongSelectorBlockId(item.id)} className="min-h-10 shrink-0 rounded-full border border-white/10 bg-white/[0.055] px-3 text-sm font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-emerald-400">Add Song</button>
-                ) : isAdmin && item.type === "text" ? (
+                {isAdmin && item.type === "text" ? (
                   <button type="button" onClick={() => setEditingText({ id: item.id, title: item.title, details: item.details ?? "" })} className="min-h-10 shrink-0 rounded-full border border-white/10 bg-white/[0.055] px-3 text-sm font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-emerald-400">Edit</button>
                 ) : null}
               </div>
 
               {item.type === "worship" && (item.song_ids ?? []).length > 0 ? (
-                <ul className="mt-6 space-y-3 border-t border-white/[0.06] pt-5 sm:ml-13">
+                <ul className="mt-6 space-y-5 sm:ml-13">
                   {(item.song_ids ?? []).map((entry) => {
                     const song = songs.find((candidate) => candidate.id === entry.songId);
                     if (!song) return null;
@@ -245,7 +243,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
                         onDragEnd={isAdmin ? (event) => { event.stopPropagation(); setDraggedSong(null); } : undefined}
                         onDragOver={isAdmin ? (event) => { event.stopPropagation(); event.preventDefault(); } : undefined}
                         onDrop={isAdmin ? (event) => { event.stopPropagation(); reorderBlockSongs(item.id, entry.songId); } : undefined}
-                        className={`flex min-h-10 items-start gap-3 border-b border-white/[0.045] pb-3 last:border-0 last:pb-0 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${draggedSong?.songId === entry.songId ? "text-emerald-300" : ""}`}
+                        className={`flex min-h-10 items-start gap-3 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${draggedSong?.songId === entry.songId ? "text-emerald-300" : ""}`}
                       >
                         {isAdmin ? <span aria-hidden="true" className="text-xs text-zinc-600">⋮⋮</span> : null}
                         <div className="min-w-0 flex-1">
@@ -258,6 +256,10 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
                     );
                   })}
                 </ul>
+              ) : null}
+
+              {isAdmin && item.type === "worship" ? (
+                <button type="button" onClick={() => setSongSelectorBlockId(item.id)} className="mt-6 min-h-10 rounded-full px-3 text-sm font-semibold text-emerald-400 transition-colors hover:bg-emerald-400/[0.08] hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-emerald-400 sm:ml-13">+ Add Song</button>
               ) : null}
             </article>
           ))}
