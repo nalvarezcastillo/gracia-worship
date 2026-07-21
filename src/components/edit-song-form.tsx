@@ -47,6 +47,8 @@ export function EditSongForm({ song }: { song: SongRecord }) {
       }
 
       const folder = `${song.id}/${crypto.randomUUID()}`;
+      const audioFile = getFile(formData, "audio");
+      validateAudioFile(audioFile);
 
       async function uploadReplacement(name: string, file: File | null, currentUrl: string) {
         if (!file) return currentUrl;
@@ -65,7 +67,7 @@ export function EditSongForm({ song }: { song: SongRecord }) {
 
       const [coverUrl, audioUrl, sheetUrl] = await Promise.all([
         uploadReplacement("cover", getFile(formData, "cover"), song.cover_url),
-        uploadReplacement("audio", getFile(formData, "audio"), song.audio_url),
+        uploadReplacement("audio", audioFile, song.audio_url),
         uploadReplacement("sheet", getFile(formData, "sheet"), song.sheet_url),
       ]);
 
@@ -149,7 +151,7 @@ export function EditSongForm({ song }: { song: SongRecord }) {
       <FormSection title="Files">
         <div className="space-y-5 sm:space-y-6">
           <FileField label="Cover Image" name="cover" accept="image/*" />
-          <FileField label="Audio (.mp3)" name="audio" accept="audio/mpeg,.mp3" />
+          <FileField label="Audio" name="audio" accept="audio/*" />
           <FileField label="Sheet Music (.pdf)" name="sheet" accept="application/pdf,.pdf" />
         </div>
       </FormSection>
@@ -221,6 +223,12 @@ function getText(formData: FormData, name: string) {
 function getFile(formData: FormData, name: string) {
   const value = formData.get(name);
   return value instanceof File && value.size > 0 ? value : null;
+}
+
+function validateAudioFile(file: File | null) {
+  if (file && !file.type.startsWith("audio/")) {
+    throw new Error("Please select a valid audio file.");
+  }
 }
 
 function getStoragePath(publicUrl: string) {

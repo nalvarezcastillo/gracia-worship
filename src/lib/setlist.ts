@@ -1,4 +1,5 @@
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getSupabaseConfig } from "@/lib/supabase";
 
 export type SetlistSong = {
   id: string;
@@ -16,15 +17,31 @@ export type ActiveSetlist = {
 };
 
 export async function getActiveSetlist(): Promise<ActiveSetlist | null> {
-  const supabase = createSupabaseBrowserClient();
-  const { data: setlist, error } = await supabase
-    .schema("public")
+  const supabase = await createSupabaseServerClient();
+  const { url } = getSupabaseConfig();
+  console.info("[Setlist] Supabase operation", {
+    SUPABASE_URL: url,
+    table: "active_setlist",
+    operation: "select",
+  });
+
+  const { data: setlist, error, status } = await supabase
     .from("active_setlist")
     .select("service_name, service_time, song_ids")
-    .eq("id", 1)
+    .limit(1)
     .maybeSingle();
 
-  if (error || !setlist) return null;
+  if (error) {
+    console.error("[Setlist] Load failed in src/lib/setlist.ts", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      status,
+    });
+    return null;
+  }
+  if (!setlist) return null;
 
   const songIds = setlist.song_ids as string[];
   if (songIds.length === 0) {
@@ -37,7 +54,6 @@ export async function getActiveSetlist(): Promise<ActiveSetlist | null> {
   }
 
   const { data: songs, error: songsError } = await supabase
-    .schema("public")
     .from("songs")
     .select("id, title, key, bpm, duration")
     .in("id", songIds);

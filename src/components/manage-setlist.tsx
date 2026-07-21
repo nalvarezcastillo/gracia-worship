@@ -4,12 +4,30 @@ import { useMemo, useState } from "react";
 import { MusicIcon } from "@/components/icons";
 import { PrimaryButton } from "@/components/ui/action-button";
 import type { SetlistSong } from "@/lib/setlist";
+import { getSupabaseConfig } from "@/lib/supabase";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type ManageSetlistProps = {
   allSongs: SetlistSong[];
   initialSongIds: string[];
 };
+
+type SupabaseErrorDetails = {
+  code?: string;
+  message?: string;
+  details?: string | null;
+  hint?: string | null;
+};
+
+function logSupabaseError(operation: string, error: SupabaseErrorDetails | null, status?: number) {
+  console.error(`[Setlist] ${operation} failed`, {
+    code: error?.code ?? null,
+    message: error?.message ?? null,
+    details: error?.details ?? null,
+    hint: error?.hint ?? null,
+    status: status ?? null,
+  });
+}
 
 export function ManageSetlist({ allSongs, initialSongIds }: ManageSetlistProps) {
   const validInitialIds = initialSongIds.filter((id) => allSongs.some((song) => song.id === id));
@@ -58,18 +76,65 @@ export function ManageSetlist({ allSongs, initialSongIds }: ManageSetlistProps) 
 
     try {
       const supabase = createSupabaseBrowserClient();
+      const { url } = getSupabaseConfig();
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !sessionData.session) throw new Error("Your session has expired. Please sign in again.");
+      if (sessionError) {
+        logSupabaseError("Session verification", sessionError);
+        throw new Error("Unable to verify your session. Please sign in again.");
+      }
+      if (!sessionData.session) throw new Error("You must be signed in to save the setlist.");
 
-      const { data, error } = await supabase
-        .schema("public")
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        logSupabaseError("User verification", userError);
+        throw new Error("Unable to verify your user. Please sign in again.");
+      }
+      if (!userData.user) throw new Error("You must be signed in to save the setlist.");
+
+      const savedAt = new Date().toISOString();
+      console.info("[Setlist] Supabase operation", {
+        SUPABASE_URL: url,
+        table: "active_setlist",
+        operation: "update",
+      });
+      const { data, error, status } = await supabase
         .from("active_setlist")
-        .update({ song_ids: songIds, updated_at: new Date().toISOString() })
+        .update({ song_ids: songIds, updated_at: savedAt })
         .eq("id", 1)
-        .select("id")
-        .maybeSingle();
+        .select("id, song_ids")
+        .single();
 
-      if (error || !data) throw new Error("Unable to save the setlist.");
+      if (error) {
+        logSupabaseError("Save", error, status);
+        throw new Error(error.message || "Unable to save the setlist.");
+      }
+      if (!data) throw new Error("Supabase did not return the saved setlist.");
+
+      console.info("[Setlist] Supabase operation", {
+        SUPABASE_URL: url,
+        table: "active_setlist",
+        operation: "select",
+      });
+      const { data: persisted, error: reloadError, status: reloadStatus } = await supabase
+        .from("active_setlist")
+        .select("song_ids")
+        .eq("id", data.id)
+        .single();
+
+      if (reloadError) {
+        logSupabaseError("Reload after save", reloadError, reloadStatus);
+        throw new Error(reloadError.message || "Unable to confirm the saved setlist.");
+      }
+
+      const persistedSongIds = (persisted?.song_ids ?? []) as string[];
+      if (persistedSongIds.length !== songIds.length || persistedSongIds.some((id, index) => id !== songIds[index])) {
+        console.error("[Setlist] Persistence verification failed", {
+          expectedSongIds: songIds,
+          persistedSongIds,
+        });
+        throw new Error("The setlist order could not be confirmed after saving.");
+      }
+
       setMessage("Setlist saved successfully");
     } catch (error) {
       setIsError(true);

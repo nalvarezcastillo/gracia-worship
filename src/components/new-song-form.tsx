@@ -45,6 +45,8 @@ export function NewSongForm() {
       }
 
       const folder = crypto.randomUUID();
+      const audioFile = getFile(formData, "audio");
+      validateAudioFile(audioFile);
 
       async function uploadFile(name: string, file: File | null) {
         if (!file) return "";
@@ -64,7 +66,7 @@ export function NewSongForm() {
 
       const [coverUrl, audioUrl, sheetUrl] = await Promise.all([
         uploadFile("cover", getFile(formData, "cover")),
-        uploadFile("audio", getFile(formData, "audio")),
+        uploadFile("audio", audioFile),
         uploadFile("sheet", getFile(formData, "sheet")),
       ]);
 
@@ -113,7 +115,7 @@ export function NewSongForm() {
       <FormSection title="Files">
         <div className="space-y-5 sm:space-y-6">
           <FileField label="Cover Image" name="cover" accept="image/*" />
-          <FileField label="Audio (.mp3)" name="audio" accept="audio/mpeg,.mp3" />
+          <FileField label="Audio" name="audio" accept="audio/*" />
           <FileField label="Sheet Music (.pdf)" name="sheet" accept="application/pdf,.pdf" />
         </div>
       </FormSection>
@@ -161,4 +163,10 @@ function getText(formData: FormData, name: string) {
 function getFile(formData: FormData, name: string) {
   const value = formData.get(name);
   return value instanceof File && value.size > 0 ? value : null;
+}
+
+function validateAudioFile(file: File | null) {
+  if (file && !file.type.startsWith("audio/")) {
+    throw new Error("Please select a valid audio file.");
+  }
 }
