@@ -1,4 +1,4 @@
-import { createSupabaseClient } from "@/lib/supabase";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export type SetlistSong = {
   id: string;
@@ -16,7 +16,7 @@ export type ActiveSetlist = {
 };
 
 export async function getActiveSetlist(): Promise<ActiveSetlist | null> {
-  const supabase = createSupabaseClient();
+  const supabase = createSupabaseBrowserClient();
   const { data: setlist, error } = await supabase
     .schema("public")
     .from("active_setlist")
