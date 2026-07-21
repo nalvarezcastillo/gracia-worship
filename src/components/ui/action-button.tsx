@@ -11,11 +11,11 @@ type ActionButtonProps = {
 };
 
 const baseStyles =
-  "inline-flex min-h-12 items-center justify-center rounded-full px-6 text-base font-semibold transition duration-200 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-400";
+  "inline-flex min-h-12 items-center justify-center rounded-full px-6 text-base font-semibold transition-all duration-200 ease-out hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-emerald-400";
 
 const variants = {
-  primary: "bg-emerald-400 text-zinc-950 shadow-lg shadow-emerald-950/25 hover:bg-emerald-300",
-  secondary: "border border-white/12 bg-white/6 text-white hover:border-white/20 hover:bg-white/10",
+  primary: "bg-emerald-400 text-zinc-950 shadow-lg shadow-emerald-950/30 hover:bg-emerald-300 hover:shadow-xl hover:shadow-emerald-950/35",
+  secondary: "border border-white/10 bg-white/[0.055] text-white shadow-sm shadow-black/20 hover:border-white/20 hover:bg-white/10 hover:shadow-md hover:shadow-black/25",
 };
 
 function ActionButton({ children, className = "", href, type = "button", onClick, disabled = false, variant }: ActionButtonProps & { variant: keyof typeof variants }) {

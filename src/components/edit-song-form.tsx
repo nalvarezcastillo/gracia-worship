@@ -7,7 +7,7 @@ import { PrimaryButton } from "@/components/ui/action-button";
 import type { SongRecord } from "@/lib/database.types";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-const fieldStyles = "min-h-12 w-full rounded-2xl border border-white/8 bg-white/6 px-4 text-base text-white outline-none transition duration-200 placeholder:text-zinc-600 focus:border-emerald-400/60 focus:bg-white/9 focus:ring-4 focus:ring-emerald-400/5";
+const fieldStyles = "min-h-12 w-full rounded-2xl border border-white/8 bg-zinc-950/45 px-4 text-base text-white shadow-inner shadow-black/10 outline-none transition-all duration-200 placeholder:text-zinc-600 hover:border-white/12 focus:border-emerald-400/50 focus:bg-zinc-950/60 focus:ring-4 focus:ring-emerald-400/[0.07]";
 
 export function EditSongForm({ song }: { song: SongRecord }) {
   const router = useRouter();
@@ -62,11 +62,10 @@ export function EditSongForm({ song }: { song: SongRecord }) {
         return supabase.storage.from("songs").getPublicUrl(path).data.publicUrl;
       }
 
-      const [coverUrl, audioUrl, sheetUrl, videoUrl] = await Promise.all([
+      const [coverUrl, audioUrl, sheetUrl] = await Promise.all([
         uploadReplacement("cover", getFile(formData, "cover"), song.cover_url),
         uploadReplacement("audio", getFile(formData, "audio"), song.audio_url),
         uploadReplacement("sheet", getFile(formData, "sheet"), song.sheet_url),
-        uploadReplacement("video", getFile(formData, "video"), song.video_url),
       ]);
 
       const { error } = await supabase.schema("public").from("songs").update({
@@ -78,7 +77,6 @@ export function EditSongForm({ song }: { song: SongRecord }) {
         cover_url: coverUrl,
         audio_url: audioUrl,
         sheet_url: sheetUrl,
-        video_url: videoUrl,
         lyrics,
         notes,
       }).eq("id", song.id);
@@ -108,7 +106,7 @@ export function EditSongForm({ song }: { song: SongRecord }) {
 
     try {
       const supabase = createSupabaseBrowserClient();
-      const paths = [song.cover_url, song.audio_url, song.sheet_url, song.video_url]
+      const paths = [song.cover_url, song.audio_url, song.sheet_url]
         .map(getStoragePath)
         .filter((path): path is string => Boolean(path));
 
@@ -137,9 +135,9 @@ export function EditSongForm({ song }: { song: SongRecord }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-10 space-y-10">
+    <form onSubmit={handleSubmit} className="mt-8 space-y-7 sm:mt-10 sm:space-y-8">
       <FormSection title="Song Details">
-        <div className="grid gap-6 sm:grid-cols-2">
+        <div className="grid gap-5 sm:grid-cols-2 sm:gap-6">
           <TextField label="Title" name="title" defaultValue={song.title} className="sm:col-span-2" />
           <TextField label="Artist" name="artist" defaultValue={song.artist} className="sm:col-span-2" />
           <TextField label="Key" name="key" defaultValue={song.key} />
@@ -149,16 +147,15 @@ export function EditSongForm({ song }: { song: SongRecord }) {
       </FormSection>
 
       <FormSection title="Files">
-        <div className="space-y-6">
+        <div className="space-y-5 sm:space-y-6">
           <FileField label="Cover Image" name="cover" accept="image/*" />
           <FileField label="Audio (.mp3)" name="audio" accept="audio/mpeg,.mp3" />
           <FileField label="Sheet Music (.pdf)" name="sheet" accept="application/pdf,.pdf" />
-          <FileField label="Video (.mp4)" name="video" accept="video/mp4,.mp4" />
         </div>
       </FormSection>
 
       <FormSection title="Content">
-        <div className="space-y-6">
+        <div className="space-y-5 sm:space-y-6">
           <TextAreaField label="Lyrics" name="lyrics" rows={9} defaultValue={song.lyrics} />
           <TextAreaField label="Notes" name="notes" rows={6} defaultValue={song.notes} />
         </div>
@@ -170,7 +167,7 @@ export function EditSongForm({ song }: { song: SongRecord }) {
           type="button"
           onClick={handleDelete}
           disabled={isSaving || isDeleting}
-          className="mt-4 inline-flex min-h-14 w-full items-center justify-center rounded-full border border-rose-400/30 bg-rose-400/8 px-6 text-base font-semibold text-rose-300 transition duration-200 active:scale-[0.98] hover:bg-rose-400/12 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-4 inline-flex min-h-14 w-full items-center justify-center rounded-full border border-rose-400/25 bg-rose-400/[0.07] px-6 text-base font-semibold text-rose-300 shadow-sm shadow-black/20 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-rose-400/40 hover:bg-rose-400/12 active:translate-y-0 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isDeleting ? "Deleting..." : "Delete Song"}
         </button>
@@ -181,7 +178,7 @@ export function EditSongForm({ song }: { song: SongRecord }) {
 }
 
 function FormSection({ title, children }: { title: string; children: ReactNode }) {
-  return <section className="rounded-3xl border border-white/8 bg-zinc-900/65 p-5 sm:p-7"><h2 className="mb-6 text-sm font-bold uppercase tracking-[0.2em] text-white">{title}</h2>{children}</section>;
+  return <section className="rounded-3xl border border-white/[0.07] bg-zinc-900/60 p-5 shadow-xl shadow-black/10 sm:p-7"><h2 className="mb-5 text-xs font-bold uppercase tracking-[0.2em] text-zinc-200 sm:mb-6 sm:text-sm">{title}</h2>{children}</section>;
 }
 
 function FieldLabel({ label, children, className = "" }: { label: string; children: ReactNode; className?: string }) {

@@ -27,7 +27,7 @@ export default async function EditSongPage({ params }: { params: Promise<{ id: s
   if (!song) notFound();
 
   return (
-    <main className="min-h-screen py-10 sm:py-14">
+    <main className="min-h-screen py-8 sm:py-12">
       <MainContainer className="max-w-3xl">
         <PageHeader title="Edit Song" description="Update the song details or replace its files." />
         <EditSongForm song={song} />

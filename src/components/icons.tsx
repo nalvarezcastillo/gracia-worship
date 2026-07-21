@@ -24,10 +24,11 @@ export function MusicIcon({ className = "size-6" }: IconProps) {
   );
 }
 
-export function UserIcon({ className = "size-6" }: IconProps) {
+export function AdminIcon({ className = "size-6" }: IconProps) {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" className={className}>
-      <path d="M20 21a8 8 0 0 0-16 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M12 3 4.5 6v5.5c0 4.6 3.1 7.9 7.5 9.5 4.4-1.6 7.5-4.9 7.5-9.5V6L12 3Z" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9.5 12 11 13.5l3.5-3.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

@@ -33,7 +33,7 @@ export default async function SongsPage() {
     return <LibraryView songs={songs} isAdmin={await hasAuthenticatedUser()} />;
   } catch {
     return (
-      <main className="min-h-screen py-10 sm:py-14">
+      <main className="min-h-screen py-8 sm:py-12">
         <MainContainer>
           <h1 className="text-4xl font-bold tracking-tight text-white">Songs</h1>
           <p className="mt-6 text-zinc-400">We couldn&apos;t load songs. Please try again later.</p>

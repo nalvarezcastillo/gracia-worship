@@ -46,7 +46,7 @@ export function AudioPlayer({ src, title }: { src: string; title: string }) {
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className="flex items-center gap-4 sm:gap-5">
+    <div className="flex items-center gap-3 sm:gap-5">
       <audio
         key={src}
         ref={audioRef}
@@ -79,7 +79,7 @@ export function AudioPlayer({ src, title }: { src: string; title: string }) {
         type="button"
         onClick={togglePlayback}
         aria-label={`${isPlaying ? "Pause" : "Play"} ${title}`}
-        className="grid size-14 shrink-0 place-items-center rounded-full bg-emerald-400 text-zinc-950 shadow-lg shadow-emerald-950/30 transition duration-200 active:scale-95 hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-400"
+        className="grid size-12 shrink-0 place-items-center rounded-full bg-emerald-400 text-zinc-950 shadow-lg shadow-emerald-950/35 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-emerald-300 hover:shadow-xl hover:shadow-emerald-950/40 active:translate-y-0 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-emerald-400 sm:size-14"
       >
         {isPlaying ? <PauseIcon /> : <PlayIcon />}
       </button>
@@ -97,7 +97,7 @@ export function AudioPlayer({ src, title }: { src: string; title: string }) {
           className="audio-progress w-full"
           style={{ "--audio-progress": `${progress}%` } as React.CSSProperties}
         />
-        <div className="mt-2 flex justify-between font-mono text-xs text-zinc-500">
+        <div className="mt-1.5 flex justify-between font-mono text-[0.7rem] text-zinc-500 sm:mt-2 sm:text-xs">
           <span>{formatTime(currentTime)}</span>
           <span>{formatTime(duration)}</span>
         </div>
