@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
+import { useState } from "react";
+
+const FullscreenPdfReader = dynamic(
+  () => import("@/components/fullscreen-pdf-reader").then((module) => module.FullscreenPdfReader),
+  { ssr: false },
+);
 
 type SongContentTabsProps = {
   lyrics: string;
@@ -12,23 +18,6 @@ export function SongContentTabs({ lyrics, sheetUrl, title }: SongContentTabsProp
   const [activeTab, setActiveTab] = useState<"lyrics" | "pdf">("lyrics");
   const [isPdfOpen, setIsPdfOpen] = useState(false);
   const pdfFileName = getPdfFileName(sheetUrl);
-
-  useEffect(() => {
-    if (!isPdfOpen) return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setIsPdfOpen(false);
-    }
-
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [isPdfOpen]);
 
   return (
     <section className="mt-6">
@@ -73,28 +62,12 @@ export function SongContentTabs({ lyrics, sheetUrl, title }: SongContentTabsProp
       </div>
 
       {isPdfOpen && sheetUrl ? (
-        <div className="fixed inset-0 z-[100] flex flex-col bg-zinc-950" role="dialog" aria-modal="true" aria-labelledby="pdf-modal-title">
-          <header className="flex min-h-16 shrink-0 items-center gap-4 border-b border-white/10 bg-zinc-950/95 px-4 shadow-xl shadow-black/25 sm:px-6">
-            <PdfIcon className="size-6 shrink-0 text-rose-300" />
-            <div className="min-w-0 flex-1">
-              <h2 id="pdf-modal-title" className="truncate font-semibold text-white">{pdfFileName}</h2>
-              <p className="text-xs text-zinc-500">Sheet music for {title}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsPdfOpen(false)}
-              autoFocus
-              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] px-5 text-sm font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
-            >
-              Close
-            </button>
-          </header>
-          <iframe
-            src={`${sheetUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
-            title={`Sheet music for ${title}`}
-            className="min-h-0 flex-1 border-0 bg-white"
-          />
-        </div>
+        <FullscreenPdfReader
+          fileName={pdfFileName}
+          onClose={() => setIsPdfOpen(false)}
+          title={title}
+          url={sheetUrl}
+        />
       ) : null}
     </section>
   );
