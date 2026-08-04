@@ -106,6 +106,7 @@ using (bucket_id = 'songs');
 create table if not exists public.active_setlist (
   id smallint primary key default 1 check (id = 1),
   service_name text not null default 'Saturday Service',
+  service_date date null,
   service_time text not null default 'Saturday • 7:00 PM',
   song_ids uuid[] not null default '{}',
   updated_at timestamptz not null default now()
@@ -134,7 +135,7 @@ with check (id = 1);
 
 revoke insert, update, delete on public.active_setlist from anon;
 grant select on public.active_setlist to anon, authenticated;
-grant update (song_ids, updated_at) on public.active_setlist to authenticated;
+grant update (service_name, service_date, service_time, song_ids, updated_at) on public.active_setlist to authenticated;
 
 create table if not exists public.service_items (
   id uuid primary key default gen_random_uuid(),

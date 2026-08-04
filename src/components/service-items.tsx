@@ -280,14 +280,14 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
   }
 
   return (
-    <div className="mt-10 space-y-8 sm:mt-12">
+    <div className="mt-7 space-y-6 sm:mt-9 sm:space-y-7">
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-xl font-semibold tracking-tight text-white">Service order</h2>
-        {isAdmin ? <PrimaryButton type="button" onClick={() => setAddStep("type")} disabled={isSaving}>+ Add Item</PrimaryButton> : null}
+        <h2 className="text-lg font-semibold tracking-tight text-white">Orden del servicio</h2>
+        {isAdmin ? <PrimaryButton type="button" onClick={() => setAddStep("type")} disabled={isSaving}>+ Agregar elemento</PrimaryButton> : null}
       </div>
 
       {items.length ? (
-        <div className="divide-y divide-white/[0.08] border-y border-white/[0.08]">
+        <div className="divide-y divide-white/[0.07] overflow-hidden rounded-2xl border border-white/[0.07] bg-zinc-900/35 px-4 sm:px-5">
           {items.map((item) => (
             <article
               key={item.id}
@@ -296,24 +296,24 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
               onDragEnd={isAdmin ? () => setDraggedId(null) : undefined}
               onDragOver={isAdmin ? (event) => event.preventDefault() : undefined}
               onDrop={isAdmin ? () => reorderItems(item.id) : undefined}
-              className={`${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} py-6 transition-colors sm:py-8 ${draggedId === item.id ? "bg-emerald-400/[0.06]" : "hover:bg-white/[0.018]"}`}
+              className={`group py-4 transition-colors sm:py-5 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${draggedId === item.id ? "bg-emerald-400/[0.055]" : "hover:bg-white/[0.018]"}`}
             >
-              <div className="flex items-start gap-3 px-1 sm:px-2">
-                {isAdmin ? <GripIcon className="mt-1 size-4 shrink-0 text-zinc-700" /> : null}
+              <div className="flex items-start gap-2.5">
+                {isAdmin ? <GripIcon label={`Drag ${item.title} to reorder`} className="mt-1 size-3.5 shrink-0 text-zinc-700" /> : null}
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-base font-semibold leading-6 text-zinc-100 sm:text-lg">{item.title}</h3>
-                  {item.type === "text" && item.details ? <p className="mt-1.5 whitespace-pre-wrap text-sm font-normal leading-6 text-zinc-400">{item.details}</p> : null}
+                  <h3 className="text-[0.95rem] font-semibold leading-6 text-zinc-100 sm:text-base">{item.title}</h3>
+                  {item.type === "text" && item.details ? <p className="mt-0.5 whitespace-pre-wrap text-sm font-normal leading-5 text-zinc-500">{item.details}</p> : null}
                 </div>
                 {isAdmin ? (
                   <div className="flex shrink-0 items-center">
-                    {item.type === "text" ? <button type="button" onClick={() => setEditingText({ id: item.id, title: item.title, details: item.details ?? "" })} disabled={isSaving} className="min-h-11 rounded-full px-3 text-sm font-medium text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-emerald-400">Edit</button> : null}
-                    <button type="button" onClick={() => setDeletingItem(item)} disabled={isSaving} className="min-h-11 rounded-full px-3 text-sm font-medium text-rose-400/80 transition-colors hover:bg-rose-400/[0.07] hover:text-rose-300 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-rose-400">Delete</button>
+                    {item.type === "text" ? <button type="button" aria-label={`Editar ${item.title}`} onClick={() => setEditingText({ id: item.id, title: item.title, details: item.details ?? "" })} disabled={isSaving} className="min-h-11 rounded-full px-2.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-emerald-400 sm:opacity-60 sm:group-hover:opacity-100 sm:focus-visible:opacity-100">Editar</button> : null}
+                    <button type="button" aria-label={`Eliminar ${item.title}`} onClick={() => setDeletingItem(item)} disabled={isSaving} className="min-h-11 rounded-full px-2.5 text-xs font-medium text-rose-400/60 transition-colors hover:bg-rose-400/[0.07] hover:text-rose-300 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-rose-400 sm:opacity-60 sm:group-hover:opacity-100 sm:focus-visible:opacity-100">Eliminar</button>
                   </div>
                 ) : null}
               </div>
 
               {item.type === "worship" && (item.song_ids ?? []).length > 0 ? (
-                <ul className={`${isAdmin ? "ml-7" : ""} mt-4 divide-y divide-white/[0.055] sm:mt-5`}>
+                <ul className={`${isAdmin ? "ml-6" : ""} mt-2.5 space-y-0.5`}>
                   {(item.song_ids ?? []).map((entry) => {
                     const song = songs.find((candidate) => candidate.id === entry.songId);
                     if (!song) return null;
@@ -325,14 +325,14 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
                         onDragEnd={isAdmin ? (event) => { event.stopPropagation(); setDraggedSong(null); } : undefined}
                         onDragOver={isAdmin ? (event) => { event.stopPropagation(); event.preventDefault(); } : undefined}
                         onDrop={isAdmin ? (event) => { event.stopPropagation(); reorderBlockSongs(item.id, entry.songId); } : undefined}
-                        className={`grid min-h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 py-2 sm:gap-x-3 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${draggedSong?.songId === entry.songId ? "text-emerald-300" : ""}`}
+                        className={`grid min-h-11 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 py-0.5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-x-3 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${draggedSong?.songId === entry.songId ? "text-emerald-300" : ""}`}
                       >
-                        {isAdmin ? <GripIcon className="size-3.5 text-zinc-700" /> : null}
-                        <Link href={`/song/${song.id}`} onClick={(event) => event.stopPropagation()} className="truncate text-sm font-normal text-zinc-300 transition-colors hover:text-emerald-300 sm:text-base">{song.title}</Link>
-                        <div className="flex min-w-0 items-center justify-end gap-1">
-                          {entry.notes ? <span className="max-w-24 truncate text-right text-sm font-normal text-zinc-500 sm:max-w-40">{entry.notes}</span> : null}
-                          {isAdmin ? <button type="button" onClick={(event) => { event.stopPropagation(); setEditingSong({ blockId: item.id, songId: entry.songId, notes: entry.notes }); }} className="min-h-11 shrink-0 rounded-full px-2 text-xs font-medium text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400">Edit</button> : null}
-                          {isAdmin ? <button type="button" aria-label={`Remove ${song.title}`} onClick={(event) => { event.stopPropagation(); removeSongFromBlock(item.id, entry.songId); }} className="grid size-11 shrink-0 place-items-center rounded-full text-lg text-zinc-600 transition-colors hover:bg-rose-400/10 hover:text-rose-300 focus-visible:outline-2 focus-visible:outline-rose-400">×</button> : null}
+                        {isAdmin ? <GripIcon label={`Drag ${song.title} to reorder`} className="size-3 text-zinc-700" /> : <span aria-hidden="true" className="size-3" />}
+                        <Link href={`/song/${song.id}`} onClick={(event) => event.stopPropagation()} className="truncate text-sm font-normal text-zinc-300 transition-colors hover:text-emerald-300">{song.title}</Link>
+                        <div className="col-start-2 flex min-w-0 items-center justify-between gap-1 sm:col-start-3 sm:row-start-1 sm:justify-end">
+                          {entry.notes ? <span className="min-w-0 truncate text-left text-xs font-normal text-zinc-500 sm:max-w-40 sm:text-right sm:text-sm">{entry.notes}</span> : <span />}
+                          {isAdmin ? <button type="button" aria-label={`Editar notas de ${song.title}`} onClick={(event) => { event.stopPropagation(); setEditingSong({ blockId: item.id, songId: entry.songId, notes: entry.notes }); }} className="min-h-11 shrink-0 rounded-full px-2 text-xs font-medium text-zinc-600 transition-colors hover:bg-white/[0.04] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400">Editar</button> : null}
+                          {isAdmin ? <button type="button" aria-label={`Quitar canción ${song.title}`} onClick={(event) => { event.stopPropagation(); removeSongFromBlock(item.id, entry.songId); }} className="grid size-11 shrink-0 place-items-center rounded-full text-lg text-zinc-600 transition-colors hover:bg-rose-400/10 hover:text-rose-300 focus-visible:outline-2 focus-visible:outline-rose-400">×</button> : null}
                         </div>
                       </li>
                     );
@@ -341,7 +341,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
               ) : null}
 
               {isAdmin && item.type === "worship" ? (
-                <button type="button" onClick={() => setSongSelectorBlockId(item.id)} className="ml-7 mt-3 min-h-11 rounded-full px-3 text-sm font-medium text-emerald-400 transition-colors hover:bg-emerald-400/[0.06] hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-emerald-400">+ Add Song</button>
+                <button type="button" aria-label={`Agregar canción a ${item.title}`} onClick={() => setSongSelectorBlockId(item.id)} className="ml-6 mt-1 min-h-11 rounded-full px-2 text-xs font-medium text-emerald-400/80 transition-colors hover:bg-emerald-400/[0.06] hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-emerald-400">+ Agregar canción</button>
               ) : null}
             </article>
           ))}
@@ -350,17 +350,17 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
         <div className="rounded-2xl border border-dashed border-white/10 py-12 text-center text-sm text-zinc-500">No service items yet.</div>
       )}
 
-      {isAdmin && hasUnsavedChanges ? <PrimaryButton type="button" onClick={saveOrder} disabled={isSaving} className="min-h-14 w-full">{isSaving ? "Saving..." : "Save"}</PrimaryButton> : null}
+      {isAdmin && hasUnsavedChanges ? <PrimaryButton type="button" onClick={saveOrder} disabled={isSaving} className="min-h-14 w-full">{isSaving ? "Guardando..." : "Guardar"}</PrimaryButton> : null}
       <p role="status" aria-live="polite" className={`min-h-6 text-center text-sm font-medium ${isError ? "text-rose-400" : "text-emerald-400"}`}>{message}</p>
 
       {isAdmin && deletingItem ? (
         <div className="fixed inset-0 z-[70] grid place-items-center bg-black/70 px-4 backdrop-blur-sm" role="presentation">
           <section role="alertdialog" aria-modal="true" aria-labelledby="delete-service-item-title" aria-describedby="delete-service-item-description" className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-900 p-6 shadow-2xl shadow-black/60 sm:p-7">
-            <h2 id="delete-service-item-title" className="text-2xl font-bold tracking-tight text-white">Delete this Service Item?</h2>
-            <p id="delete-service-item-description" className="mt-3 text-sm leading-6 text-zinc-400">This action cannot be undone.</p>
+            <h2 id="delete-service-item-title" className="text-2xl font-bold tracking-tight text-white">¿Eliminar este elemento?</h2>
+            <p id="delete-service-item-description" className="mt-3 text-sm leading-6 text-zinc-400">Esta acción no se puede deshacer.</p>
             <div className="mt-7 flex justify-end gap-3">
-              <button type="button" onClick={() => setDeletingItem(null)} disabled={isSaving} className="min-h-12 rounded-full border border-white/10 px-5 font-semibold text-white transition-colors hover:bg-white/[0.06] disabled:opacity-40">Cancel</button>
-              <button type="button" onClick={() => void deleteItem()} disabled={isSaving} className="min-h-12 rounded-full bg-rose-500 px-5 font-semibold text-white transition-colors hover:bg-rose-400 disabled:opacity-40">Delete</button>
+              <button type="button" onClick={() => setDeletingItem(null)} disabled={isSaving} className="min-h-12 rounded-full border border-white/10 px-5 font-semibold text-white transition-colors hover:bg-white/[0.06] disabled:opacity-40">Cancelar</button>
+              <button type="button" onClick={() => void deleteItem()} disabled={isSaving} className="min-h-12 rounded-full bg-rose-500 px-5 font-semibold text-white transition-colors hover:bg-rose-400 disabled:opacity-40">Eliminar</button>
             </div>
           </section>
         </div>
@@ -369,11 +369,11 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
       {isAdmin && addStep !== "closed" ? (
         <div className="fixed inset-0 z-[70] grid place-items-center bg-black/70 px-4 backdrop-blur-sm" role="presentation">
           <section role="dialog" aria-modal="true" aria-labelledby="add-service-item-title" className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-900 p-6 shadow-2xl shadow-black/60 sm:p-7">
-            <h2 id="add-service-item-title" className="text-2xl font-bold tracking-tight text-white">Add Item</h2>
+            <h2 id="add-service-item-title" className="text-2xl font-bold tracking-tight text-white">Agregar elemento</h2>
             {addStep === "type" ? (
               <div className="mt-6 grid gap-3">
-                <PrimaryButton type="button" onClick={() => setAddStep("text")} disabled={isSaving}>Agenda Item</PrimaryButton>
-                <SecondaryButton type="button" onClick={() => void addItem("worship", "Worship Block")} disabled={isSaving}>Worship Songs</SecondaryButton>
+                <PrimaryButton type="button" onClick={() => setAddStep("text")} disabled={isSaving}>Texto</PrimaryButton>
+                <SecondaryButton type="button" onClick={() => void addItem("worship", "Bloque de alabanza")} disabled={isSaving}>Bloque de alabanza</SecondaryButton>
               </div>
             ) : (
               <form className="mt-6 space-y-4" onSubmit={(event) => { event.preventDefault(); void addItem("text", textTitle, textDetails); }}>
@@ -396,7 +396,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
       {isAdmin && editingText ? (
         <div className="fixed inset-0 z-[70] grid place-items-center bg-black/70 px-4 backdrop-blur-sm" role="presentation">
           <section role="dialog" aria-modal="true" aria-labelledby="edit-text-item-title" className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-900 p-6 shadow-2xl shadow-black/60 sm:p-7">
-            <h2 id="edit-text-item-title" className="text-2xl font-bold tracking-tight text-white">Edit Agenda Item</h2>
+            <h2 id="edit-text-item-title" className="text-2xl font-bold tracking-tight text-white">Editar texto</h2>
             <form className="mt-6 space-y-4" onSubmit={(event) => { event.preventDefault(); void updateTextItem(); }}>
               <label className="block">
                 <span className="mb-2 block text-sm font-semibold text-zinc-300">Title</span>
@@ -416,7 +416,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
       {isAdmin && songSelectorBlockId ? (
         <div className="fixed inset-0 z-[70] grid place-items-center bg-black/70 px-4 backdrop-blur-sm" role="presentation">
           <section role="dialog" aria-modal="true" aria-labelledby="add-song-title" className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-900 p-6 shadow-2xl shadow-black/60 sm:p-7">
-            <h2 id="add-song-title" className="text-2xl font-bold tracking-tight text-white">Add Song</h2>
+            <h2 id="add-song-title" className="text-2xl font-bold tracking-tight text-white">Agregar canción</h2>
             <label className="mt-6 block">
               <span className="mb-2 block text-sm font-semibold text-zinc-300">Song library</span>
               <select autoFocus value={selectedSongId} onChange={(event) => setSelectedSongId(event.target.value)} className="min-h-12 w-full rounded-2xl border border-white/10 bg-zinc-950/60 px-4 text-white outline-none focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]">
@@ -430,7 +430,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
               <span className="mb-2 block text-sm font-semibold text-zinc-300">Notes <span className="font-normal text-zinc-500">(optional)</span></span>
               <input value={songNotes} onChange={(event) => setSongNotes(event.target.value)} className="min-h-12 w-full rounded-2xl border border-white/10 bg-zinc-950/60 px-4 text-white outline-none focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]" />
             </label>
-            <PrimaryButton type="button" onClick={addSongToBlock} disabled={!selectedSongId} className="mt-5 w-full">Save</PrimaryButton>
+            <PrimaryButton type="button" onClick={addSongToBlock} disabled={!selectedSongId} className="mt-5 w-full">Guardar</PrimaryButton>
             <button type="button" onClick={() => { setSongSelectorBlockId(null); setSelectedSongId(""); setSongNotes(""); }} className="mt-4 min-h-11 w-full rounded-full text-sm font-semibold text-zinc-400 transition-colors hover:bg-white/[0.04] hover:text-white">Cancel</button>
           </section>
         </div>
@@ -439,13 +439,13 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
       {isAdmin && editingSong ? (
         <div className="fixed inset-0 z-[70] grid place-items-center bg-black/70 px-4 backdrop-blur-sm" role="presentation">
           <section role="dialog" aria-modal="true" aria-labelledby="edit-song-notes-title" className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-900 p-6 shadow-2xl shadow-black/60 sm:p-7">
-            <h2 id="edit-song-notes-title" className="text-2xl font-bold tracking-tight text-white">Edit Song Notes</h2>
+            <h2 id="edit-song-notes-title" className="text-2xl font-bold tracking-tight text-white">Editar notas de la canción</h2>
             <form className="mt-6" onSubmit={(event) => { event.preventDefault(); saveSongNotes(); }}>
               <label className="block">
                 <span className="mb-2 block text-sm font-semibold text-zinc-300">Notes <span className="font-normal text-zinc-500">(optional)</span></span>
                 <input autoFocus value={editingSong.notes} onChange={(event) => setEditingSong({ ...editingSong, notes: event.target.value })} className="min-h-12 w-full rounded-2xl border border-white/10 bg-zinc-950/60 px-4 text-white outline-none focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]" />
               </label>
-              <PrimaryButton type="submit" className="mt-5 w-full">Save</PrimaryButton>
+              <PrimaryButton type="submit" className="mt-5 w-full">Guardar</PrimaryButton>
             </form>
             <button type="button" onClick={() => setEditingSong(null)} className="mt-4 min-h-11 w-full rounded-full text-sm font-semibold text-zinc-400 transition-colors hover:bg-white/[0.04] hover:text-white">Cancel</button>
           </section>
@@ -465,9 +465,9 @@ function serializeService(items: ServiceItem[]) {
   })));
 }
 
-function GripIcon({ className }: { className: string }) {
+function GripIcon({ className, label }: { className: string; label: string }) {
   return (
-    <svg aria-hidden="true" viewBox="0 0 12 18" className={className} fill="currentColor">
+    <svg role="img" aria-label={label} viewBox="0 0 12 18" className={className} fill="currentColor">
       <circle cx="3" cy="3" r="1.2" /><circle cx="9" cy="3" r="1.2" />
       <circle cx="3" cy="9" r="1.2" /><circle cx="9" cy="9" r="1.2" />
       <circle cx="3" cy="15" r="1.2" /><circle cx="9" cy="15" r="1.2" />

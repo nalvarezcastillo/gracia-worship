@@ -48,7 +48,7 @@ export default async function SongPage({ params }: SongPageProps) {
             <KeyTag value={song.key} />
             <BpmTag value={song.bpm} />
           </div>
-          {isAdmin ? <SecondaryButton href={`/admin/song/${song.id}`} className="mt-5">Edit Song</SecondaryButton> : null}
+          {isAdmin ? <SecondaryButton href={`/admin/song/${song.id}`} className="mt-5">Editar canción</SecondaryButton> : null}
         </header>
 
         <AudioPlayerProvider src={song.audio_url} title={song.title}>

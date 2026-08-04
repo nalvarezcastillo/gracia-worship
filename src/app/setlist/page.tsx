@@ -15,7 +15,7 @@ export default async function SetlistPage() {
     <main className="min-h-screen py-8 sm:py-12">
       <MainContainer className="max-w-4xl">
         <PageHeader
-          eyebrow="Next Service"
+          eyebrow="Próximo servicio"
           title={setlist?.serviceName ?? "Setlist"}
           description={setlist?.serviceTime ?? "Next service is not configured."}
         />

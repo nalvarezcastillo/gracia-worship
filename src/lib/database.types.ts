@@ -21,3 +21,12 @@ export type SongSummary = Pick<
 > & {
   cover: string;
 };
+
+export type ActiveSetlistRow = {
+  id: number;
+  service_name: string;
+  service_date: string | null;
+  service_time: string;
+  song_ids: string[];
+  updated_at: string;
+};

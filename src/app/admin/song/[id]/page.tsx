@@ -7,7 +7,7 @@ import type { SongRecord } from "@/lib/database.types";
 import { hasAuthenticatedUser } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export const metadata: Metadata = { title: "Edit Song | Gracia Worship" };
+export const metadata: Metadata = { title: "Editar canción | Gracia Worship" };
 export const dynamic = "force-dynamic";
 
 export default async function EditSongPage({ params }: { params: Promise<{ id: string }> }) {
@@ -29,7 +29,7 @@ export default async function EditSongPage({ params }: { params: Promise<{ id: s
   return (
     <main className="min-h-screen py-8 sm:py-12">
       <MainContainer className="max-w-3xl">
-        <PageHeader title="Edit Song" description="Update the song details or replace its files." />
+        <PageHeader title="Editar canción" description="Actualiza los datos de la canción o reemplaza sus archivos." />
         <EditSongForm song={song} />
       </MainContainer>
     </main>

@@ -22,11 +22,18 @@ export default async function Home() {
 
         <section className="mt-7 overflow-hidden rounded-3xl border border-white/[0.07] bg-zinc-900/60 shadow-2xl shadow-black/15 sm:mt-9">
           <div className="border-b border-white/[0.06] bg-gradient-to-br from-emerald-400/[0.09] to-transparent p-5 sm:p-7">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">Next Service</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">Próximo servicio</p>
             {setlist ? (
               <>
-                <h2 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl">{setlist.serviceName}</h2>
-                <p className="mt-2 text-sm font-medium text-zinc-400 sm:text-base">{setlist.serviceTime}</p>
+                <h2 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl">{localizeDefaultServiceName(setlist.serviceName)}</h2>
+                {setlist.serviceDate ? (
+                  <div className="mt-2 space-y-1 text-sm font-medium text-zinc-400 sm:text-base">
+                    <p>{formatServiceDate(setlist.serviceDate)}</p>
+                    <p>{formatServiceTime(setlist.serviceTime)}</p>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm font-medium text-zinc-400 sm:text-base">{setlist.serviceTime}</p>
+                )}
               </>
             ) : (
               <p className="mt-3 text-sm text-zinc-500">Next service is not configured.</p>
@@ -49,7 +56,7 @@ export default async function Home() {
             )}
 
             {remainingSongs > 0 ? <p className="mt-3 text-sm font-medium text-zinc-500">+{remainingSongs} more</p> : null}
-            <PrimaryButton href="/setlist" className="mt-5 w-full sm:w-auto">Open Setlist</PrimaryButton>
+            <PrimaryButton href="/setlist" className="mt-5 w-full sm:w-auto">Abrir repertorio</PrimaryButton>
           </div>
         </section>
 
@@ -77,4 +84,28 @@ export default async function Home() {
       </MainContainer>
     </main>
   );
+}
+
+function formatServiceDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  const formatted = new Intl.DateTimeFormat("es-419", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  }).format(date);
+  return formatted.charAt(0).toLocaleUpperCase("es-419") + formatted.slice(1);
+}
+
+function formatServiceTime(value: string) {
+  const match = value.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+  if (!match) return value;
+  const hour = Number(match[1]);
+  const period = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${match[2]} ${period}`;
+}
+
+function localizeDefaultServiceName(value: string) {
+  return value === "Saturday Service" ? "Servicio del Sábado" : value;
 }

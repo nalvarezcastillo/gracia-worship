@@ -158,7 +158,7 @@ export function EditSongForm({ song }: { song: SongRecord }) {
 
       <FormSection title="Content">
         <div className="space-y-5 sm:space-y-6">
-          <TextAreaField label="Lyrics" name="lyrics" rows={9} defaultValue={song.lyrics} />
+          <TextAreaField label="Letra" name="lyrics" rows={9} defaultValue={song.lyrics} />
           <TextAreaField label="Notes" name="notes" rows={6} defaultValue={song.notes} />
         </div>
       </FormSection>

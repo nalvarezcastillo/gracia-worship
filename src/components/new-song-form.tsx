@@ -122,7 +122,7 @@ export function NewSongForm() {
 
       <FormSection title="Content">
         <div className="space-y-5 sm:space-y-6">
-          <TextAreaField label="Lyrics" name="lyrics" rows={9} />
+          <TextAreaField label="Letra" name="lyrics" rows={9} />
           <TextAreaField label="Notes" name="notes" rows={6} />
         </div>
       </FormSection>

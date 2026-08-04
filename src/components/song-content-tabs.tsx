@@ -22,8 +22,8 @@ export function SongContentTabs({ lyrics, sheetUrl, title }: SongContentTabsProp
   return (
     <section className="mt-6">
       <div role="tablist" aria-label="Song content" className="grid grid-cols-2 rounded-2xl border border-white/[0.07] bg-zinc-900/60 p-1 shadow-sm shadow-black/10">
-        <TabButton active={activeTab === "lyrics"} controls="lyrics-panel" onClick={() => setActiveTab("lyrics")}>Lyrics</TabButton>
-        <TabButton active={activeTab === "pdf"} controls="pdf-panel" onClick={() => setActiveTab("pdf")}>PDF</TabButton>
+        <TabButton active={activeTab === "lyrics"} controls="lyrics-panel" onClick={() => setActiveTab("lyrics")}>Letra</TabButton>
+        <TabButton active={activeTab === "pdf"} controls="pdf-panel" onClick={() => setActiveTab("pdf")}>Partitura</TabButton>
       </div>
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-white/[0.07] bg-zinc-900/60 shadow-xl shadow-black/10">
@@ -43,7 +43,7 @@ export function SongContentTabs({ lyrics, sheetUrl, title }: SongContentTabsProp
                   <PdfIcon />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">PDF document</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">Partitura</p>
                   <p className="mt-1.5 truncate font-semibold text-white" title={pdfFileName}>{pdfFileName}</p>
                 </div>
                 <button
@@ -51,7 +51,7 @@ export function SongContentTabs({ lyrics, sheetUrl, title }: SongContentTabsProp
                   onClick={() => setIsPdfOpen(true)}
                   className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-full bg-emerald-400 px-6 font-semibold text-zinc-950 shadow-lg shadow-emerald-950/30 transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-300 active:translate-y-0 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-emerald-400"
                 >
-                  Open PDF
+                  Abrir partitura
                 </button>
               </div>
             ) : (

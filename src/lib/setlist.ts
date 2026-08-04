@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseConfig } from "@/lib/supabase";
+import type { ActiveSetlistRow } from "@/lib/database.types";
 
 export type SetlistSong = {
   id: string;
@@ -11,6 +12,7 @@ export type SetlistSong = {
 
 export type ActiveSetlist = {
   serviceName: string;
+  serviceDate: string | null;
   serviceTime: string;
   songIds: string[];
   songs: SetlistSong[];
@@ -27,8 +29,8 @@ export async function getActiveSetlist(): Promise<ActiveSetlist | null> {
 
   const { data: setlist, error, status } = await supabase
     .from("active_setlist")
-    .select("service_name, service_time, song_ids")
-    .limit(1)
+    .select("service_name, service_date, service_time, song_ids")
+    .eq("id", 1)
     .maybeSingle();
 
   if (error) {
@@ -47,6 +49,7 @@ export async function getActiveSetlist(): Promise<ActiveSetlist | null> {
   if (songIds.length === 0) {
     return {
       serviceName: setlist.service_name,
+      serviceDate: (setlist as Pick<ActiveSetlistRow, "service_date">).service_date,
       serviceTime: setlist.service_time,
       songIds,
       songs: [],
@@ -64,6 +67,7 @@ export async function getActiveSetlist(): Promise<ActiveSetlist | null> {
 
   return {
     serviceName: setlist.service_name,
+    serviceDate: (setlist as Pick<ActiveSetlistRow, "service_date">).service_date,
     serviceTime: setlist.service_time,
     songIds,
     songs: songIds.flatMap((id) => {

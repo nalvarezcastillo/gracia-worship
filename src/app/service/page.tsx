@@ -6,7 +6,7 @@ import { hasAuthenticatedUser } from "@/lib/auth";
 import type { ServiceItem, ServiceSong } from "@/lib/service";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export const metadata: Metadata = { title: "Service | Gracia Worship" };
+export const metadata: Metadata = { title: "Servicio | Gracia Worship" };
 export const dynamic = "force-dynamic";
 
 export default async function ServicePage() {
@@ -25,9 +25,9 @@ export default async function ServicePage() {
   const loadError = error?.message ?? songsError?.message;
 
   return (
-    <main className="min-h-screen py-8 sm:py-12">
+    <main className="min-h-screen py-6 sm:py-10">
       <MainContainer className="max-w-3xl">
-        <PageHeader eyebrow="Gracia Worship" title="Service" />
+        <PageHeader eyebrow="Gracia Worship" title="Servicio" />
         <ServiceItems initialItems={items} songs={songs} isAdmin={isAdmin} loadError={loadError} />
       </MainContainer>
     </main>

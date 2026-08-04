@@ -185,7 +185,7 @@ export function ManageMicrophones({ initialAssignments, loadError }: { initialAs
       <form onSubmit={addAssignment} className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 p-4 shadow-xl shadow-black/10 sm:p-6">
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-sm font-semibold text-zinc-300">
-            Nombre del líder
+            Líder
             <input value={leaderName} onChange={(event) => setLeaderName(event.target.value)} placeholder="Ej. Nelson" className={`mt-2 ${inputStyles}`} />
           </label>
           <label className="text-sm font-semibold text-zinc-300">
@@ -194,7 +194,7 @@ export function ManageMicrophones({ initialAssignments, loadError }: { initialAs
           </label>
         </div>
         <PrimaryButton type="submit" disabled={busyId !== null || Boolean(loadError)} className="mt-5 w-full sm:w-auto">
-          {busyId === "new" ? "Añadiendo…" : "Añadir asignación"}
+          {busyId === "new" ? "Agregando…" : "Agregar asignación"}
         </PrimaryButton>
       </form>
 

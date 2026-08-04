@@ -104,7 +104,7 @@ export function AudioPlayer() {
   const { currentTime, duration, hasError, isPlaying, seek, title, togglePlayback } = useAudioPlayer();
 
   if (hasError) {
-    return <p role="status" className="py-4 text-center text-base font-medium text-zinc-400">No audio available</p>;
+    return <p role="status" className="py-4 text-center text-base font-medium text-zinc-400">No hay audio disponible</p>;
   }
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -128,7 +128,7 @@ export function AudioPlayer() {
 
 export function CompactAudioPlayer() {
   const { currentTime, duration, hasError, isPlaying, seek, skip, togglePlayback } = useAudioPlayer();
-  if (hasError) return <p role="status" className="text-center text-sm text-zinc-400">No audio available</p>;
+  if (hasError) return <p role="status" className="text-center text-sm text-zinc-400">No hay audio disponible</p>;
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
