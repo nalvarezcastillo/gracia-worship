@@ -17,12 +17,17 @@ export default async function EditSongPage({ params }: { params: Promise<{ id: s
   if (!(await hasAuthenticatedUser())) redirect(`/login?next=/admin/song/${id}`);
   let song: SongRecord | null = null;
   let songKeys: SongKeyRow[] = [];
+  const supabase = await createSupabaseServerClient();
 
   try {
-    const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase.schema("public").from("songs").select("*").eq("id", id).maybeSingle();
     if (error) throw error;
     song = data as SongRecord | null;
+  } catch {
+    notFound();
+  }
+
+  try {
     const { data: keysData, error: keysError } = await supabase
       .from("song_keys")
       .select("id, song_id, key_name, audio_url, sheet_url, sort_order, created_at")
@@ -31,8 +36,8 @@ export default async function EditSongPage({ params }: { params: Promise<{ id: s
       .order("created_at", { ascending: true });
     if (keysError) throw keysError;
     songKeys = (keysData ?? []) as SongKeyRow[];
-  } catch {
-    notFound();
+  } catch (error) {
+    console.error("Unable to load song keys in the editor:", error);
   }
 
   if (!song) notFound();

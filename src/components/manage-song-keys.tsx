@@ -137,7 +137,7 @@ export function ManageSongKeys({ initialKeys, songId }: { initialKeys: SongKeyRo
             </div>
           ))}
         </div>
-      ) : <p className="mt-5 text-sm text-zinc-500">No hay tonalidades.</p>}
+      ) : <p className="mt-5 text-sm text-zinc-500">No hay tonalidades configuradas.</p>}
 
       {isAdding || editingKey ? (
         <form key={formKey} onSubmit={saveKey} className="mt-6 space-y-4 border-t border-white/[0.07] pt-6">

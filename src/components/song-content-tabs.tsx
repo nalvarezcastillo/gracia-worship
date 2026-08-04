@@ -21,9 +21,9 @@ export function SongContentTabs({ lyrics, sheetUrl, title }: SongContentTabsProp
 
   return (
     <section className="mt-6">
-      <div role="tablist" aria-label="Song content" className="grid grid-cols-2 rounded-2xl border border-white/[0.07] bg-zinc-900/60 p-1 shadow-sm shadow-black/10">
+      <div role="tablist" aria-label="Song content" className={`grid ${sheetUrl ? "grid-cols-2" : "grid-cols-1"} rounded-2xl border border-white/[0.07] bg-zinc-900/60 p-1 shadow-sm shadow-black/10`}>
         <TabButton active={activeTab === "lyrics"} controls="lyrics-panel" onClick={() => setActiveTab("lyrics")}>Letra</TabButton>
-        <TabButton active={activeTab === "pdf"} controls="pdf-panel" onClick={() => setActiveTab("pdf")}>Partitura</TabButton>
+        {sheetUrl ? <TabButton active={activeTab === "pdf"} controls="pdf-panel" onClick={() => setActiveTab("pdf")}>Partitura</TabButton> : null}
       </div>
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-white/[0.07] bg-zinc-900/60 shadow-xl shadow-black/10">
@@ -63,6 +63,7 @@ export function SongContentTabs({ lyrics, sheetUrl, title }: SongContentTabsProp
 
       {isPdfOpen && sheetUrl ? (
         <FullscreenPdfReader
+          key={sheetUrl}
           fileName={pdfFileName}
           onClose={() => setIsPdfOpen(false)}
           title={title}

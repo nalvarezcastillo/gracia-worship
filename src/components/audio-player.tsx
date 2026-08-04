@@ -6,6 +6,7 @@ type AudioPlayerState = {
   currentTime: number;
   duration: number;
   hasError: boolean;
+  hasSource: boolean;
   isPlaying: boolean;
   seek: (value: number) => void;
   skip: (seconds: number) => void;
@@ -21,6 +22,19 @@ export function AudioPlayerProvider({ children, src, title }: { children: React.
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    audio.pause();
+    audio.currentTime = 0;
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setHasError(false);
+    audio.load();
+  }, [src]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -59,11 +73,10 @@ export function AudioPlayerProvider({ children, src, title }: { children: React.
   }
 
   return (
-    <AudioPlayerContext.Provider value={{ currentTime, duration, hasError, isPlaying, seek, skip, title, togglePlayback }}>
-      {src ? (
+    <AudioPlayerContext.Provider value={{ currentTime, duration, hasError, hasSource: Boolean(src), isPlaying, seek, skip, title, togglePlayback }}>
         <audio
           ref={audioRef}
-          src={src}
+          src={src || undefined}
           preload="metadata"
           onLoadStart={() => {
             setIsPlaying(false);
@@ -88,7 +101,6 @@ export function AudioPlayerProvider({ children, src, title }: { children: React.
             setHasError(true);
           }}
         />
-      ) : null}
       {children}
     </AudioPlayerContext.Provider>
   );
@@ -101,9 +113,9 @@ export function useAudioPlayer() {
 }
 
 export function AudioPlayer() {
-  const { currentTime, duration, hasError, isPlaying, seek, title, togglePlayback } = useAudioPlayer();
+  const { currentTime, duration, hasError, hasSource, isPlaying, seek, title, togglePlayback } = useAudioPlayer();
 
-  if (hasError) {
+  if (!hasSource || hasError) {
     return <p role="status" className="py-4 text-center text-base font-medium text-zinc-400">No hay audio disponible</p>;
   }
 
@@ -127,8 +139,8 @@ export function AudioPlayer() {
 }
 
 export function CompactAudioPlayer() {
-  const { currentTime, duration, hasError, isPlaying, seek, skip, togglePlayback } = useAudioPlayer();
-  if (hasError) return <p role="status" className="text-center text-sm text-zinc-400">No hay audio disponible</p>;
+  const { currentTime, duration, hasError, hasSource, isPlaying, seek, skip, togglePlayback } = useAudioPlayer();
+  if (!hasSource || hasError) return <p role="status" className="text-center text-sm text-zinc-400">No hay audio disponible</p>;
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
