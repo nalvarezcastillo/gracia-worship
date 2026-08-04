@@ -29,6 +29,10 @@ export default async function AdminPage() {
             <span aria-hidden="true" className="mr-4 text-2xl">📋</span>
             <span className="text-lg">Manage Setlist</span>
           </SecondaryButton>
+          <SecondaryButton href="/admin/microphones" className="min-h-20 w-full !justify-start !rounded-2xl px-5 text-left sm:min-h-24 sm:px-6">
+            <span aria-hidden="true" className="mr-4 text-2xl">🎤</span>
+            <span className="text-lg">Administrar micrófonos</span>
+          </SecondaryButton>
           <SignOutButton />
         </section>
       </MainContainer>
