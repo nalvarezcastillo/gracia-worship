@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
+import { CompactAudioPlayer } from "@/components/audio-player";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -105,7 +106,7 @@ export function FullscreenPdfReader({ fileName, onClose, title, url }: Fullscree
         </span>
       </header>
 
-      <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-zinc-900 p-3 sm:p-6">
+      <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-zinc-900 px-3 pb-8 pt-3 sm:px-6 sm:pb-10 sm:pt-6">
         <div ref={pageContainerRef} className="mx-auto flex w-full max-w-6xl justify-center">
           <Document
             file={url}
@@ -145,7 +146,9 @@ export function FullscreenPdfReader({ fileName, onClose, title, url }: Fullscree
         </div>
       </main>
 
-      <footer className="grid min-h-20 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-t border-white/10 bg-zinc-950 px-3 py-3 shadow-[0_-12px_30px_rgba(0,0,0,0.25)] sm:px-6">
+      <footer className="shrink-0 border-t border-white/10 bg-zinc-950 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-12px_30px_rgba(0,0,0,0.25)] sm:px-6 sm:pt-3">
+        <CompactAudioPlayer />
+        <div className="mt-2 grid min-h-12 grid-cols-[1fr_auto_1fr] items-center gap-2 border-t border-white/[0.07] pt-2 sm:mt-3 sm:pt-3">
         <button
           type="button"
           onClick={() => {
@@ -173,6 +176,7 @@ export function FullscreenPdfReader({ fileName, onClose, title, url }: Fullscree
         >
           Next
         </button>
+        </div>
       </footer>
     </div>
   );

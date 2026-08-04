@@ -1,8 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 
-export function AudioPlayer({ src, title }: { src: string; title: string }) {
+type AudioPlayerState = {
+  currentTime: number;
+  duration: number;
+  hasError: boolean;
+  isPlaying: boolean;
+  seek: (value: number) => void;
+  skip: (seconds: number) => void;
+  title: string;
+  togglePlayback: () => void;
+};
+
+const AudioPlayerContext = createContext<AudioPlayerState | null>(null);
+
+export function AudioPlayerProvider({ children, src, title }: { children: React.ReactNode; src: string; title: string }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -11,19 +24,14 @@ export function AudioPlayer({ src, title }: { src: string; title: string }) {
 
   useEffect(() => {
     const audio = audioRef.current;
-
     return () => {
-      if (audio) {
-        audio.pause();
-        audio.currentTime = 0;
-      }
+      audio?.pause();
     };
-  }, [src]);
+  }, []);
 
   function togglePlayback() {
     const audio = audioRef.current;
     if (!audio || hasError) return;
-
     if (audio.paused) {
       void audio.play().catch(() => setHasError(true));
     } else {
@@ -34,47 +42,74 @@ export function AudioPlayer({ src, title }: { src: string; title: string }) {
   function seek(value: number) {
     const audio = audioRef.current;
     if (!audio) return;
-
-    audio.currentTime = value;
-    setCurrentTime(value);
+    const nextTime = Math.min(duration || 0, Math.max(0, value));
+    audio.currentTime = nextTime;
+    setCurrentTime(nextTime);
   }
 
-  if (!src || hasError) {
+  function skip(seconds: number) {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const nextTime = seconds < 0
+      ? Math.max(0, audio.currentTime - 10)
+      : Math.min(audio.duration, audio.currentTime + 10);
+    if (!Number.isFinite(nextTime)) return;
+    audio.currentTime = nextTime;
+    setCurrentTime(nextTime);
+  }
+
+  return (
+    <AudioPlayerContext.Provider value={{ currentTime, duration, hasError, isPlaying, seek, skip, title, togglePlayback }}>
+      {src ? (
+        <audio
+          ref={audioRef}
+          src={src}
+          preload="metadata"
+          onLoadStart={() => {
+            setIsPlaying(false);
+            setCurrentTime(0);
+            setDuration(0);
+            setHasError(false);
+          }}
+          onLoadedMetadata={(event) => {
+            const nextDuration = event.currentTarget.duration;
+            setDuration(Number.isFinite(nextDuration) ? nextDuration : 0);
+          }}
+          onDurationChange={(event) => {
+            const nextDuration = event.currentTarget.duration;
+            setDuration(Number.isFinite(nextDuration) ? nextDuration : 0);
+          }}
+          onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onEnded={() => setIsPlaying(false)}
+          onError={() => {
+            setIsPlaying(false);
+            setHasError(true);
+          }}
+        />
+      ) : null}
+      {children}
+    </AudioPlayerContext.Provider>
+  );
+}
+
+export function useAudioPlayer() {
+  const value = useContext(AudioPlayerContext);
+  if (!value) throw new Error("useAudioPlayer must be used inside AudioPlayerProvider");
+  return value;
+}
+
+export function AudioPlayer() {
+  const { currentTime, duration, hasError, isPlaying, seek, title, togglePlayback } = useAudioPlayer();
+
+  if (hasError) {
     return <p role="status" className="py-4 text-center text-base font-medium text-zinc-400">No audio available</p>;
   }
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-
   return (
     <div className="flex items-center gap-3 sm:gap-5">
-      <audio
-        key={src}
-        ref={audioRef}
-        src={src}
-        preload="metadata"
-        onLoadStart={() => {
-          setIsPlaying(false);
-          setCurrentTime(0);
-          setDuration(0);
-          setHasError(false);
-        }}
-        onLoadedMetadata={(event) => {
-          const nextDuration = event.currentTarget.duration;
-          setDuration(Number.isFinite(nextDuration) ? nextDuration : 0);
-        }}
-        onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        onEnded={() => {
-          setIsPlaying(false);
-          setCurrentTime(0);
-        }}
-        onError={() => {
-          setIsPlaying(false);
-          setHasError(true);
-        }}
-      />
-
       <button
         type="button"
         onClick={togglePlayback}
@@ -83,27 +118,46 @@ export function AudioPlayer({ src, title }: { src: string; title: string }) {
       >
         {isPlaying ? <PauseIcon /> : <PlayIcon />}
       </button>
-
       <div className="min-w-0 flex-1">
-        <input
-          type="range"
-          min={0}
-          max={duration || 0}
-          step="0.1"
-          value={Math.min(currentTime, duration || 0)}
-          onChange={(event) => seek(Number(event.target.value))}
-          aria-label={`Playback position for ${title}`}
-          disabled={duration === 0}
-          className="audio-progress w-full"
-          style={{ "--audio-progress": `${progress}%` } as React.CSSProperties}
-        />
-        <div className="mt-1.5 flex justify-between font-mono text-[0.7rem] text-zinc-500 sm:mt-2 sm:text-xs">
-          <span>{formatTime(currentTime)}</span>
-          <span>{formatTime(duration)}</span>
+        <ProgressSlider currentTime={currentTime} duration={duration} onSeek={seek} progress={progress} title={title} />
+        <TimeLabels currentTime={currentTime} duration={duration} />
+      </div>
+    </div>
+  );
+}
+
+export function CompactAudioPlayer() {
+  const { currentTime, duration, hasError, isPlaying, seek, skip, togglePlayback } = useAudioPlayer();
+  if (hasError) return <p role="status" className="text-center text-sm text-zinc-400">No audio available</p>;
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  return (
+    <div className="mx-auto w-full max-w-3xl">
+      <div className="flex items-center gap-1.5 sm:gap-3">
+        <AudioControlButton ariaLabel="Rewind 10 seconds" onClick={() => skip(-10)}>−10</AudioControlButton>
+        <button type="button" onClick={togglePlayback} aria-label={isPlaying ? "Pause" : "Play"} className="grid size-11 shrink-0 place-items-center rounded-full bg-emerald-400 text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400">
+          {isPlaying ? <PauseIcon /> : <PlayIcon />}
+        </button>
+        <AudioControlButton ariaLabel="Forward 10 seconds" onClick={() => skip(10)}>+10</AudioControlButton>
+        <div className="min-w-0 flex-1">
+          <ProgressSlider currentTime={currentTime} duration={duration} onSeek={seek} progress={progress} title="Audio" />
+          <TimeLabels currentTime={currentTime} duration={duration} compact />
         </div>
       </div>
     </div>
   );
+}
+
+function AudioControlButton({ ariaLabel, children, onClick }: { ariaLabel: string; children: React.ReactNode; onClick: () => void }) {
+  return <button type="button" onClick={onClick} aria-label={ariaLabel} className="min-h-11 min-w-11 shrink-0 rounded-full text-xs font-bold text-zinc-200 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400">{children}</button>;
+}
+
+function ProgressSlider({ currentTime, duration, onSeek, progress, title }: { currentTime: number; duration: number; onSeek: (value: number) => void; progress: number; title: string }) {
+  return <input type="range" min={0} max={duration || 0} step="0.1" value={Math.min(currentTime, duration || 0)} onChange={(event) => onSeek(Number(event.target.value))} aria-label={`Playback position for ${title}`} disabled={duration === 0} className="audio-progress w-full" style={{ "--audio-progress": `${progress}%` } as React.CSSProperties} />;
+}
+
+function TimeLabels({ compact = false, currentTime, duration }: { compact?: boolean; currentTime: number; duration: number }) {
+  return <div className={`${compact ? "mt-0.5" : "mt-1.5 sm:mt-2"} flex justify-between font-mono text-[0.65rem] text-zinc-500 sm:text-xs`}><span>{formatTime(currentTime)}</span><span>{formatTime(duration)}</span></div>;
 }
 
 function formatTime(value: number) {
