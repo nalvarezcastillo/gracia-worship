@@ -30,3 +30,13 @@ export type ActiveSetlistRow = {
   song_ids: string[];
   updated_at: string;
 };
+
+export type SongKeyRow = {
+  id: string;
+  song_id: string;
+  key_name: string;
+  audio_url: string | null;
+  sheet_url: string | null;
+  sort_order: number;
+  created_at: string;
+};

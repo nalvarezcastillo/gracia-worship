@@ -22,13 +22,12 @@ export function EditSongForm({ song }: { song: SongRecord }) {
     const formData = new FormData(event.currentTarget);
     const title = getText(formData, "title");
     const artist = getText(formData, "artist");
-    const key = getText(formData, "key");
     const bpm = Number(getText(formData, "bpm"));
     const duration = getText(formData, "duration");
     const lyrics = getText(formData, "lyrics");
     const notes = getText(formData, "notes");
 
-    if (!title || !artist || !key || !duration || !lyrics || !notes || !Number.isFinite(bpm) || bpm <= 0) {
+    if (!title || !artist || !duration || !lyrics || !notes || !Number.isFinite(bpm) || bpm <= 0) {
       setIsError(true);
       setMessage("Please complete all required fields.");
       return;
@@ -47,8 +46,6 @@ export function EditSongForm({ song }: { song: SongRecord }) {
       }
 
       const folder = `${song.id}/${crypto.randomUUID()}`;
-      const audioFile = getFile(formData, "audio");
-      validateAudioFile(audioFile);
 
       async function uploadReplacement(name: string, file: File | null, currentUrl: string) {
         if (!file) return currentUrl;
@@ -65,21 +62,14 @@ export function EditSongForm({ song }: { song: SongRecord }) {
         return supabase.storage.from("songs").getPublicUrl(path).data.publicUrl;
       }
 
-      const [coverUrl, audioUrl, sheetUrl] = await Promise.all([
-        uploadReplacement("cover", getFile(formData, "cover"), song.cover_url),
-        uploadReplacement("audio", audioFile, song.audio_url),
-        uploadReplacement("sheet", getFile(formData, "sheet"), song.sheet_url),
-      ]);
+      const coverUrl = await uploadReplacement("cover", getFile(formData, "cover"), song.cover_url);
 
       const { error } = await supabase.schema("public").from("songs").update({
         title,
         artist,
-        key,
         bpm,
         duration,
         cover_url: coverUrl,
-        audio_url: audioUrl,
-        sheet_url: sheetUrl,
         lyrics,
         notes,
       }).eq("id", song.id);
@@ -142,7 +132,6 @@ export function EditSongForm({ song }: { song: SongRecord }) {
         <div className="grid gap-5 sm:grid-cols-2 sm:gap-6">
           <TextField label="Title" name="title" defaultValue={song.title} className="sm:col-span-2" />
           <TextField label="Artist" name="artist" defaultValue={song.artist} className="sm:col-span-2" />
-          <TextField label="Key" name="key" defaultValue={song.key} />
           <TextField label="BPM" name="bpm" defaultValue={String(song.bpm)} type="number" inputMode="numeric" />
           <TextField label="Duration" name="duration" defaultValue={song.duration} className="sm:col-span-2" />
         </div>
@@ -151,8 +140,6 @@ export function EditSongForm({ song }: { song: SongRecord }) {
       <FormSection title="Files">
         <div className="space-y-5 sm:space-y-6">
           <FileField label="Cover Image" name="cover" accept="image/*" />
-          <FileField label="Audio" name="audio" accept="audio/*" />
-          <FileField label="Sheet Music (.pdf)" name="sheet" accept="application/pdf,.pdf" />
         </div>
       </FormSection>
 
@@ -223,12 +210,6 @@ function getText(formData: FormData, name: string) {
 function getFile(formData: FormData, name: string) {
   const value = formData.get(name);
   return value instanceof File && value.size > 0 ? value : null;
-}
-
-function validateAudioFile(file: File | null) {
-  if (file && !file.type.startsWith("audio/")) {
-    throw new Error("Please select a valid audio file.");
-  }
 }
 
 function getStoragePath(publicUrl: string) {
