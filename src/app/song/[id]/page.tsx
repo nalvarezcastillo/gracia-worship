@@ -50,10 +50,10 @@ export default async function SongPage({ params }: SongPageProps) {
   const isAdmin = await hasAuthenticatedUser();
 
   return (
-    <main className="min-h-screen py-8 sm:py-12">
+    <main className="min-h-screen py-6 sm:py-8">
       <MainContainer className="max-w-3xl">
         <header>
-          <h1 className="text-3xl font-bold tracking-[-0.035em] text-white sm:text-4xl">{song.title}</h1>
+          <h1 className="text-[1.75rem] font-bold tracking-[-0.035em] text-white sm:text-[2rem]">{song.title}</h1>
         </header>
 
         <SongDetailContent

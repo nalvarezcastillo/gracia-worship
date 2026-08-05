@@ -310,14 +310,14 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
   }
 
   return (
-    <div className="mt-7 space-y-6 sm:mt-9 sm:space-y-7">
+    <div className="mt-6 space-y-6 sm:mt-8">
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-lg font-semibold tracking-tight text-white">Orden del servicio</h2>
-        {isAdmin ? <PrimaryButton type="button" onClick={() => setAddStep("type")} disabled={isSaving}>+ Agregar elemento</PrimaryButton> : null}
+        <h2 className="text-xl font-semibold tracking-tight text-white">Orden del servicio</h2>
+        {isAdmin ? <PrimaryButton type="button" onClick={() => setAddStep("type")} disabled={isSaving} className="min-h-11 rounded-xl px-4 text-sm shadow-none">+ Agregar elemento</PrimaryButton> : null}
       </div>
 
       {items.length ? (
-        <div className="divide-y divide-white/[0.07] overflow-hidden rounded-2xl border border-white/[0.07] bg-zinc-900/35 px-4 sm:px-5">
+        <div className="divide-y divide-white/[0.07] border-y border-white/[0.07]">
           {items.map((item) => (
             <article
               key={item.id}
@@ -326,12 +326,11 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
               onDragEnd={isAdmin ? () => setDraggedId(null) : undefined}
               onDragOver={isAdmin ? (event) => event.preventDefault() : undefined}
               onDrop={isAdmin ? () => reorderItems(item.id) : undefined}
-              className={`group py-4 transition-colors sm:py-5 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${draggedId === item.id ? "bg-emerald-400/[0.055]" : "hover:bg-white/[0.018]"}`}
+              className={`group px-1 py-3 transition-colors duration-200 sm:px-2 sm:py-4 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${draggedId === item.id ? "bg-emerald-400/[0.055]" : "hover:bg-white/[0.018]"}`}
             >
               <div className="flex items-start gap-2.5">
-                {isAdmin ? <GripIcon label={`Drag ${item.title} to reorder`} className="mt-1 size-3.5 shrink-0 text-zinc-700" /> : null}
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-[0.95rem] font-semibold leading-6 text-zinc-100 sm:text-base">{item.title}</h3>
+                  <h3 className={item.type === "worship" ? "text-xs font-semibold uppercase tracking-[0.16em] text-emerald-400/80" : "text-base font-semibold leading-6 text-zinc-100"}>{item.title}</h3>
                   {item.type === "text" && item.details ? <p className="mt-0.5 whitespace-pre-wrap text-sm font-normal leading-5 text-zinc-500">{item.details}</p> : null}
                 </div>
                 {isAdmin ? (
@@ -341,10 +340,11 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
                     <button type="button" aria-label={`Eliminar ${item.title}`} onClick={() => setDeletingItem(item)} disabled={isSaving} className="min-h-11 rounded-full px-2.5 text-xs font-medium text-rose-400/60 transition-colors hover:bg-rose-400/[0.07] hover:text-rose-300 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-rose-400 sm:opacity-60 sm:group-hover:opacity-100 sm:focus-visible:opacity-100">Eliminar</button>
                   </div>
                 ) : null}
+                {isAdmin ? <GripIcon label={`Drag ${item.title} to reorder`} className="mt-3 size-3.5 shrink-0 text-zinc-600" /> : null}
               </div>
 
               {item.type === "worship" && (item.song_ids ?? []).length > 0 ? (
-                <ul className={`${isAdmin ? "ml-6" : ""} mt-2.5 space-y-0.5`}>
+                <ul className="mt-2 divide-y divide-white/[0.06] border-t border-white/[0.06]">
                   {(item.song_ids ?? []).map((entry) => {
                     const song = songs.find((candidate) => candidate.id === entry.songId);
                     if (!song) return null;
@@ -356,15 +356,19 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
                         onDragEnd={isAdmin ? (event) => { event.stopPropagation(); setDraggedSong(null); } : undefined}
                         onDragOver={isAdmin ? (event) => { event.stopPropagation(); event.preventDefault(); } : undefined}
                         onDrop={isAdmin ? (event) => { event.stopPropagation(); reorderBlockSongs(item.id, entry.songId); } : undefined}
-                        className={`grid min-h-11 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 py-0.5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-x-3 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${draggedSong?.songId === entry.songId ? "text-emerald-300" : ""}`}
+                        className={`grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(6rem,auto)_auto_auto] ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${draggedSong?.songId === entry.songId ? "text-emerald-300" : ""}`}
                       >
-                        {isAdmin ? <GripIcon label={`Drag ${song.title} to reorder`} className="size-3 text-zinc-700" /> : <span aria-hidden="true" className="size-3" />}
-                        <Link href={`/song/${song.id}`} onClick={(event) => event.stopPropagation()} className="truncate text-sm font-normal text-zinc-300 transition-colors hover:text-emerald-300">{song.title}</Link>
-                        <div className="col-start-2 flex min-w-0 items-center justify-between gap-1 sm:col-start-3 sm:row-start-1 sm:justify-end">
-                          {entry.notes ? <span className="min-w-0 truncate text-left text-xs font-normal text-zinc-500 sm:max-w-40 sm:text-right sm:text-sm">{entry.notes}</span> : <span />}
+                        <div className="min-w-0 sm:col-start-1 sm:row-start-1">
+                          <Link href={`/song/${song.id}`} onClick={(event) => event.stopPropagation()} className="block truncate text-base font-semibold text-zinc-200 transition-colors duration-200 hover:text-emerald-300">{song.title}</Link>
+                          <p className="mt-1 text-[0.8125rem] text-zinc-500">{formatSongMetadata(song)}</p>
+                        </div>
+                        {entry.notes ? <p className="col-start-1 row-start-2 min-w-0 truncate text-xs text-zinc-500 sm:col-start-2 sm:row-start-1 sm:text-right sm:text-sm">{entry.notes}</p> : null}
+                        <div className={`col-span-2 flex min-w-0 items-center justify-end gap-1 sm:col-span-1 sm:col-start-3 sm:row-start-1 ${entry.notes ? "row-start-3" : "row-start-2"}`}>
+                          <ResourceIndicators song={song} />
                           {isAdmin ? <button type="button" aria-label={`Editar notas de ${song.title}`} onClick={(event) => { event.stopPropagation(); setEditingSong({ blockId: item.id, songId: entry.songId, notes: entry.notes }); }} className="min-h-11 shrink-0 rounded-full px-2 text-xs font-medium text-zinc-600 transition-colors hover:bg-white/[0.04] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400">Editar</button> : null}
                           {isAdmin ? <button type="button" aria-label={`Quitar canción ${song.title}`} onClick={(event) => { event.stopPropagation(); removeSongFromBlock(item.id, entry.songId); }} className="grid size-11 shrink-0 place-items-center rounded-full text-lg text-zinc-600 transition-colors hover:bg-rose-400/10 hover:text-rose-300 focus-visible:outline-2 focus-visible:outline-rose-400">×</button> : null}
                         </div>
+                        {isAdmin ? <GripIcon label={`Drag ${song.title} to reorder`} className="col-start-2 row-start-1 size-3.5 justify-self-end text-zinc-600 sm:col-start-4" /> : null}
                       </li>
                     );
                   })}
@@ -372,13 +376,16 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
               ) : null}
 
               {isAdmin && item.type === "worship" ? (
-                <button type="button" aria-label={`Agregar canción a ${item.title}`} onClick={() => setSongSelectorBlockId(item.id)} className="ml-6 mt-1 min-h-11 rounded-full px-2 text-xs font-medium text-emerald-400/80 transition-colors hover:bg-emerald-400/[0.06] hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-emerald-400">+ Agregar canción</button>
+                <button type="button" aria-label={`Agregar canción a ${item.title}`} onClick={() => setSongSelectorBlockId(item.id)} className="mt-1 min-h-11 rounded-xl px-3 text-sm font-medium text-emerald-400/80 transition-colors hover:bg-emerald-400/[0.06] hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-emerald-400">+ Agregar canción</button>
               ) : null}
             </article>
           ))}
         </div>
       ) : (
-        <div className="rounded-2xl border border-dashed border-white/10 py-12 text-center text-sm text-zinc-500">No service items yet.</div>
+        <div className="border-y border-white/[0.07] py-12 text-center">
+          <p className="text-sm text-zinc-500">Este servicio aún no tiene elementos.</p>
+          {isAdmin ? <PrimaryButton type="button" onClick={() => setAddStep("type")} disabled={isSaving} className="mt-4">Agregar elemento</PrimaryButton> : null}
+        </div>
       )}
 
       {isAdmin && hasUnsavedChanges ? <PrimaryButton type="button" onClick={saveOrder} disabled={isSaving} className="min-h-14 w-full">{isSaving ? "Guardando..." : "Guardar"}</PrimaryButton> : null}
@@ -510,6 +517,41 @@ function serializeService(items: ServiceItem[]) {
     details: item.details,
     songIds: item.song_ids,
   })));
+}
+
+function formatSongMetadata(song: ServiceSong) {
+  return [song.key?.trim(), song.bpm ? `${song.bpm} BPM` : null, song.time_signature?.trim()].filter(Boolean).join(" • ");
+}
+
+function ResourceIndicators({ song }: { song: ServiceSong }) {
+  const keys = song.song_keys ?? [];
+  const hasAudio = Boolean(song.audio_url || keys.some((key) => key.audio_url));
+  const hasPdf = Boolean(song.sheet_url || keys.some((key) => key.sheet_url));
+  const hasMultitrack = keys.some((key) => (key.song_stems?.length ?? 0) > 0);
+
+  return (
+    <div className="flex items-center gap-1" aria-label="Recursos disponibles">
+      <ResourceIcon available={hasAudio} label={hasAudio ? "Audio disponible" : "Audio no disponible"}><HeadphonesIcon /></ResourceIcon>
+      <ResourceIcon available={hasPdf} label={hasPdf ? "Partitura disponible" : "Partitura no disponible"}><FileIcon /></ResourceIcon>
+      <ResourceIcon available={hasMultitrack} label={hasMultitrack ? "Multitrack disponible" : "Multitrack no disponible"}><WaveformIcon /></ResourceIcon>
+    </div>
+  );
+}
+
+function ResourceIcon({ available, children, label }: { available: boolean; children: React.ReactNode; label: string }) {
+  return <span role="img" aria-label={label} className={`grid size-7 place-items-center ${available ? "text-emerald-400" : "text-zinc-700"}`}>{children}</span>;
+}
+
+function HeadphonesIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" className="size-4"><path d="M4 13v-1a8 8 0 0 1 16 0v1M4 13h3v7H5a1 1 0 0 1-1-1v-6Zm16 0h-3v7h2a1 1 0 0 0 1-1v-6Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg>;
+}
+
+function FileIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" className="size-4"><path d="M7 3h7l4 4v14H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /><path d="M14 3v5h4" stroke="currentColor" strokeWidth="1.6" /></svg>;
+}
+
+function WaveformIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" className="size-4"><path d="M3 12h2l1.5-5 3 10 3-13 3 16 2.5-8H21" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 
 function GripIcon({ className, label }: { className: string; label: string }) {

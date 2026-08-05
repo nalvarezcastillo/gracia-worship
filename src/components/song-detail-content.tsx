@@ -133,9 +133,14 @@ export function SongDetailContent({
 
   return (
     <>
-      <SongMetadataLine songKey={displayedKey} bpm={bpm} timeSignature={timeSignature} className="mt-4" />
-      <SongKeySelector keys={keys} selectedKey={selectedKey} onSelect={setSelectedKey} />
-      {editHref ? <SecondaryButton href={editHref} className="mt-5">Editar canción</SecondaryButton> : null}
+      <SongMetadataLine songKey={displayedKey} bpm={bpm} timeSignature={timeSignature} className="mt-2" />
+      <SongKeySelector keys={keys} selectedKey={selectedKey} onSelect={setSelectedKey} polished={enableMultitrack} />
+      {editHref ? (
+        <SecondaryButton href={editHref} className="mt-3 min-h-11 gap-2 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">
+          <PencilIcon />
+          Editar
+        </SecondaryButton>
+      ) : null}
 
       <AudioPlayerProvider key={mediaSelectionId} src={audioUrl} title={title}>
         {enableMultitrack ? (
@@ -150,5 +155,13 @@ export function SongDetailContent({
         )}
       </AudioPlayerProvider>
     </>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" className="size-4">
+      <path d="m14.7 5.3 4 4M4 20l1.1-4.4L15.6 5.1a2.1 2.1 0 0 1 3 3L8.1 18.6 4 20Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }

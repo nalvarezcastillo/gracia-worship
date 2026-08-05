@@ -5,7 +5,7 @@ import type { SongSummary } from "@/lib/database.types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { hasAuthenticatedUser } from "@/lib/auth";
 
-export const metadata: Metadata = { title: "Songs | Gracia Worship" };
+export const metadata: Metadata = { title: "Canciones | Gracia Worship" };
 export const dynamic = "force-dynamic";
 
 export default async function SongsPage({ searchParams }: { searchParams: Promise<{ deleted?: string | string[] }> }) {
@@ -37,8 +37,8 @@ export default async function SongsPage({ searchParams }: { searchParams: Promis
     return (
       <main className="min-h-screen py-8 sm:py-12">
         <MainContainer>
-          <h1 className="text-4xl font-bold tracking-tight text-white">Songs</h1>
-          <p className="mt-6 text-zinc-400">We couldn&apos;t load songs. Please try again later.</p>
+          <h1 className="text-[1.75rem] font-bold tracking-tight text-white sm:text-[2rem]">Canciones</h1>
+          <p className="mt-6 text-zinc-400">No se pudieron cargar las canciones. Inténtalo nuevamente.</p>
         </MainContainer>
       </main>
     );

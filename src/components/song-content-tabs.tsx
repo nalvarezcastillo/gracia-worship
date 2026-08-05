@@ -48,8 +48,8 @@ function OrganizedSongContent({ audioUrl, lyrics, sheetUrl, stems, stemsLoading 
   }
 
   return (
-    <section className="mt-6">
-      <div role="tablist" aria-label="Contenido de la canción" className="flex gap-1 overflow-x-auto border-b border-white/[0.08] pb-1">
+    <section className="mt-4">
+      <div role="tablist" aria-label="Contenido de la canción" className="flex gap-2 overflow-x-auto border-b border-white/[0.08] pb-1">
         {sections.map((section) => (
           <TabButton
             key={section.id}
@@ -62,10 +62,10 @@ function OrganizedSongContent({ audioUrl, lyrics, sheetUrl, stems, stemsLoading 
         ))}
       </div>
 
-      <div className="mt-5">
+      <div className="mt-4 px-1">
         {visibleTab !== "multitrack" && audioUrl && !(visibleTab === "pdf" && isPdfOpen) ? (
-          <div className="sticky top-0 z-30 -mx-2 mb-5 border-b border-white/[0.04] bg-zinc-950/90 px-2 py-3 backdrop-blur-xl">
-            <div className="rounded-2xl border border-white/[0.07] bg-zinc-900/90 p-4 sm:p-5">
+          <div className="sticky top-0 z-30 mb-4 border-b border-white/[0.04] bg-zinc-950/90 py-2 backdrop-blur-xl">
+            <div className="rounded-2xl border border-white/[0.07] bg-zinc-900/90 px-4 py-4 sm:px-5">
               <AudioPlayer />
             </div>
           </div>
@@ -74,7 +74,7 @@ function OrganizedSongContent({ audioUrl, lyrics, sheetUrl, stems, stemsLoading 
         {visibleTab === "audio" ? <div id="audio-panel" role="tabpanel" /> : null}
 
         {visibleTab === "lyrics" ? (
-          <div id="lyrics-panel" role="tabpanel">
+          <div id="lyrics-panel" role="tabpanel" className="px-1 sm:px-2">
             <p className="whitespace-pre-wrap text-base leading-8 text-zinc-300">{lyrics}</p>
           </div>
         ) : null}
@@ -103,7 +103,7 @@ function OrganizedSongContent({ audioUrl, lyrics, sheetUrl, stems, stemsLoading 
         ) : null}
 
         {stems.length > 0 ? (
-          <div id="multitrack-panel" role="tabpanel" hidden={visibleTab !== "multitrack"}>
+          <div id="multitrack-panel" role="tabpanel" className="px-1 sm:px-2" hidden={visibleTab !== "multitrack"}>
             <MultitrackPlayer active={visibleTab === "multitrack"} stems={stems} title={title} />
           </div>
         ) : null}
@@ -179,7 +179,7 @@ function TabButton({ active, children, controls, onClick }: { active: boolean; c
       aria-selected={active}
       aria-controls={controls}
       onClick={onClick}
-      className={`min-h-11 shrink-0 rounded-lg px-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 ${active ? "bg-emerald-400 text-zinc-950" : "text-zinc-400 hover:bg-white/[0.05] hover:text-white"}`}
+      className={`min-h-11 shrink-0 rounded-lg px-4 text-sm font-semibold transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 ${active ? "bg-emerald-400 text-zinc-950" : "text-zinc-400 hover:bg-white/[0.05] hover:text-white"}`}
     >
       {children}
     </button>

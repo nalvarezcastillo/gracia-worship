@@ -14,6 +14,16 @@ export type ServiceItem = {
 };
 
 export type ServiceSong = {
+  audio_url: string;
+  bpm: number;
   id: string;
+  key: string;
+  sheet_url: string;
+  song_keys?: {
+    audio_url: string | null;
+    sheet_url: string | null;
+    song_stems?: { id: string }[];
+  }[];
+  time_signature: string | null;
   title: string;
 };

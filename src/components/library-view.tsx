@@ -17,6 +17,7 @@ export function LibraryView({ songs, isAdmin, notice }: { songs: SongSummary[]; 
   const [filter, setFilter] = useState<"all" | "favorites">("all");
   const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set());
   const [favoriteError, setFavoriteError] = useState("");
+  const hasSearch = query.trim().length > 0;
   const filteredSongs = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     const songsByFilter = filter === "favorites" ? localSongs.filter((song) => song.favorite) : localSongs;
@@ -54,11 +55,16 @@ export function LibraryView({ songs, isAdmin, notice }: { songs: SongSummary[]; 
   return (
     <main className="min-h-screen py-8 sm:py-12">
       <MainContainer>
-        <PageHeader title="Songs" aside={<p className="text-sm text-zinc-500">{filteredSongs.length} songs</p>} />
+        <PageHeader title="Canciones" />
         {notice ? <p role="status" className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.07] px-4 py-3 text-sm font-medium text-emerald-300">{notice}</p> : null}
         <div className="sticky top-0 z-30 -mx-2 mt-4 border-b border-white/[0.04] bg-zinc-950/85 px-2 py-3 shadow-[0_10px_24px_rgba(0,0,0,0.16)] backdrop-blur-xl sm:mt-6">
-          <div className="max-w-2xl">
-            <SearchField value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search songs or artists" />
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1 sm:max-w-2xl">
+              <SearchField value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por título o artista..." />
+            </div>
+            <p role="status" aria-live="polite" className="shrink-0 text-right text-[0.8125rem] text-zinc-500 sm:min-w-40 sm:text-sm">
+              {hasSearch ? `Mostrando ${filteredSongs.length} de ${localSongs.length} canciones` : `${localSongs.length} canciones`}
+            </p>
           </div>
         </div>
         {FAVORITES_ENABLED ? (
@@ -75,12 +81,17 @@ export function LibraryView({ songs, isAdmin, notice }: { songs: SongSummary[]; 
         ) : null}
 
         {filteredSongs.length > 0 ? (
-          <div className="mt-6 divide-y divide-white/[0.055] overflow-hidden rounded-2xl border border-white/[0.07] bg-zinc-900/60 shadow-xl shadow-black/10">
+          <div className="mt-6 divide-y divide-white/[0.06] border-y border-white/[0.06]">
             {filteredSongs.map((song) => <SongCard key={song.id} song={song} onToggleFavorite={toggleFavorite} isUpdating={updatingIds.has(song.id)} showFavorite={FAVORITES_ENABLED} />)}
           </div>
         ) : (
-          <div className="mt-9 rounded-3xl border border-dashed border-white/10 py-20 text-center text-base text-zinc-500">
-            {localSongs.length === 0 ? "No songs available" : filter === "favorites" && !query.trim() ? "No favorite songs." : "No songs found."}
+          <div className="mt-9 py-12 text-center text-base text-zinc-500">
+            <p>{localSongs.length === 0 ? "No hay canciones disponibles." : filter === "favorites" && !hasSearch ? "No hay canciones favoritas." : "No se encontraron canciones."}</p>
+            {hasSearch ? (
+              <button type="button" onClick={() => setQuery("")} className="mt-4 min-h-11 rounded-xl border border-white/10 bg-zinc-900 px-4 text-sm font-semibold text-white transition-colors duration-200 hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400">
+                Limpiar búsqueda
+              </button>
+            ) : null}
           </div>
         )}
       </MainContainer>
