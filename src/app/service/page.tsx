@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ServiceItems } from "@/components/service-items";
+import { PrimaryButton } from "@/components/ui/action-button";
 import { MainContainer } from "@/components/ui/main-container";
 import { PageHeader } from "@/components/ui/page-header";
 import { hasAuthenticatedUser } from "@/lib/auth";
@@ -29,6 +30,9 @@ export default async function ServicePage() {
       <MainContainer className="max-w-3xl">
         <PageHeader eyebrow="Gracia Worship" title="Servicio" />
         <ServiceItems initialItems={items} songs={songs} isAdmin={isAdmin} loadError={loadError} />
+        <PrimaryButton href="/service/rehearsal" className="mt-10 w-full sm:mt-12">
+          ▶ Comenzar ensayo
+        </PrimaryButton>
       </MainContainer>
     </main>
   );

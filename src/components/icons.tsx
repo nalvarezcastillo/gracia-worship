@@ -41,3 +41,12 @@ export function ServiceIcon({ className = "size-6" }: IconProps) {
     </svg>
   );
 }
+
+export function LiveIcon({ className = "size-6" }: IconProps) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" className={className}>
+      <circle cx="12" cy="12" r="2.25" fill="currentColor" />
+      <path d="M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.5 5.5a9.2 9.2 0 0 0 0 13M18.5 5.5a9.2 9.2 0 0 1 0 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}

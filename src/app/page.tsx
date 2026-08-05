@@ -1,7 +1,7 @@
+import Image from "next/image";
 import { MusicIcon } from "@/components/icons";
 import { PrimaryButton } from "@/components/ui/action-button";
 import { MainContainer } from "@/components/ui/main-container";
-import { PageHeader } from "@/components/ui/page-header";
 import { getMicrophoneAssignments } from "@/lib/microphones";
 import { getActiveSetlist } from "@/lib/setlist";
 
@@ -18,9 +18,19 @@ export default async function Home() {
   return (
     <main className="min-h-screen py-8 sm:py-12">
       <MainContainer className="max-w-4xl">
-        <PageHeader title="Gracia Worship" description="Bienvenidos a Gracia Worship." />
+        <header className="flex flex-col items-center text-center">
+          <Image
+            src="/branding/gracia-worship-logo.png"
+            alt="Logo de Gracia Worship"
+            width={1254}
+            height={1254}
+            priority
+            className="h-auto w-[170px] object-contain sm:w-[220px]"
+          />
+          <h1 className="mt-3 text-[28px] font-bold tracking-[-0.03em] text-white sm:text-4xl">Gracia Worship</h1>
+        </header>
 
-        <section className="mt-7 overflow-hidden rounded-3xl border border-white/[0.07] bg-zinc-900/60 shadow-2xl shadow-black/15 sm:mt-9">
+        <section className="mt-6 overflow-hidden rounded-3xl border border-white/[0.07] bg-zinc-900/60 shadow-2xl shadow-black/15 sm:mt-8">
           <div className="border-b border-white/[0.06] bg-gradient-to-br from-emerald-400/[0.09] to-transparent p-5 sm:p-7">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">Próximo servicio</p>
             {setlist ? (

@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AdminIcon, HomeIcon, MusicIcon, ServiceIcon } from "@/components/icons";
+import { AdminIcon, HomeIcon, LiveIcon, MusicIcon, ServiceIcon } from "@/components/icons";
 
 const items = [
   { href: "/", label: "Home", icon: HomeIcon, active: (path: string) => path === "/" },
   { href: "/songs", label: "Songs", icon: MusicIcon, active: (path: string) => path.startsWith("/songs") || path.startsWith("/song/") },
   { href: "/service", label: "Service", icon: ServiceIcon, active: (path: string) => path.startsWith("/service") },
+  { href: "/live", label: "En Vivo", icon: LiveIcon, active: (path: string) => path.startsWith("/live") },
   { href: "/admin", label: "Admin", icon: AdminIcon, active: (path: string) => path.startsWith("/admin") },
 ];
 
@@ -20,7 +21,7 @@ export function BottomNavigation() {
 
   return (
     <nav aria-label="Main navigation" className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.07] bg-zinc-950/85 pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_32px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
-      <div className="mx-auto grid h-18 max-w-lg grid-cols-4 gap-1 px-3 py-1.5">
+      <div className="mx-auto grid h-18 max-w-lg grid-cols-5 gap-1 px-2 py-1.5 sm:px-3">
         {items.map((item) => {
           const isActive = item.active(pathname);
           const Icon = item.icon;
