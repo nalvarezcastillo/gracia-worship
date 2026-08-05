@@ -5,6 +5,7 @@ import { MainContainer } from "@/components/ui/main-container";
 import { PageHeader } from "@/components/ui/page-header";
 import { hasAuthenticatedUser } from "@/lib/auth";
 import type { ServiceItem, ServiceSong } from "@/lib/service";
+import { normalizeServiceItemSongIds } from "@/lib/service-item-normalization";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Servicio | Gracia Worship" };
@@ -21,7 +22,7 @@ export default async function ServicePage() {
     hasAuthenticatedUser(),
   ]);
 
-  const items = error ? [] : (data ?? []) as ServiceItem[];
+  const items = error ? [] : (data ?? []).map((item) => normalizeServiceItemSongIds(item)) as ServiceItem[];
   const songs = songsError ? [] : (songsData ?? []) as ServiceSong[];
   const loadError = error?.message ?? songsError?.message;
 

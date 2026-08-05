@@ -22,11 +22,11 @@ export function NewSongForm() {
     const artist = getText(formData, "artist");
     const key = getText(formData, "key");
     const bpm = Number(getText(formData, "bpm"));
+    const timeSignature = getTimeSignature(formData);
     const duration = getText(formData, "duration");
     const lyrics = getText(formData, "lyrics");
-    const notes = getText(formData, "notes");
 
-    if (!title || !artist || !key || !duration || !lyrics || !notes || !Number.isFinite(bpm) || bpm <= 0) {
+    if (!title || !artist || !key || !duration || !lyrics || !Number.isFinite(bpm) || bpm <= 0) {
       setIsError(true);
       setMessage("Please complete all required fields.");
       return;
@@ -64,8 +64,7 @@ export function NewSongForm() {
         return supabase.storage.from("songs").getPublicUrl(path).data.publicUrl;
       }
 
-      const [coverUrl, audioUrl, sheetUrl] = await Promise.all([
-        uploadFile("cover", getFile(formData, "cover")),
+      const [audioUrl, sheetUrl] = await Promise.all([
         uploadFile("audio", audioFile),
         uploadFile("sheet", getFile(formData, "sheet")),
       ]);
@@ -75,13 +74,12 @@ export function NewSongForm() {
         artist,
         key,
         bpm,
+        time_signature: timeSignature,
         duration,
-        cover_url: coverUrl,
         audio_url: audioUrl,
         sheet_url: sheetUrl,
         video_url: "",
         lyrics,
-        notes,
       });
 
       if (error) {
@@ -108,23 +106,20 @@ export function NewSongForm() {
           <TextField label="Artist" name="artist" className="sm:col-span-2" />
           <TextField label="Key" name="key" />
           <TextField label="BPM" name="bpm" type="number" inputMode="numeric" />
+          <TimeSignatureField />
           <TextField label="Duration" name="duration" placeholder="5:18" className="sm:col-span-2" />
         </div>
       </FormSection>
 
       <FormSection title="Files">
         <div className="space-y-5 sm:space-y-6">
-          <FileField label="Cover Image" name="cover" accept="image/*" />
           <FileField label="Audio" name="audio" accept="audio/*" />
           <FileField label="Sheet Music (.pdf)" name="sheet" accept="application/pdf,.pdf" />
         </div>
       </FormSection>
 
       <FormSection title="Content">
-        <div className="space-y-5 sm:space-y-6">
-          <TextAreaField label="Letra" name="lyrics" rows={9} />
-          <TextAreaField label="Notes" name="notes" rows={6} />
-        </div>
+        <TextAreaField label="Letra" name="lyrics" rows={9} />
       </FormSection>
 
       <div>
@@ -155,9 +150,18 @@ function TextAreaField({ label, name, rows }: { label: string; name: string; row
   return <FieldLabel label={label}><textarea required name={name} rows={rows} className={`${fieldStyles} resize-y py-3 leading-7`} /></FieldLabel>;
 }
 
+function TimeSignatureField() {
+  return <FieldLabel label="Compás"><select name="time_signature" defaultValue="" className={fieldStyles}><option value="">Sin compás</option><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="6/8">6/8</option></select></FieldLabel>;
+}
+
 function getText(formData: FormData, name: string) {
   const value = formData.get(name);
   return typeof value === "string" ? value.trim() : "";
+}
+
+function getTimeSignature(formData: FormData) {
+  const value = getText(formData, "time_signature");
+  return value === "4/4" || value === "3/4" || value === "6/8" ? value : null;
 }
 
 function getFile(formData: FormData, name: string) {

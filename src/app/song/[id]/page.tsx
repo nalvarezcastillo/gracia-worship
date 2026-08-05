@@ -13,7 +13,7 @@ type SongPageProps = {
   params: Promise<{ id: string }>;
 };
 
-type SongDetail = Pick<SongRecord, "id" | "title" | "key" | "bpm" | "audio_url" | "lyrics" | "sheet_url">;
+type SongDetail = Pick<SongRecord, "id" | "title" | "key" | "bpm" | "time_signature" | "audio_url" | "lyrics" | "sheet_url">;
 
 export default async function SongPage({ params }: SongPageProps) {
   const { id } = await params;
@@ -24,7 +24,7 @@ export default async function SongPage({ params }: SongPageProps) {
   try {
     const { data, error } = await supabase
       .from("songs")
-      .select("id, title, key, bpm, audio_url, lyrics, sheet_url")
+      .select("id, title, key, bpm, time_signature, audio_url, lyrics, sheet_url")
       .eq("id", id)
       .maybeSingle();
 
@@ -65,6 +65,8 @@ export default async function SongPage({ params }: SongPageProps) {
           legacyKey={song.key}
           legacySheetUrl={song.sheet_url}
           lyrics={song.lyrics}
+          enableMultitrack
+          timeSignature={song.time_signature}
           title={song.title}
         />
       </MainContainer>

@@ -4,6 +4,7 @@ export type SongRecord = {
   artist: string;
   key: string;
   bpm: number;
+  time_signature: string | null;
   duration: string;
   cover_url: string;
   audio_url: string;
@@ -17,7 +18,7 @@ export type SongRecord = {
 
 export type SongSummary = Pick<
   SongRecord,
-  "id" | "title" | "artist" | "key" | "bpm" | "duration" | "favorite"
+  "id" | "title" | "artist" | "key" | "bpm" | "time_signature" | "duration" | "favorite"
 > & {
   cover: string;
 };
@@ -38,5 +39,16 @@ export type SongKeyRow = {
   audio_url: string | null;
   sheet_url: string | null;
   sort_order: number;
+  created_at: string;
+};
+
+export type SongStemRow = {
+  id: string;
+  song_key_id: string;
+  name: string;
+  storage_path: string;
+  sort_order: number;
+  mime_type: string | null;
+  file_size_bytes: number | null;
   created_at: string;
 };

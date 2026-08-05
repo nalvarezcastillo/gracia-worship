@@ -15,6 +15,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
   const [textTitle, setTextTitle] = useState("");
   const [textDetails, setTextDetails] = useState("");
   const [editingText, setEditingText] = useState<{ id: string; title: string; details: string } | null>(null);
+  const [editingWorship, setEditingWorship] = useState<{ id: string; title: string } | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [draggedSong, setDraggedSong] = useState<{ blockId: string; songId: string } | null>(null);
   const [songSelectorBlockId, setSongSelectorBlockId] = useState<string | null>(null);
@@ -97,6 +98,35 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
       console.error("Unable to update text item:", error);
       setIsError(true);
       setMessage(error instanceof Error ? error.message : "Unable to update text item.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function updateWorshipBlock() {
+    if (!editingWorship?.title.trim()) return;
+    setIsSaving(true);
+    setIsError(false);
+    setMessage("Saving worship block...");
+
+    try {
+      const supabase = await requireSession();
+      const title = editingWorship.title.trim();
+      const { error } = await supabase
+        .from("service_items")
+        .update({ title })
+        .eq("id", editingWorship.id)
+        .eq("type", "worship");
+
+      if (error) throw error;
+      savedItemsRef.current = savedItemsRef.current.map((item) => item.id === editingWorship.id ? { ...item, title } : item);
+      setItems((current) => current.map((item) => item.id === editingWorship.id ? { ...item, title } : item));
+      setEditingWorship(null);
+      setMessage("Worship block updated successfully.");
+    } catch (error) {
+      console.error("Unable to update worship block:", error);
+      setIsError(true);
+      setMessage(error instanceof Error ? error.message : "Unable to update worship block.");
     } finally {
       setIsSaving(false);
     }
@@ -307,6 +337,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
                 {isAdmin ? (
                   <div className="flex shrink-0 items-center">
                     {item.type === "text" ? <button type="button" aria-label={`Editar ${item.title}`} onClick={() => setEditingText({ id: item.id, title: item.title, details: item.details ?? "" })} disabled={isSaving} className="min-h-11 rounded-full px-2.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-emerald-400 sm:opacity-60 sm:group-hover:opacity-100 sm:focus-visible:opacity-100">Editar</button> : null}
+                    {item.type === "worship" ? <button type="button" aria-label={`Editar ${item.title}`} onClick={() => setEditingWorship({ id: item.id, title: item.title })} disabled={isSaving} className="min-h-11 rounded-full px-2.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-emerald-400 sm:opacity-60 sm:group-hover:opacity-100 sm:focus-visible:opacity-100">Editar</button> : null}
                     <button type="button" aria-label={`Eliminar ${item.title}`} onClick={() => setDeletingItem(item)} disabled={isSaving} className="min-h-11 rounded-full px-2.5 text-xs font-medium text-rose-400/60 transition-colors hover:bg-rose-400/[0.07] hover:text-rose-300 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-rose-400 sm:opacity-60 sm:group-hover:opacity-100 sm:focus-visible:opacity-100">Eliminar</button>
                   </div>
                 ) : null}
@@ -409,6 +440,22 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
               <PrimaryButton type="submit" disabled={isSaving || !editingText.title.trim()} className="w-full">Save Changes</PrimaryButton>
             </form>
             <button type="button" onClick={() => setEditingText(null)} disabled={isSaving} className="mt-4 min-h-11 w-full rounded-full text-sm font-semibold text-zinc-400 transition-colors hover:bg-white/[0.04] hover:text-white">Cancel</button>
+          </section>
+        </div>
+      ) : null}
+
+      {isAdmin && editingWorship ? (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-black/70 px-4 backdrop-blur-sm" role="presentation">
+          <section role="dialog" aria-modal="true" aria-labelledby="edit-worship-block-title" className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-900 p-6 shadow-2xl shadow-black/60 sm:p-7">
+            <h2 id="edit-worship-block-title" className="text-2xl font-bold tracking-tight text-white">Editar bloque de alabanza</h2>
+            <form className="mt-6" onSubmit={(event) => { event.preventDefault(); void updateWorshipBlock(); }}>
+              <label className="block">
+                <span className="mb-2 block text-sm font-semibold text-zinc-300">Título</span>
+                <input autoFocus required value={editingWorship.title} onChange={(event) => setEditingWorship({ ...editingWorship, title: event.target.value })} className="min-h-12 w-full rounded-2xl border border-white/10 bg-zinc-950/60 px-4 text-white outline-none focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]" />
+              </label>
+              <PrimaryButton type="submit" disabled={isSaving || !editingWorship.title.trim()} className="mt-5 w-full">Guardar cambios</PrimaryButton>
+            </form>
+            <button type="button" onClick={() => setEditingWorship(null)} disabled={isSaving} className="mt-4 min-h-11 w-full rounded-full text-sm font-semibold text-zinc-400 transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-40">Cancelar</button>
           </section>
         </div>
       ) : null}

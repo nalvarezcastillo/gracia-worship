@@ -8,6 +8,7 @@ type AudioPlayerState = {
   hasError: boolean;
   hasSource: boolean;
   isPlaying: boolean;
+  pause: () => void;
   seek: (value: number) => void;
   skip: (seconds: number) => void;
   title: string;
@@ -53,6 +54,10 @@ export function AudioPlayerProvider({ children, src, title }: { children: React.
     }
   }
 
+  function pause() {
+    audioRef.current?.pause();
+  }
+
   function seek(value: number) {
     const audio = audioRef.current;
     if (!audio) return;
@@ -73,7 +78,7 @@ export function AudioPlayerProvider({ children, src, title }: { children: React.
   }
 
   return (
-    <AudioPlayerContext.Provider value={{ currentTime, duration, hasError, hasSource: Boolean(src), isPlaying, seek, skip, title, togglePlayback }}>
+    <AudioPlayerContext.Provider value={{ currentTime, duration, hasError, hasSource: Boolean(src), isPlaying, pause, seek, skip, title, togglePlayback }}>
         <audio
           ref={audioRef}
           src={src || undefined}

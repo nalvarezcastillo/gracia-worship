@@ -11,12 +11,13 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 
 type FullscreenPdfReaderProps = {
   fileName: string;
+  headerAudioControls?: React.ReactNode;
   onClose: () => void;
   title: string;
   url: string;
 };
 
-export function FullscreenPdfReader({ fileName, onClose, title, url }: FullscreenPdfReaderProps) {
+export function FullscreenPdfReader({ fileName, headerAudioControls, onClose, title, url }: FullscreenPdfReaderProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const pageContainerRef = useRef<HTMLDivElement>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
@@ -106,6 +107,12 @@ export function FullscreenPdfReader({ fileName, onClose, title, url }: Fullscree
         </span>
       </header>
 
+      {headerAudioControls ? (
+        <div className="shrink-0 border-b border-white/10 bg-zinc-950 px-3 py-3 sm:px-6">
+          {headerAudioControls}
+        </div>
+      ) : null}
+
       <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-zinc-900 px-3 pb-8 pt-3 sm:px-6 sm:pb-10 sm:pt-6">
         <div ref={pageContainerRef} className="mx-auto flex w-full max-w-6xl justify-center">
           <Document
@@ -147,8 +154,8 @@ export function FullscreenPdfReader({ fileName, onClose, title, url }: Fullscree
       </main>
 
       <footer className="shrink-0 border-t border-white/10 bg-zinc-950 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-12px_30px_rgba(0,0,0,0.25)] sm:px-6 sm:pt-3">
-        <CompactAudioPlayer />
-        <div className="mt-2 grid min-h-12 grid-cols-[1fr_auto_1fr] items-center gap-2 border-t border-white/[0.07] pt-2 sm:mt-3 sm:pt-3">
+        {!headerAudioControls ? <CompactAudioPlayer /> : null}
+        <div className={`${headerAudioControls ? "" : "mt-2 border-t border-white/[0.07] pt-2 sm:mt-3 sm:pt-3"} grid min-h-12 grid-cols-[1fr_auto_1fr] items-center gap-2`}>
         <button
           type="button"
           onClick={() => {

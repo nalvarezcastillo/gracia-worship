@@ -1,14 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { ManageSongStems } from "@/components/manage-song-stems";
 import { PrimaryButton } from "@/components/ui/action-button";
-import type { SongKeyRow } from "@/lib/database.types";
+import type { SongKeyRow, SongStemRow } from "@/lib/database.types";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const fieldStyles = "min-h-12 w-full rounded-2xl border border-white/8 bg-zinc-950/45 px-4 text-base text-white outline-none focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]";
 
-export function ManageSongKeys({ initialKeys, songId }: { initialKeys: SongKeyRow[]; songId: string }) {
+export function ManageSongKeys({ initialKeys, initialStems, songId }: { initialKeys: SongKeyRow[]; initialStems: SongStemRow[]; songId: string }) {
   const [keys, setKeys] = useState(initialKeys);
+  const [stems, setStems] = useState(initialStems);
+  const [stemsKey, setStemsKey] = useState<SongKeyRow | null>(null);
   const [editingKey, setEditingKey] = useState<SongKeyRow | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -103,6 +106,8 @@ export function ManageSongKeys({ initialKeys, songId }: { initialKeys: SongKeyRo
       const { error } = await supabase.from("song_keys").delete().eq("id", key.id).eq("song_id", songId);
       if (error) throw error;
       setKeys((current) => current.filter((item) => item.id !== key.id));
+      setStems((current) => current.filter((stem) => stem.song_key_id !== key.id));
+      if (stemsKey?.id === key.id) setStemsKey(null);
       setIsError(false);
       setMessage("Tonalidad eliminada.");
     } catch (error) {
@@ -126,11 +131,13 @@ export function ManageSongKeys({ initialKeys, songId }: { initialKeys: SongKeyRo
       {keys.length > 0 ? (
         <div className="mt-5 divide-y divide-white/[0.07] border-y border-white/[0.07]">
           {keys.map((key) => (
-            <div key={key.id} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center">
+            <div key={key.id} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,0.75fr)_minmax(0,0.75fr)_minmax(0,0.75fr)_minmax(0,0.75fr)_auto] sm:items-center">
               <p className="font-semibold text-white">{key.key_name}</p>
               <FileLink url={key.audio_url} label="Audio" />
               <FileLink url={key.sheet_url} label="PDF" />
-              <div className="flex gap-1 sm:justify-end">
+              <p className="text-sm text-zinc-500">{stems.filter((stem) => stem.song_key_id === key.id).length} pistas</p>
+              <div className="flex flex-wrap gap-1 sm:justify-end">
+                <button type="button" onClick={() => { setStemsKey(key); setMessage(""); }} disabled={busyId !== null} className="min-h-11 rounded-full px-3 text-sm text-emerald-400 hover:bg-emerald-400/[0.08] disabled:opacity-40">Administrar pistas</button>
                 <button type="button" onClick={() => { setIsAdding(false); setEditingKey(key); setMessage(""); }} disabled={busyId !== null} className="min-h-11 rounded-full px-3 text-sm text-zinc-400 hover:bg-white/[0.05] hover:text-white disabled:opacity-40">Editar</button>
                 <button type="button" onClick={() => void deleteKey(key)} disabled={busyId !== null} className="min-h-11 rounded-full px-3 text-sm text-rose-400 hover:bg-rose-400/[0.08] disabled:opacity-40">Eliminar</button>
               </div>
@@ -152,6 +159,19 @@ export function ManageSongKeys({ initialKeys, songId }: { initialKeys: SongKeyRo
       ) : null}
 
       <p role="status" aria-live="polite" className={`mt-4 min-h-5 text-sm ${isError ? "text-rose-400" : "text-emerald-400"}`}>{message}</p>
+
+      {stemsKey ? (
+        <ManageSongStems
+          songId={songId}
+          songKey={stemsKey}
+          stems={stems.filter((stem) => stem.song_key_id === stemsKey.id)}
+          onChange={(nextKeyStems) => setStems((current) => [
+            ...current.filter((stem) => stem.song_key_id !== stemsKey.id),
+            ...nextKeyStems,
+          ])}
+          onClose={() => setStemsKey(null)}
+        />
+      ) : null}
     </section>
   );
 }

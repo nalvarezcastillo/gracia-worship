@@ -23,11 +23,11 @@ export function EditSongForm({ song }: { song: SongRecord }) {
     const title = getText(formData, "title");
     const artist = getText(formData, "artist");
     const bpm = Number(getText(formData, "bpm"));
+    const timeSignature = getTimeSignature(formData);
     const duration = getText(formData, "duration");
     const lyrics = getText(formData, "lyrics");
-    const notes = getText(formData, "notes");
 
-    if (!title || !artist || !duration || !lyrics || !notes || !Number.isFinite(bpm) || bpm <= 0) {
+    if (!title || !artist || !duration || !lyrics || !Number.isFinite(bpm) || bpm <= 0) {
       setIsError(true);
       setMessage("Please complete all required fields.");
       return;
@@ -45,33 +45,13 @@ export function EditSongForm({ song }: { song: SongRecord }) {
         throw new Error("Your session has expired. Please sign in again.");
       }
 
-      const folder = `${song.id}/${crypto.randomUUID()}`;
-
-      async function uploadReplacement(name: string, file: File | null, currentUrl: string) {
-        if (!file) return currentUrl;
-        const extension = file.name.split(".").pop()?.toLowerCase() || "file";
-        const path = `${folder}/${name}.${extension}`;
-        const { error } = await supabase.storage.from("songs").upload(path, file, {
-          cacheControl: "3600",
-          contentType: file.type || undefined,
-          upsert: false,
-        });
-        if (error) {
-          throw new Error(`Unable to upload ${name}.`);
-        }
-        return supabase.storage.from("songs").getPublicUrl(path).data.publicUrl;
-      }
-
-      const coverUrl = await uploadReplacement("cover", getFile(formData, "cover"), song.cover_url);
-
       const { error } = await supabase.schema("public").from("songs").update({
         title,
         artist,
         bpm,
+        time_signature: timeSignature,
         duration,
-        cover_url: coverUrl,
         lyrics,
-        notes,
       }).eq("id", song.id);
 
       if (error) {
@@ -133,21 +113,13 @@ export function EditSongForm({ song }: { song: SongRecord }) {
           <TextField label="Title" name="title" defaultValue={song.title} className="sm:col-span-2" />
           <TextField label="Artist" name="artist" defaultValue={song.artist} className="sm:col-span-2" />
           <TextField label="BPM" name="bpm" defaultValue={String(song.bpm)} type="number" inputMode="numeric" />
+          <TimeSignatureField defaultValue={song.time_signature} />
           <TextField label="Duration" name="duration" defaultValue={song.duration} className="sm:col-span-2" />
         </div>
       </FormSection>
 
-      <FormSection title="Files">
-        <div className="space-y-5 sm:space-y-6">
-          <FileField label="Cover Image" name="cover" accept="image/*" />
-        </div>
-      </FormSection>
-
       <FormSection title="Content">
-        <div className="space-y-5 sm:space-y-6">
-          <TextAreaField label="Letra" name="lyrics" rows={9} defaultValue={song.lyrics} />
-          <TextAreaField label="Notes" name="notes" rows={6} defaultValue={song.notes} />
-        </div>
+        <TextAreaField label="Letra" name="lyrics" rows={9} defaultValue={song.lyrics} />
       </FormSection>
 
       <div>
@@ -194,12 +166,12 @@ function TextField({ label, name, defaultValue, className, type = "text", inputM
   return <FieldLabel label={label} className={className}><input required name={name} defaultValue={defaultValue} type={type} inputMode={inputMode} className={fieldStyles} /></FieldLabel>;
 }
 
-function FileField({ label, name, accept }: { label: string; name: string; accept: string }) {
-  return <FieldLabel label={label}><input name={name} type="file" accept={accept} className={`${fieldStyles} cursor-pointer py-2 text-sm text-zinc-400 file:mr-4 file:min-h-8 file:rounded-full file:border-0 file:bg-white/10 file:px-4 file:font-semibold file:text-white`} /></FieldLabel>;
-}
-
 function TextAreaField({ label, name, rows, defaultValue }: { label: string; name: string; rows: number; defaultValue: string }) {
   return <FieldLabel label={label}><textarea required name={name} rows={rows} defaultValue={defaultValue} className={`${fieldStyles} resize-y py-3 leading-7`} /></FieldLabel>;
+}
+
+function TimeSignatureField({ defaultValue }: { defaultValue: string | null }) {
+  return <FieldLabel label="Compás"><select name="time_signature" defaultValue={defaultValue ?? ""} className={fieldStyles}><option value="">Sin compás</option><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="6/8">6/8</option></select></FieldLabel>;
 }
 
 function getText(formData: FormData, name: string) {
@@ -207,9 +179,9 @@ function getText(formData: FormData, name: string) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function getFile(formData: FormData, name: string) {
-  const value = formData.get(name);
-  return value instanceof File && value.size > 0 ? value : null;
+function getTimeSignature(formData: FormData) {
+  const value = getText(formData, "time_signature");
+  return value === "4/4" || value === "3/4" || value === "6/8" ? value : null;
 }
 
 function getStoragePath(publicUrl: string) {

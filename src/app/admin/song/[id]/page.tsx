@@ -5,7 +5,7 @@ import { ManageSongKeys } from "@/components/manage-song-keys";
 import { MainContainer } from "@/components/ui/main-container";
 import { PageHeader } from "@/components/ui/page-header";
 import type { SongRecord } from "@/lib/database.types";
-import type { SongKeyRow } from "@/lib/database.types";
+import type { SongKeyRow, SongStemRow } from "@/lib/database.types";
 import { hasAuthenticatedUser } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -17,6 +17,7 @@ export default async function EditSongPage({ params }: { params: Promise<{ id: s
   if (!(await hasAuthenticatedUser())) redirect(`/login?next=/admin/song/${id}`);
   let song: SongRecord | null = null;
   let songKeys: SongKeyRow[] = [];
+  let songStems: SongStemRow[] = [];
   const supabase = await createSupabaseServerClient();
 
   try {
@@ -40,6 +41,21 @@ export default async function EditSongPage({ params }: { params: Promise<{ id: s
     console.error("Unable to load song keys in the editor:", error);
   }
 
+  if (songKeys.length > 0) {
+    try {
+      const { data: stemsData, error: stemsError } = await supabase
+        .from("song_stems")
+        .select("id, song_key_id, name, storage_path, sort_order, mime_type, file_size_bytes, created_at")
+        .in("song_key_id", songKeys.map((key) => key.id))
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true });
+      if (stemsError) throw stemsError;
+      songStems = (stemsData ?? []) as SongStemRow[];
+    } catch (error) {
+      console.error("Unable to load song stems in the editor:", error);
+    }
+  }
+
   if (!song) notFound();
 
   return (
@@ -47,7 +63,7 @@ export default async function EditSongPage({ params }: { params: Promise<{ id: s
       <MainContainer className="max-w-3xl">
         <PageHeader title="Editar canción" description="Actualiza los datos de la canción o reemplaza sus archivos." />
         <EditSongForm song={song} />
-        <ManageSongKeys songId={song.id} initialKeys={songKeys} />
+        <ManageSongKeys songId={song.id} initialKeys={songKeys} initialStems={songStems} />
       </MainContainer>
     </main>
   );

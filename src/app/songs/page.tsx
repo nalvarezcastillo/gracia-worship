@@ -15,7 +15,7 @@ export default async function SongsPage({ searchParams }: { searchParams: Promis
     const { data, error } = await supabase
       .schema("public")
       .from("songs")
-      .select("id, title, artist, key, bpm, duration, cover_url")
+      .select("id, title, artist, key, bpm, time_signature, duration, cover_url")
       .order("title", { ascending: true });
 
     if (error) throw error;
@@ -26,6 +26,7 @@ export default async function SongsPage({ searchParams }: { searchParams: Promis
       artist: song.artist,
       key: song.key,
       bpm: song.bpm,
+      time_signature: song.time_signature,
       duration: song.duration,
       favorite: false,
       cover: song.cover_url || "/song-placeholder.svg",
