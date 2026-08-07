@@ -27,7 +27,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
   return (
     <main className="min-h-screen py-8 sm:py-12">
-      <MainContainer className="max-w-2xl">
+      <MainContainer className="max-w-4xl">
         <PageHeader eyebrow="Panel" title="Administración" description="Gestiona la biblioteca y el servicio actual." />
 
         <CurrentServiceSettings
@@ -38,7 +38,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           serviceId={serviceId}
         />
 
-        <section>
+        <section className="lg:grid lg:grid-cols-3 lg:gap-6">
           <AppSectionCard eyebrow="Biblioteca" title="Biblioteca">
             <div className="divide-y divide-white/[0.06]"><AppMenuRow href="/admin/song/new" label="Agregar canción" leadingSymbol="+" /><AppMenuRow href="/songs" label="Canciones" /></div>
           </AppSectionCard>
@@ -48,10 +48,10 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </AppSectionCard>
 
           <AppSectionCard eyebrow="Administración" title="Administración">
-            <div className="divide-y divide-white/[0.06]"><AppMenuRow href="/admin/team" label="Equipo" /><AppMenuRow href="/admin/settings" label="Configuración" /></div>
+            <div className="divide-y divide-white/[0.06]"><AppMenuRow href="/admin/team" label="Equipo" /><AppMenuRow href="/admin/resources" label="Recursos" /><AppMenuRow href="/admin/settings" label="Configuración" /></div>
           </AppSectionCard>
 
-          <div className="border-t border-white/[0.07] pt-6"><SignOutButton /></div>
+          <div className="border-t border-white/[0.07] pt-6 lg:col-span-3"><SignOutButton /></div>
         </section>
       </MainContainer>
     </main>

@@ -146,3 +146,16 @@ Avoid:
 Every new UI feature or redesign must reference and follow `DESIGN_SYSTEM.md`.
 
 If a new design decision conflicts with this document, update the document first before implementing the new UI.
+
+## 17. Responsive Experience
+
+- Design mobile-first and enhance the composition progressively for larger screens.
+- Use Tailwind breakpoints consistently: mobile below `768px`, tablet from `768px` to `1023px`, and desktop from `1024px` (`lg`) onward.
+- Never detect layout through the user agent. Responsive behavior belongs in CSS and component presentation.
+- Mobile prioritizes one-column flows, controls of at least 44px, reachable actions, accordions and compact summaries without horizontal scrolling.
+- Desktop should use additional width intentionally through balanced columns, supporting panels, denser metadata and whitespace. Do not merely stretch mobile layouts.
+- Queries, state, mutations, validation, permissions and domain types must remain shared across every viewport.
+- Prefer one component with responsive CSS when the information hierarchy and interaction order remain substantially the same.
+- Create separate `Mobile` and `Desktop` presentation components only when markup or interaction composition is materially different. Keep their business logic in a shared parent, hook or helper.
+- Do not render duplicated responsive trees when CSS can express the layout cleanly.
+- Tablet should adapt naturally from the same components; do not introduce a third application layout.

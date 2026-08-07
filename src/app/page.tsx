@@ -69,6 +69,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
           </div>
         </AppSectionCard>
 
+        <div className="lg:grid lg:grid-cols-2 lg:gap-x-6">
         {serviceTeamGroups.length ? (
           <AppSectionCard eyebrow="Equipo del servicio" title="Equipo del servicio" subtitle={`${serviceTeamGroups.length} ${serviceTeamGroups.length === 1 ? "persona sirviendo" : "personas sirviendo"}`}>
             <div className="divide-y divide-white/[0.055] px-4 sm:px-6">
@@ -78,6 +79,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
                   {person.roles.length || person.microphones.length ? (
                     <p className="mt-1.5 text-sm text-zinc-400">{[...person.roles, ...person.microphones].join(" • ")}</p>
                   ) : null}
+                  {person.resources.length ? <p className="mt-1 text-sm text-zinc-500">{person.resources.join(" • ")}</p> : null}
                 </div>
               ))}
             </div>
@@ -91,6 +93,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
         ) : null}
 
         {setlist ? <ServiceCountdownCard serviceDate={setlist.serviceDate} serviceTime={setlist.serviceTime} serviceName={localizeDefaultServiceName(setlist.serviceName)} serviceSchedule={serviceSchedule} /> : null}
+        </div>
       </MainContainer>
     </main>
   );
