@@ -1,14 +1,18 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { PrepareNextServiceButton } from "@/components/prepare-next-service-button";
+import { AssignmentFields } from "@/components/assignment-fields";
 import { PrimaryButton, SecondaryButton } from "@/components/ui/action-button";
+import { SongMetadataLine } from "@/components/ui/song-tags";
 import type { ServiceItem, ServiceSong } from "@/lib/service";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import type { TeamMember } from "@/lib/team";
 
 type AddStep = "closed" | "type" | "text";
 
-export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { initialItems: ServiceItem[]; songs: ServiceSong[]; isAdmin: boolean; loadError?: string }) {
+export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceId, serviceName, serviceSchedule, showPreparedToast = false, teamMembers = [] }: { initialItems: ServiceItem[]; songs: ServiceSong[]; isAdmin: boolean; loadError?: string; serviceId: number; serviceName: string; serviceSchedule: string; showPreparedToast?: boolean; teamMembers?: TeamMember[] }) {
   const [items, setItems] = useState(initialItems);
   const savedItemsRef = useRef(initialItems);
   const [addStep, setAddStep] = useState<AddStep>("closed");
@@ -26,7 +30,14 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState(loadError ? `Unable to load service: ${loadError}` : "");
   const [isError, setIsError] = useState(Boolean(loadError));
+  const [showSuccessToast, setShowSuccessToast] = useState(showPreparedToast);
   const hasUnsavedChanges = serializeService(items) !== serializeService(savedItemsRef.current);
+
+  useEffect(() => {
+    if (!showSuccessToast) return;
+    const timeout = window.setTimeout(() => setShowSuccessToast(false), 4000);
+    return () => window.clearTimeout(timeout);
+  }, [showSuccessToast]);
 
   async function requireSession() {
     if (!isAdmin) throw new Error("You must be signed in to edit the service.");
@@ -49,6 +60,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
       const { data, error } = await supabase
         .from("service_items")
         .insert({
+          service_id: serviceId,
           position: items.length + 1,
           type,
           title: nextTitle,
@@ -310,11 +322,16 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
   }
 
   return (
-    <div className="mt-6 space-y-6 sm:mt-8">
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="text-xl font-semibold tracking-tight text-white">Orden del servicio</h2>
-        {isAdmin ? <PrimaryButton type="button" onClick={() => setAddStep("type")} disabled={isSaving} className="min-h-11 rounded-xl px-4 text-sm shadow-none">+ Agregar elemento</PrimaryButton> : null}
-      </div>
+    <div className="space-y-6">
+      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-b border-white/[0.08] pb-6">
+        <h1 className="col-start-1 row-start-1 min-w-0 text-[1.75rem] font-bold tracking-[-0.035em] text-white sm:text-[2rem]">{serviceName}</h1>
+        {isAdmin ? <PrimaryButton type="button" onClick={() => setAddStep("type")} disabled={isSaving} className="col-start-2 row-start-1 min-h-11 rounded-xl px-4 text-sm shadow-none">+ Agregar elemento</PrimaryButton> : null}
+        {serviceSchedule ? <p className="col-start-1 row-start-2 min-w-0 text-sm text-zinc-400 sm:text-base">{serviceSchedule}</p> : <span />}
+        <p className="col-start-2 row-start-2 text-right text-sm text-zinc-500">{items.length} {items.length === 1 ? "elemento" : "elementos"}</p>
+        {isAdmin ? <div className="col-span-2 row-start-3 mt-2 flex flex-col gap-2 sm:flex-row sm:justify-end"><SecondaryButton href={`/admin?service=${serviceId}`} className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">Editar fecha</SecondaryButton><PrepareNextServiceButton /><SecondaryButton href="/archive" className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">Archivo</SecondaryButton></div> : null}
+      </header>
+
+      {showSuccessToast ? <div role="status" aria-live="polite" className="fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-sm rounded-2xl border border-emerald-400/20 bg-zinc-900 px-4 py-3 text-center text-sm font-medium text-emerald-300 shadow-2xl">✅ Próximo servicio preparado correctamente.</div> : null}
 
       {items.length ? (
         <div className="divide-y divide-white/[0.07] border-y border-white/[0.07]">
@@ -331,14 +348,16 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
               <div className="flex items-start gap-2.5">
                 <div className="min-w-0 flex-1">
                   <h3 className={item.type === "worship" ? "text-xs font-semibold uppercase tracking-[0.16em] text-emerald-400/80" : "text-base font-semibold leading-6 text-zinc-100"}>{item.title}</h3>
-                  {item.type === "text" && item.details ? <p className="mt-0.5 whitespace-pre-wrap text-sm font-normal leading-5 text-zinc-500">{item.details}</p> : null}
+                  {item.type === "text" && item.details ? <p className="mt-1 whitespace-pre-wrap text-sm font-normal leading-5 text-zinc-500">{item.details}</p> : null}
                 </div>
                 {isAdmin ? (
-                  <div className="flex shrink-0 items-center">
-                    {item.type === "text" ? <button type="button" aria-label={`Editar ${item.title}`} onClick={() => setEditingText({ id: item.id, title: item.title, details: item.details ?? "" })} disabled={isSaving} className="min-h-11 rounded-full px-2.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-emerald-400 sm:opacity-60 sm:group-hover:opacity-100 sm:focus-visible:opacity-100">Editar</button> : null}
-                    {item.type === "worship" ? <button type="button" aria-label={`Editar ${item.title}`} onClick={() => setEditingWorship({ id: item.id, title: item.title })} disabled={isSaving} className="min-h-11 rounded-full px-2.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-emerald-400 sm:opacity-60 sm:group-hover:opacity-100 sm:focus-visible:opacity-100">Editar</button> : null}
-                    <button type="button" aria-label={`Eliminar ${item.title}`} onClick={() => setDeletingItem(item)} disabled={isSaving} className="min-h-11 rounded-full px-2.5 text-xs font-medium text-rose-400/60 transition-colors hover:bg-rose-400/[0.07] hover:text-rose-300 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-rose-400 sm:opacity-60 sm:group-hover:opacity-100 sm:focus-visible:opacity-100">Eliminar</button>
-                  </div>
+                  <details className="relative shrink-0">
+                    <summary aria-label={`Acciones para ${item.title}`} className="grid size-11 cursor-pointer list-none place-items-center rounded-xl text-xl leading-none text-zinc-500 transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400 [&::-webkit-details-marker]:hidden">⋮</summary>
+                    <div className="absolute right-0 z-20 mt-1 min-w-36 overflow-hidden rounded-xl border border-white/10 bg-zinc-900 p-1 shadow-xl shadow-black/40">
+                      <button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); if (item.type === "text") setEditingText({ id: item.id, title: item.title, details: item.details ?? "" }); else setEditingWorship({ id: item.id, title: item.title }); }} disabled={isSaving} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-zinc-200 transition-colors hover:bg-white/[0.06] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-emerald-400">Editar</button>
+                      <button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); setDeletingItem(item); }} disabled={isSaving} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-rose-300 transition-colors hover:bg-rose-400/[0.08] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-rose-400">Eliminar</button>
+                    </div>
+                  </details>
                 ) : null}
                 {isAdmin ? <GripIcon label={`Drag ${item.title} to reorder`} className="mt-3 size-3.5 shrink-0 text-zinc-600" /> : null}
               </div>
@@ -356,19 +375,19 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
                         onDragEnd={isAdmin ? (event) => { event.stopPropagation(); setDraggedSong(null); } : undefined}
                         onDragOver={isAdmin ? (event) => { event.stopPropagation(); event.preventDefault(); } : undefined}
                         onDrop={isAdmin ? (event) => { event.stopPropagation(); reorderBlockSongs(item.id, entry.songId); } : undefined}
-                        className={`grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(6rem,auto)_auto_auto] ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${draggedSong?.songId === entry.songId ? "text-emerald-300" : ""}`}
+                        className={`grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 py-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${draggedSong?.songId === entry.songId ? "text-emerald-300" : ""}`}
                       >
                         <div className="min-w-0 sm:col-start-1 sm:row-start-1">
                           <Link href={`/song/${song.id}`} onClick={(event) => event.stopPropagation()} className="block truncate text-base font-semibold text-zinc-200 transition-colors duration-200 hover:text-emerald-300">{song.title}</Link>
-                          <p className="mt-1 text-[0.8125rem] text-zinc-500">{formatSongMetadata(song)}</p>
+                          <SongMetadataLine songKey={song.key} bpm={song.bpm} timeSignature={song.time_signature} className="mt-1 text-[0.8125rem] font-normal" />
+                          {entry.notes ? <p className="mt-1 whitespace-pre-line text-xs leading-5 text-zinc-500 sm:text-[0.8125rem]">{entry.notes}</p> : null}
                         </div>
-                        {entry.notes ? <p className="col-start-1 row-start-2 min-w-0 truncate text-xs text-zinc-500 sm:col-start-2 sm:row-start-1 sm:text-right sm:text-sm">{entry.notes}</p> : null}
-                        <div className={`col-span-2 flex min-w-0 items-center justify-end gap-1 sm:col-span-1 sm:col-start-3 sm:row-start-1 ${entry.notes ? "row-start-3" : "row-start-2"}`}>
+                        <div className="col-span-2 row-start-2 flex min-w-0 items-center justify-end gap-1 sm:col-span-1 sm:col-start-2 sm:row-start-1">
                           <ResourceIndicators song={song} />
                           {isAdmin ? <button type="button" aria-label={`Editar notas de ${song.title}`} onClick={(event) => { event.stopPropagation(); setEditingSong({ blockId: item.id, songId: entry.songId, notes: entry.notes }); }} className="min-h-11 shrink-0 rounded-full px-2 text-xs font-medium text-zinc-600 transition-colors hover:bg-white/[0.04] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400">Editar</button> : null}
                           {isAdmin ? <button type="button" aria-label={`Quitar canción ${song.title}`} onClick={(event) => { event.stopPropagation(); removeSongFromBlock(item.id, entry.songId); }} className="grid size-11 shrink-0 place-items-center rounded-full text-lg text-zinc-600 transition-colors hover:bg-rose-400/10 hover:text-rose-300 focus-visible:outline-2 focus-visible:outline-rose-400">×</button> : null}
                         </div>
-                        {isAdmin ? <GripIcon label={`Drag ${song.title} to reorder`} className="col-start-2 row-start-1 size-3.5 justify-self-end text-zinc-600 sm:col-start-4" /> : null}
+                        {isAdmin ? <GripIcon label={`Drag ${song.title} to reorder`} className="col-start-2 row-start-1 size-3.5 justify-self-end text-zinc-600 sm:col-start-3" /> : null}
                       </li>
                     );
                   })}
@@ -421,6 +440,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
                 </label>
                 <label className="block">
                   <span className="mb-2 block text-sm font-semibold text-zinc-300">Details <span className="font-normal text-zinc-500">(optional)</span></span>
+                  <span className="mb-2 block"><AssignmentFields members={teamMembers} value={textDetails} onChange={setTextDetails} /></span>
                   <textarea value={textDetails} onChange={(event) => setTextDetails(event.target.value)} rows={3} className="w-full resize-y rounded-2xl border border-white/10 bg-zinc-950/60 px-4 py-3 text-white outline-none focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]" />
                 </label>
                 <PrimaryButton type="submit" disabled={isSaving || !textTitle.trim()} className="w-full">Add</PrimaryButton>
@@ -442,6 +462,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
               </label>
               <label className="block">
                 <span className="mb-2 block text-sm font-semibold text-zinc-300">Details <span className="font-normal text-zinc-500">(optional)</span></span>
+                <span className="mb-2 block"><AssignmentFields members={teamMembers} value={editingText.details} onChange={(value) => setEditingText({ ...editingText, details: value })} /></span>
                 <textarea value={editingText.details} onChange={(event) => setEditingText({ ...editingText, details: event.target.value })} rows={3} className="w-full resize-y rounded-2xl border border-white/10 bg-zinc-950/60 px-4 py-3 text-white outline-none focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]" />
               </label>
               <PrimaryButton type="submit" disabled={isSaving || !editingText.title.trim()} className="w-full">Save Changes</PrimaryButton>
@@ -482,6 +503,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
             </label>
             <label className="mt-4 block">
               <span className="mb-2 block text-sm font-semibold text-zinc-300">Notes <span className="font-normal text-zinc-500">(optional)</span></span>
+              <span className="mb-2 block"><AssignmentFields members={teamMembers} value={songNotes} onChange={setSongNotes} /></span>
               <input value={songNotes} onChange={(event) => setSongNotes(event.target.value)} className="min-h-12 w-full rounded-2xl border border-white/10 bg-zinc-950/60 px-4 text-white outline-none focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]" />
             </label>
             <PrimaryButton type="button" onClick={addSongToBlock} disabled={!selectedSongId} className="mt-5 w-full">Guardar</PrimaryButton>
@@ -497,6 +519,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError }: { init
             <form className="mt-6" onSubmit={(event) => { event.preventDefault(); saveSongNotes(); }}>
               <label className="block">
                 <span className="mb-2 block text-sm font-semibold text-zinc-300">Notes <span className="font-normal text-zinc-500">(optional)</span></span>
+                <span className="mb-2 block"><AssignmentFields members={teamMembers} value={editingSong.notes} onChange={(value) => setEditingSong({ ...editingSong, notes: value })} /></span>
                 <input autoFocus value={editingSong.notes} onChange={(event) => setEditingSong({ ...editingSong, notes: event.target.value })} className="min-h-12 w-full rounded-2xl border border-white/10 bg-zinc-950/60 px-4 text-white outline-none focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]" />
               </label>
               <PrimaryButton type="submit" className="mt-5 w-full">Guardar</PrimaryButton>
@@ -517,10 +540,6 @@ function serializeService(items: ServiceItem[]) {
     details: item.details,
     songIds: item.song_ids,
   })));
-}
-
-function formatSongMetadata(song: ServiceSong) {
-  return [song.key?.trim(), song.bpm ? `${song.bpm} BPM` : null, song.time_signature?.trim()].filter(Boolean).join(" • ");
 }
 
 function ResourceIndicators({ song }: { song: ServiceSong }) {

@@ -12,17 +12,16 @@ type LiveService = Pick<ActiveSetlistRow, "service_name" | "service_date" | "ser
 
 export default async function LivePage() {
   const supabase = await createSupabaseServerClient();
-  const [{ data: serviceData, error: serviceError }, { data: itemsData, error: itemsError }] = await Promise.all([
-    supabase
+  const { data: serviceData, error: serviceError } = await supabase
       .from("active_setlist")
-      .select("service_name, service_date, service_time")
-      .eq("id", 1)
-      .maybeSingle(),
-    supabase
+      .select("id, service_name, service_date, service_time")
+      .eq("status", "active")
+      .maybeSingle();
+  const { data: itemsData, error: itemsError } = await supabase
       .from("service_items")
       .select("id, position, type, title, details, song_ids, created_at")
-      .order("position", { ascending: true }),
-  ]);
+      .eq("service_id", serviceData?.id ?? -1)
+      .order("position", { ascending: true });
 
   const service = serviceError ? null : serviceData as LiveService | null;
   const items = itemsError ? [] : (itemsData ?? []) as ServiceItem[];

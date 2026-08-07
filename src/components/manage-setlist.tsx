@@ -10,6 +10,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 type ManageSetlistProps = {
   allSongs: SetlistSong[];
   initialSongIds: string[];
+  serviceId: number;
 };
 
 type SupabaseErrorDetails = {
@@ -29,7 +30,7 @@ function logSupabaseError(operation: string, error: SupabaseErrorDetails | null,
   });
 }
 
-export function ManageSetlist({ allSongs, initialSongIds }: ManageSetlistProps) {
+export function ManageSetlist({ allSongs, initialSongIds, serviceId }: ManageSetlistProps) {
   const validInitialIds = initialSongIds.filter((id) => allSongs.some((song) => song.id === id));
   const [songIds, setSongIds] = useState(validInitialIds);
   const [selectedSongId, setSelectedSongId] = useState("");
@@ -100,7 +101,7 @@ export function ManageSetlist({ allSongs, initialSongIds }: ManageSetlistProps) 
       const { data, error, status } = await supabase
         .from("active_setlist")
         .update({ song_ids: songIds, updated_at: savedAt })
-        .eq("id", 1)
+        .eq("id", serviceId)
         .select("id, song_ids")
         .single();
 

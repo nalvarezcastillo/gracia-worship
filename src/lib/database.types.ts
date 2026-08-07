@@ -29,6 +29,8 @@ export type ActiveSetlistRow = {
   service_date: string | null;
   service_time: string;
   song_ids: string[];
+  leader_notes: string | null;
+  status: "active" | "archived";
   updated_at: string;
 };
 

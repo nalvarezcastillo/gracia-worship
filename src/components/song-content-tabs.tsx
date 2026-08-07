@@ -14,6 +14,7 @@ type SongContentTabsProps = {
   audioUrl: string;
   lyrics: string;
   organized?: boolean;
+  rehearsalMode?: boolean;
   sheetUrl: string;
   stems: PublicSongStem[];
   stemsLoading?: boolean;
@@ -22,12 +23,12 @@ type SongContentTabsProps = {
 
 type SongSection = "audio" | "lyrics" | "pdf" | "multitrack";
 
-export function SongContentTabs({ audioUrl, lyrics, organized = true, sheetUrl, stems, stemsLoading = false, title }: SongContentTabsProps) {
-  if (!organized) return <LegacySongContent lyrics={lyrics} sheetUrl={sheetUrl} title={title} />;
-  return <OrganizedSongContent audioUrl={audioUrl} lyrics={lyrics} sheetUrl={sheetUrl} stems={stems} stemsLoading={stemsLoading} title={title} />;
+export function SongContentTabs({ audioUrl, lyrics, organized = true, rehearsalMode = false, sheetUrl, stems, stemsLoading = false, title }: SongContentTabsProps) {
+  if (!organized) return <LegacySongContent lyrics={lyrics} rehearsalMode={rehearsalMode} sheetUrl={sheetUrl} title={title} />;
+  return <OrganizedSongContent audioUrl={audioUrl} lyrics={lyrics} rehearsalMode={rehearsalMode} sheetUrl={sheetUrl} stems={stems} stemsLoading={stemsLoading} title={title} />;
 }
 
-function OrganizedSongContent({ audioUrl, lyrics, sheetUrl, stems, stemsLoading = false, title }: SongContentTabsProps) {
+function OrganizedSongContent({ audioUrl, lyrics, rehearsalMode = false, sheetUrl, stems, stemsLoading = false, title }: SongContentTabsProps) {
   const audio = useAudioPlayer();
   const sections: { id: SongSection; label: string }[] = [
     ...(audioUrl ? [{ id: "audio" as const, label: "Audio" }] : []),
@@ -75,7 +76,7 @@ function OrganizedSongContent({ audioUrl, lyrics, sheetUrl, stems, stemsLoading 
 
         {visibleTab === "lyrics" ? (
           <div id="lyrics-panel" role="tabpanel" className="px-1 sm:px-2">
-            <p className="whitespace-pre-wrap text-base leading-8 text-zinc-300">{lyrics}</p>
+            <LyricsContent lyrics={lyrics} emphasizeSections={rehearsalMode} />
           </div>
         ) : null}
 
@@ -125,7 +126,7 @@ function OrganizedSongContent({ audioUrl, lyrics, sheetUrl, stems, stemsLoading 
   );
 }
 
-function LegacySongContent({ lyrics, sheetUrl, title }: Pick<SongContentTabsProps, "lyrics" | "sheetUrl" | "title">) {
+function LegacySongContent({ lyrics, rehearsalMode = false, sheetUrl, title }: Pick<SongContentTabsProps, "lyrics" | "rehearsalMode" | "sheetUrl" | "title">) {
   const [activeTab, setActiveTab] = useState<"lyrics" | "pdf">("lyrics");
   const [isPdfOpen, setIsPdfOpen] = useState(false);
   const pdfFileName = getPdfFileName(sheetUrl);
@@ -138,7 +139,7 @@ function LegacySongContent({ lyrics, sheetUrl, title }: Pick<SongContentTabsProp
       </div>
       <div className="mt-4 overflow-hidden rounded-2xl border border-white/[0.07] bg-zinc-900/60 p-5 sm:p-6">
         {activeTab === "lyrics"
-          ? <p id="lyrics-panel" role="tabpanel" className="whitespace-pre-wrap text-base leading-8 text-zinc-300">{lyrics}</p>
+          ? <div id="lyrics-panel" role="tabpanel"><LyricsContent lyrics={lyrics} emphasizeSections={rehearsalMode} /></div>
           : (
             <div id="pdf-panel" role="tabpanel">
               <button type="button" onClick={() => setIsPdfOpen(true)} className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-emerald-400 px-6 font-semibold text-zinc-950">Abrir partitura</button>
@@ -148,6 +149,23 @@ function LegacySongContent({ lyrics, sheetUrl, title }: Pick<SongContentTabsProp
       {isPdfOpen && sheetUrl ? <FullscreenPdfReader key={sheetUrl} fileName={pdfFileName} onClose={() => setIsPdfOpen(false)} title={title} url={sheetUrl} /> : null}
     </section>
   );
+}
+
+function LyricsContent({ emphasizeSections, lyrics }: { emphasizeSections: boolean; lyrics: string }) {
+  if (!emphasizeSections) return <p className="whitespace-pre-wrap text-base leading-8 text-zinc-300">{lyrics}</p>;
+  const lines = lyrics.split("\n");
+
+  return (
+    <p className="whitespace-pre-wrap text-base leading-8 text-white sm:text-lg sm:leading-9">
+      {lines.map((line, index) => isLyricsSection(line)
+        ? <span key={index} className="mt-6 block text-lg font-semibold uppercase text-emerald-400 first:mt-0">{line}</span>
+        : <span key={index}>{line}{index < lines.length - 1 ? "\n" : ""}</span>)}
+    </p>
+  );
+}
+
+function isLyricsSection(line: string) {
+  return /^(INTRO|VERSO(?:\s+\d+)?|CORO(?:\s+\d+)?|PUENTE(?:\s+\d+)?|OUTRO)\s*:?[\s]*$/i.test(line.trim());
 }
 
 function getPdfFileName(url: string) {

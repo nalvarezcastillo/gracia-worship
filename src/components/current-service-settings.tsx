@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { AppSectionCard } from "@/components/app-section-card";
 import { PrimaryButton } from "@/components/ui/action-button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -9,15 +10,18 @@ type CurrentServiceSettingsProps = {
   initialDate: string;
   initialName: string;
   initialTime: string;
+  initialLeaderNotes: string;
+  serviceId: number;
 };
 
 const inputStyles = "mt-2 min-h-12 w-full rounded-2xl border border-white/10 bg-zinc-950/60 px-4 text-base text-white outline-none focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]";
 
-export function CurrentServiceSettings({ initialDate, initialName, initialTime }: CurrentServiceSettingsProps) {
+export function CurrentServiceSettings({ initialDate, initialName, initialTime, initialLeaderNotes, serviceId }: CurrentServiceSettingsProps) {
   const router = useRouter();
   const [serviceName, setServiceName] = useState(initialName);
   const [serviceDate, setServiceDate] = useState(initialDate);
   const [serviceTime, setServiceTime] = useState(() => toTimeInputValue(initialTime));
+  const [leaderNotes, setLeaderNotes] = useState(initialLeaderNotes);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
@@ -33,7 +37,7 @@ export function CurrentServiceSettings({ initialDate, initialName, initialTime }
     try {
       const supabase = createSupabaseBrowserClient();
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !sessionData.session) throw new Error("Your session expired. Sign in again.");
+      if (sessionError || !sessionData.session) throw new Error("Tu sesión venció. Inicia sesión nuevamente.");
 
       const { data, error, status } = await supabase
         .from("active_setlist")
@@ -41,10 +45,11 @@ export function CurrentServiceSettings({ initialDate, initialName, initialTime }
           service_name: name,
           service_date: serviceDate || null,
           service_time: time,
+          leader_notes: leaderNotes.trim() || null,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", 1)
-        .select("service_name, service_date, service_time")
+        .eq("id", serviceId)
+        .select("service_name, service_date, service_time, leader_notes")
         .single();
       if (error) {
         const completeError = { ...error, status };
@@ -63,6 +68,7 @@ export function CurrentServiceSettings({ initialDate, initialName, initialTime }
       setServiceName(data.service_name);
       setServiceDate(data.service_date ?? "");
       setServiceTime(toTimeInputValue(data.service_time));
+      setLeaderNotes(data.leader_notes ?? "");
       setIsError(false);
       setMessage("Servicio actual guardado.");
       router.refresh();
@@ -75,9 +81,8 @@ export function CurrentServiceSettings({ initialDate, initialName, initialTime }
   }
 
   return (
-    <section className="mt-8 rounded-3xl border border-white/[0.07] bg-zinc-900/60 p-5 shadow-xl shadow-black/10 sm:mt-10 sm:p-6">
-      <h2 className="text-xl font-semibold text-white">Servicio actual</h2>
-      <form onSubmit={save} className="mt-5 grid gap-4 sm:grid-cols-2">
+    <AppSectionCard eyebrow="Servicio" title="Servicio actual">
+      <form onSubmit={save} className="grid gap-4 px-5 py-4 sm:grid-cols-2 sm:px-6 sm:py-5">
         <label className="text-sm font-semibold text-zinc-300 sm:col-span-2">
           Nombre del servicio
           <input required value={serviceName} onChange={(event) => setServiceName(event.target.value)} className={inputStyles} />
@@ -86,6 +91,10 @@ export function CurrentServiceSettings({ initialDate, initialName, initialTime }
           Fecha del servicio
           <input type="date" value={serviceDate} onChange={(event) => setServiceDate(event.target.value)} className={inputStyles} />
         </label>
+        <label className="text-sm font-semibold text-zinc-300 sm:col-span-2">
+          Notas del líder
+          <textarea value={leaderNotes} onChange={(event) => setLeaderNotes(event.target.value)} rows={5} className={`${inputStyles} resize-y py-3`} />
+        </label>
         <label className="text-sm font-semibold text-zinc-300">
           Hora del servicio
           <input type="time" required value={serviceTime} onChange={(event) => setServiceTime(event.target.value)} className={inputStyles} />
@@ -93,9 +102,9 @@ export function CurrentServiceSettings({ initialDate, initialName, initialTime }
         <div className="sm:col-span-2">
           <PrimaryButton type="submit" disabled={isSaving || !serviceName.trim() || !serviceTime.trim()}>{isSaving ? "Guardando..." : "Guardar"}</PrimaryButton>
         </div>
+        <p role="status" aria-live="polite" className={`min-h-5 text-sm sm:col-span-2 ${isError ? "text-rose-400" : "text-emerald-400"}`}>{message}</p>
       </form>
-      <p role="status" aria-live="polite" className={`mt-3 min-h-5 text-sm ${isError ? "text-rose-400" : "text-emerald-400"}`}>{message}</p>
-    </section>
+    </AppSectionCard>
   );
 }
 
@@ -109,7 +118,7 @@ function toTimeInputValue(value: string) {
 }
 
 function formatSupabaseError(error: unknown) {
-  if (!error || typeof error !== "object") return error instanceof Error ? error.message : "Unable to save current service.";
+  if (!error || typeof error !== "object") return error instanceof Error ? error.message : "No fue posible guardar el servicio actual.";
   const databaseError = error as Record<string, unknown>;
   return [
     databaseError.message,
@@ -117,5 +126,5 @@ function formatSupabaseError(error: unknown) {
     databaseError.details ? `Details: ${databaseError.details}` : null,
     databaseError.hint ? `Hint: ${databaseError.hint}` : null,
     databaseError.status ? `Status: ${databaseError.status}` : null,
-  ].filter(Boolean).join(" · ") || "Unable to save current service.";
+  ].filter(Boolean).join(" · ") || "No fue posible guardar el servicio actual.";
 }

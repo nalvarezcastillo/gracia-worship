@@ -28,7 +28,7 @@ export default async function ManageSetlistPage() {
           title="Manage Setlist"
           description={setlist ? `${setlist.serviceName} · ${setlist.serviceTime}` : "Configure the active service setlist."}
         />
-        <ManageSetlist allSongs={allSongs} initialSongIds={setlist?.songIds ?? []} />
+        <ManageSetlist allSongs={allSongs} initialSongIds={setlist?.songIds ?? []} serviceId={setlist?.id ?? 1} />
       </MainContainer>
     </main>
   );

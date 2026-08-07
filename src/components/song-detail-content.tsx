@@ -2,15 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { AudioPlayer, AudioPlayerProvider } from "@/components/audio-player";
+import { AddSongToServiceButton } from "@/components/add-song-to-service-button";
 import type { PublicSongStem } from "@/components/multitrack-player";
 import { SongContentTabs } from "@/components/song-content-tabs";
 import { SongKeySelector, type PublicSongKey } from "@/components/song-key-selector";
 import { SecondaryButton } from "@/components/ui/action-button";
 import { SongMetadataLine } from "@/components/ui/song-tags";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { saveRecentSong } from "@/lib/recent-song";
 
 type SongDetailContentProps = {
   bpm: number;
+  canAddToService?: boolean;
   editHref?: string;
   enableMultitrack?: boolean;
   keys: PublicSongKey[];
@@ -18,13 +21,17 @@ type SongDetailContentProps = {
   legacyKey: string;
   legacySheetUrl: string;
   lyrics: string;
+  songId: string;
   initialKeyName?: string;
+  headerNavigation?: React.ReactNode;
+  rehearsalMode?: boolean;
   timeSignature?: string | null;
   title: string;
 };
 
 export function SongDetailContent({
   bpm,
+  canAddToService = false,
   editHref,
   enableMultitrack = false,
   keys,
@@ -32,7 +39,10 @@ export function SongDetailContent({
   legacyKey,
   legacySheetUrl,
   lyrics,
+  songId,
   initialKeyName,
+  headerNavigation,
+  rehearsalMode = false,
   timeSignature,
   title,
 }: SongDetailContentProps) {
@@ -131,26 +141,43 @@ export function SongDetailContent({
     && selectedKey !== null
     && (stemLoad.keyId !== selectedKey.id || stemLoad.loading);
 
+  useEffect(() => {
+    saveRecentSong({
+      bpm,
+      id: songId,
+      selectedKey: displayedKey,
+      timeSignature: timeSignature ?? null,
+      timestamp: Date.now(),
+      title,
+    });
+  }, [bpm, displayedKey, songId, timeSignature, title]);
+
   return (
     <>
       <SongMetadataLine songKey={displayedKey} bpm={bpm} timeSignature={timeSignature} className="mt-2" />
+      {headerNavigation}
       <SongKeySelector keys={keys} selectedKey={selectedKey} onSelect={setSelectedKey} polished={enableMultitrack} />
-      {editHref ? (
-        <SecondaryButton href={editHref} className="mt-3 min-h-11 gap-2 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">
-          <PencilIcon />
-          Editar
-        </SecondaryButton>
+      {editHref || canAddToService ? (
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          {editHref ? (
+            <SecondaryButton href={editHref} className="min-h-11 gap-2 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">
+              <PencilIcon />
+              Editar
+            </SecondaryButton>
+          ) : null}
+          {canAddToService ? <AddSongToServiceButton songId={songId} /> : null}
+        </div>
       ) : null}
 
       <AudioPlayerProvider key={mediaSelectionId} src={audioUrl} title={title}>
         {enableMultitrack ? (
-          <SongContentTabs audioUrl={audioUrl} key={mediaSelectionId} lyrics={lyrics} sheetUrl={sheetUrl} stems={selectedStems} stemsLoading={loadingStems} title={title} />
+            <SongContentTabs audioUrl={audioUrl} key={mediaSelectionId} lyrics={lyrics} rehearsalMode={rehearsalMode} sheetUrl={sheetUrl} stems={selectedStems} stemsLoading={loadingStems} title={title} />
         ) : (
           <>
             <div className="sticky top-0 z-30 -mx-2 mt-5 border-b border-white/[0.04] bg-zinc-950/90 px-2 py-3 shadow-[0_10px_24px_rgba(0,0,0,0.18)] backdrop-blur-xl sm:mt-7">
               <section className="rounded-2xl border border-white/[0.07] bg-zinc-900/90 p-4 shadow-xl shadow-black/15 sm:p-5"><AudioPlayer /></section>
             </div>
-            <SongContentTabs audioUrl={audioUrl} lyrics={lyrics} organized={false} sheetUrl={sheetUrl} stems={[]} title={title} />
+            <SongContentTabs audioUrl={audioUrl} lyrics={lyrics} organized={false} rehearsalMode={rehearsalMode} sheetUrl={sheetUrl} stems={[]} title={title} />
           </>
         )}
       </AudioPlayerProvider>

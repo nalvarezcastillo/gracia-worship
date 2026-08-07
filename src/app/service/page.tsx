@@ -7,23 +7,27 @@ import type { ActiveSetlistRow } from "@/lib/database.types";
 import type { ServiceItem, ServiceSong } from "@/lib/service";
 import { normalizeServiceItemSongIds } from "@/lib/service-item-normalization";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getTeamMembers } from "@/lib/team";
 
 export const metadata: Metadata = { title: "Servicio | Gracia Worship" };
 export const dynamic = "force-dynamic";
 
-export default async function ServicePage() {
+export default async function ServicePage({ searchParams }: { searchParams: Promise<{ prepared?: string }> }) {
   const supabase = await createSupabaseServerClient();
-  const [{ data, error }, { data: songsData, error: songsError }, { data: serviceData }, isAdmin] = await Promise.all([
+  const { data: serviceData } = await supabase.from("active_setlist").select("id, service_name, service_date, service_time").eq("status", "active").maybeSingle();
+  const serviceId = serviceData?.id ?? 1;
+  const [{ data, error }, { data: songsData, error: songsError }, isAdmin, teamMembers] = await Promise.all([
     supabase
       .from("service_items")
       .select("id, position, type, title, details, song_ids, created_at")
+      .eq("service_id", serviceId)
       .order("position", { ascending: true }),
     supabase
       .from("songs")
       .select("id, title, key, bpm, time_signature, audio_url, sheet_url, song_keys(audio_url, sheet_url, song_stems(id))")
       .order("title", { ascending: true }),
-    supabase.from("active_setlist").select("service_name, service_date, service_time").eq("id", 1).maybeSingle(),
     hasAuthenticatedUser(),
+    getTeamMembers(true),
   ]);
 
   const items = error ? [] : (data ?? []).map((item) => normalizeServiceItemSongIds(item)) as ServiceItem[];
@@ -39,14 +43,7 @@ export default async function ServicePage() {
   return (
     <main className="min-h-screen py-6 sm:py-10">
       <MainContainer className="max-w-3xl">
-        <header className="flex flex-col gap-3 border-b border-white/[0.08] pb-6 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-[1.75rem] font-bold tracking-[-0.035em] text-white sm:text-[2rem]">{serviceName}</h1>
-            {serviceSchedule ? <p className="mt-2 text-sm text-zinc-400 sm:text-base">{serviceSchedule}</p> : null}
-          </div>
-          <p className="text-sm text-zinc-500">{items.length} {items.length === 1 ? "elemento" : "elementos"}</p>
-        </header>
-        <ServiceItems initialItems={items} songs={songs} isAdmin={isAdmin} loadError={loadError} />
+        <ServiceItems initialItems={items} songs={songs} isAdmin={isAdmin} loadError={loadError} serviceId={serviceId} serviceName={serviceName} serviceSchedule={serviceSchedule} showPreparedToast={(await searchParams).prepared === "1"} teamMembers={teamMembers} />
         <PrimaryButton href="/service/rehearsal" className="mt-10 w-full sm:mt-12">
           ▶ Comenzar ensayo
         </PrimaryButton>

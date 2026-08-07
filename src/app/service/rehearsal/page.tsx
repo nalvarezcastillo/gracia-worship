@@ -13,17 +13,16 @@ type RehearsalService = Pick<ActiveSetlistRow, "service_name" | "service_date" |
 
 export default async function RehearsalPage() {
   const supabase = await createSupabaseServerClient();
-  const [serviceResult, itemsResult] = await Promise.all([
-    supabase
+  const serviceResult = await supabase
       .from("active_setlist")
-      .select("service_name, service_date, service_time")
-      .eq("id", 1)
-      .maybeSingle(),
-    supabase
+      .select("id, service_name, service_date, service_time")
+      .eq("status", "active")
+      .maybeSingle();
+  const itemsResult = await supabase
       .from("service_items")
       .select("id, position, type, title, details, song_ids, created_at")
-      .order("position", { ascending: true }),
-  ]);
+      .eq("service_id", serviceResult.data?.id ?? -1)
+      .order("position", { ascending: true });
 
   const { data: serviceData, error: serviceError, status: serviceStatus } = serviceResult;
   const { data: itemsData, error: itemsError, status: itemsStatus } = itemsResult;

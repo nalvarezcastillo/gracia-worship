@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { PrimaryButton } from "@/components/ui/action-button";
+import { AssignmentFields } from "@/components/assignment-fields";
+import type { TeamMember } from "@/lib/team";
 import type { MicrophoneAssignment } from "@/lib/microphones";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const inputStyles = "min-h-12 w-full rounded-2xl border border-white/8 bg-zinc-950/60 px-4 text-base text-white outline-none placeholder:text-zinc-600 focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]";
 
-export function ManageMicrophones({ initialAssignments, loadError }: { initialAssignments: MicrophoneAssignment[]; loadError: string | null }) {
+export function ManageMicrophones({ initialAssignments, loadError, teamMembers }: { initialAssignments: MicrophoneAssignment[]; loadError: string | null; teamMembers: TeamMember[] }) {
   const [assignments, setAssignments] = useState(initialAssignments);
   const [leaderName, setLeaderName] = useState("");
   const [microphoneName, setMicrophoneName] = useState("");
@@ -186,7 +188,7 @@ export function ManageMicrophones({ initialAssignments, loadError }: { initialAs
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-sm font-semibold text-zinc-300">
             Líder
-            <input value={leaderName} onChange={(event) => setLeaderName(event.target.value)} placeholder="Ej. Nelson" className={`mt-2 ${inputStyles}`} />
+            <span className="mt-2 block"><AssignmentFields members={teamMembers} value={leaderName} onChange={setLeaderName} /></span>
           </label>
           <label className="text-sm font-semibold text-zinc-300">
             Micrófono
@@ -207,7 +209,7 @@ export function ManageMicrophones({ initialAssignments, loadError }: { initialAs
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="text-xs font-bold uppercase tracking-wider text-zinc-500">
                     Líder
-                    <input value={assignment.leader_name} onChange={(event) => editAssignment(assignment.id, "leader_name", event.target.value)} className={`mt-2 ${inputStyles}`} />
+                    <span className="mt-2 block"><AssignmentFields members={teamMembers} value={assignment.leader_name} onChange={(value) => editAssignment(assignment.id, "leader_name", value)} /></span>
                   </label>
                   <label className="text-xs font-bold uppercase tracking-wider text-zinc-500">
                     Micrófono

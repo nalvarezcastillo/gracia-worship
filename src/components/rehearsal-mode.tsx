@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { SongDetailContent } from "@/components/song-detail-content";
 import type { PublicSongKey } from "@/components/song-key-selector";
 import type { ActiveSetlistRow } from "@/lib/database.types";
@@ -40,6 +41,9 @@ export function RehearsalMode({ items, loadError, service, songs }: RehearsalMod
   const selectedBlockSong = selectedSongIndex === null ? null : blockSongs[selectedSongIndex];
   const isFirst = currentIndex === 0;
   const isLast = currentIndex >= items.length - 1;
+  const progressCurrent = selectedSongIndex === null ? currentIndex + 1 : selectedSongIndex + 1;
+  const progressTotal = selectedSongIndex === null ? items.length : blockSongs.length;
+  const progressPercent = progressTotal ? (progressCurrent / progressTotal) * 100 : 0;
 
   function moveToServiceItem(nextIndex: number) {
     setSelectedSongIndex(null);
@@ -47,19 +51,13 @@ export function RehearsalMode({ items, loadError, service, songs }: RehearsalMod
   }
 
   return (
-    <div className="flex min-h-[calc(100dvh-9rem)] flex-col">
-      <header className="border-b border-white/[0.07] pb-6 sm:pb-8">
-        <p className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-400">Ensayo</p>
-        <h1 className="mt-3 text-3xl font-bold tracking-[-0.035em] text-white sm:text-4xl">
+    <div className="flex min-h-[calc(100dvh-3rem)] flex-col pb-24 sm:min-h-[calc(100dvh-5rem)]">
+      <header className="border-b border-white/[0.07] pb-4">
+        <h1 className="text-xl font-bold tracking-[-0.025em] text-white sm:text-2xl">
           {service ? localizeDefaultServiceName(service.service_name) : "Servicio actual"}
         </h1>
-        {service ? (
-          <div className="mt-3 space-y-1 text-sm font-medium text-zinc-400 sm:flex sm:gap-3 sm:space-y-0 sm:text-base">
-            <p>{service.service_date ? formatServiceDate(service.service_date) : "Fecha no configurada"}</p>
-            <span className="hidden text-zinc-700 sm:inline" aria-hidden="true">•</span>
-            <p>{formatServiceTime(service.service_time)}</p>
-          </div>
-        ) : null}
+        {currentItem ? <div className="mt-3 flex items-baseline justify-between gap-4"><p className="min-w-0 truncate text-2xl font-bold text-white sm:text-3xl">{selectedBlockSong?.song.title ?? currentItem.title}</p><p className="shrink-0 text-sm font-semibold tabular-nums text-zinc-500">{progressCurrent} / {progressTotal}</p></div> : null}
+        <div className="mt-3 h-1 overflow-hidden rounded-full bg-zinc-800" aria-hidden="true"><div className="h-full bg-emerald-400 transition-[width] duration-200" style={{ width: `${progressPercent}%` }} /></div>
       </header>
 
       {loadError ? (
@@ -67,11 +65,7 @@ export function RehearsalMode({ items, loadError, service, songs }: RehearsalMod
           No se pudo cargar el servicio actual.
         </p>
       ) : currentItem ? (
-        <section className="flex min-h-0 flex-1 flex-col pt-6 sm:pt-8" aria-live="polite" aria-atomic="true">
-          <p className="text-center text-sm font-semibold tabular-nums text-zinc-500">
-            {currentIndex + 1} de {items.length}
-          </p>
-
+        <section className="flex min-h-0 flex-1 flex-col pt-4" aria-live="polite" aria-atomic="true">
           {selectedBlockSong ? (
             <RehearsalSongView
               blockId={currentItem.id}
@@ -79,7 +73,6 @@ export function RehearsalMode({ items, loadError, service, songs }: RehearsalMod
               canContinueService={!isLast}
               hasNextSong={(selectedSongIndex ?? 0) < blockSongs.length - 1}
               hasPreviousSong={(selectedSongIndex ?? 0) > 0}
-              onBack={() => setSelectedSongIndex(null)}
               onContinueService={() => moveToServiceItem(currentIndex + 1)}
               onNextSong={() => setSelectedSongIndex((index) => (index ?? 0) + 1)}
               onPreviousSong={() => setSelectedSongIndex((index) => Math.max(0, (index ?? 0) - 1))}
@@ -130,6 +123,9 @@ export function RehearsalMode({ items, loadError, service, songs }: RehearsalMod
           No hay elementos en el servicio actual.
         </div>
       )}
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.07] bg-zinc-950/90 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl">
+        <Link href="/service" className="mx-auto flex min-h-12 max-w-4xl items-center justify-center rounded-2xl border border-white/10 bg-zinc-900 px-4 font-semibold text-zinc-100 transition-colors hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400">Finalizar ensayo</Link>
+      </div>
     </div>
   );
 }
@@ -140,7 +136,6 @@ function RehearsalSongView({
   canContinueService,
   hasNextSong,
   hasPreviousSong,
-  onBack,
   onContinueService,
   onNextSong,
   onPreviousSong,
@@ -150,7 +145,6 @@ function RehearsalSongView({
   canContinueService: boolean;
   hasNextSong: boolean;
   hasPreviousSong: boolean;
-  onBack: () => void;
   onContinueService: () => void;
   onNextSong: () => void;
   onPreviousSong: () => void;
@@ -158,38 +152,32 @@ function RehearsalSongView({
   const { entry, song } = blockSong;
 
   return (
-    <div className="flex-1 pb-2 pt-5 sm:pt-7">
-      <button type="button" onClick={onBack} className="min-h-11 rounded-full px-3 text-sm font-semibold text-zinc-400 transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400">
-        ← Volver al bloque
-      </button>
-      <h2 className="mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl">{song.title}</h2>
+    <div className="flex-1 pb-2">
       {entry.notes ? <p className="mt-1 text-sm text-zinc-500">{entry.notes}</p> : null}
 
       <SongDetailContent
         key={`${blockId}:${song.id}`}
         bpm={song.bpm}
         initialKeyName={getSavedKeyName(entry)}
+        headerNavigation={(
+          <nav aria-label="Navegación de canciones del bloque" className="mt-4 grid grid-cols-2 gap-3">
+            <button type="button" onClick={onPreviousSong} disabled={!hasPreviousSong} className={secondaryNavigationStyles}>◀ Canción anterior</button>
+            <button type="button" onClick={hasNextSong ? onNextSong : onContinueService} disabled={!hasNextSong && !canContinueService} className={secondaryNavigationStyles}>
+              {hasNextSong ? "Canción siguiente ▶" : canContinueService ? "Siguiente elemento ▶" : "Canción siguiente ▶"}
+            </button>
+          </nav>
+        )}
         keys={song.keys}
         legacyAudioUrl={song.audio_url}
         legacyKey={song.key}
         legacySheetUrl={song.sheet_url}
         lyrics={song.lyrics}
+        rehearsalMode
+        songId={song.id}
         timeSignature={song.time_signature}
         title={song.title}
       />
 
-      <nav aria-label="Navegación de canciones del bloque" className="mt-7 grid gap-3 border-t border-white/[0.07] pt-5 sm:grid-cols-2">
-        {hasPreviousSong ? (
-          <button type="button" onClick={onPreviousSong} className={secondaryNavigationStyles}>◀ Canción anterior</button>
-        ) : <span />}
-        {hasNextSong ? (
-          <button type="button" onClick={onNextSong} className={primaryNavigationStyles}>Canción siguiente ▶</button>
-        ) : (
-          <button type="button" onClick={onContinueService} disabled={!canContinueService} className={primaryNavigationStyles}>
-            {canContinueService ? "Continuar al siguiente elemento ▶" : "Fin del ensayo"}
-          </button>
-        )}
-      </nav>
     </div>
   );
 }
@@ -217,8 +205,7 @@ function ServiceItemNavigation({ isFirst, isLast, onNext, onPrevious }: { isFirs
   );
 }
 
-const secondaryNavigationStyles = "min-h-14 rounded-2xl border border-white/10 bg-white/[0.045] px-4 font-semibold text-zinc-200 transition-colors hover:bg-white/[0.08] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400";
-const primaryNavigationStyles = "min-h-14 rounded-2xl bg-emerald-400 px-4 font-semibold text-zinc-950 transition-colors hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 sm:col-start-2";
+const secondaryNavigationStyles = "min-h-14 rounded-2xl border border-white/10 bg-white/[0.045] px-3 text-sm font-semibold text-zinc-200 transition-colors hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 sm:px-4 sm:text-base";
 
 function getSavedKeyName(entry: WorshipSongEntry) {
   const storedEntry = entry as unknown as Record<string, unknown>;
@@ -228,25 +215,6 @@ function getSavedKeyName(entry: WorshipSongEntry) {
     ?? storedEntry.selected_key
     ?? storedEntry.key;
   return typeof value === "string" ? value : undefined;
-}
-
-function formatServiceDate(value: string) {
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(year, month - 1, day);
-  const formatted = new Intl.DateTimeFormat("es-419", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).format(date);
-  return formatted.charAt(0).toLocaleUpperCase("es-419") + formatted.slice(1);
-}
-
-function formatServiceTime(value: string) {
-  const match = value.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
-  if (!match) return value;
-  const hour = Number(match[1]);
-  return `${hour % 12 || 12}:${match[2]} ${hour >= 12 ? "PM" : "AM"}`;
 }
 
 function localizeDefaultServiceName(value: string) {

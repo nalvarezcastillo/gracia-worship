@@ -59,12 +59,14 @@ export default async function SongPage({ params }: SongPageProps) {
         <SongDetailContent
           key={song.id}
           bpm={song.bpm}
+          canAddToService={isAdmin}
           editHref={isAdmin ? `/admin/song/${song.id}` : undefined}
           keys={songKeys}
           legacyAudioUrl={song.audio_url}
           legacyKey={song.key}
           legacySheetUrl={song.sheet_url}
           lyrics={song.lyrics}
+          songId={song.id}
           enableMultitrack
           timeSignature={song.time_signature}
           title={song.title}
