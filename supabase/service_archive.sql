@@ -34,8 +34,8 @@ begin
   update public.active_setlist set status = 'archived', updated_at = now() where id = current_service.id;
   insert into public.active_setlist (id, service_name, service_date, service_time, song_ids, leader_notes, status, updated_at)
   values (new_id, current_service.service_name, next_date, current_service.service_time, current_service.song_ids, null, 'active', now());
-  insert into public.service_items (service_id, position, type, title, details, song_ids)
-  select new_id, position, type, title, details, song_ids from public.service_items where service_id = current_service.id order by position;
+  insert into public.service_items (service_id, position, type, title, details, planned_duration_seconds, song_ids)
+  select new_id, position, type, title, details, planned_duration_seconds, song_ids from public.service_items where service_id = current_service.id order by position;
   return new_id;
 end; $$;
 

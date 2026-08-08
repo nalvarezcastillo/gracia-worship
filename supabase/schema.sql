@@ -274,6 +274,7 @@ create table if not exists public.service_items (
   type text not null check (type in ('text', 'worship')),
   title text not null,
   details text null,
+  planned_duration_seconds integer null check (planned_duration_seconds is null or planned_duration_seconds > 0),
   song_ids jsonb null check (song_ids is null or jsonb_typeof(song_ids) = 'array'),
   created_at timestamptz not null default now()
 );
@@ -283,6 +284,27 @@ on public.service_items(service_id, position);
 
 alter table public.service_items
 add column if not exists details text null;
+
+alter table public.service_items
+add column if not exists planned_duration_seconds integer null;
+
+alter table public.service_items
+drop constraint if exists service_items_planned_duration_seconds_check;
+
+alter table public.service_items
+add constraint service_items_planned_duration_seconds_check
+check (planned_duration_seconds is null or planned_duration_seconds > 0);
+
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'service_items' and column_name = 'planned_duration_minutes'
+  ) then
+    execute 'update public.service_items set planned_duration_seconds = planned_duration_minutes * 60 where planned_duration_minutes is not null and planned_duration_seconds is null';
+    execute 'alter table public.service_items drop column planned_duration_minutes';
+  end if;
+end; $$;
 
 alter table public.service_items enable row level security;
 
@@ -332,8 +354,8 @@ begin
   update public.active_setlist set status = 'archived', updated_at = now() where id = current_service.id;
   insert into public.active_setlist (id, service_name, service_date, service_time, song_ids, leader_notes, status, updated_at)
   values (new_id, current_service.service_name, next_date, current_service.service_time, current_service.song_ids, null, 'active', now());
-  insert into public.service_items (service_id, position, type, title, details, song_ids)
-  select new_id, position, type, title, details, song_ids from public.service_items where service_id = current_service.id order by position;
+  insert into public.service_items (service_id, position, type, title, details, planned_duration_seconds, song_ids)
+  select new_id, position, type, title, details, planned_duration_seconds, song_ids from public.service_items where service_id = current_service.id order by position;
   return new_id;
 end; $$;
 

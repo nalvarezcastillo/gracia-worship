@@ -1,4 +1,5 @@
 import type { ServiceItem, WorshipSongEntry } from "@/lib/service";
+import { getSongDurationSeconds } from "@/lib/duration";
 
 type RawServiceItem = Omit<ServiceItem, "song_ids"> & { song_ids: unknown };
 
@@ -44,7 +45,7 @@ export function normalizeSongIds(rawValue: unknown) {
 function normalizeSongEntry(rawEntry: unknown): WorshipSongEntry | null {
   if (typeof rawEntry === "string") {
     const value = rawEntry.trim();
-    if (isValidSongId(value)) return { songId: value, notes: "" };
+    if (isValidSongId(value)) return { songId: value, notes: "", plannedDurationSeconds: null };
     try {
       return normalizeSongEntry(JSON.parse(value));
     } catch {
@@ -67,11 +68,20 @@ function normalizeSongEntry(rawEntry: unknown): WorshipSongEntry | null {
   const normalizedEntry: WorshipSongEntry & Record<string, unknown> = {
     songId: rawId.trim(),
     notes: notes?.trim() ?? "",
+    plannedDurationSeconds: getSongDurationSeconds({
+      plannedDurationSeconds: normalizePositiveInteger(rawEntry.plannedDurationSeconds ?? rawEntry.planned_duration_seconds),
+      plannedDurationMinutes: normalizePositiveInteger(rawEntry.plannedDurationMinutes ?? rawEntry.planned_duration_minutes),
+    }, null),
   };
   for (const key of ["keyName", "key_name", "selectedKey", "selected_key", "key"] as const) {
     if (typeof rawEntry[key] === "string") normalizedEntry[key] = rawEntry[key];
   }
   return normalizedEntry;
+}
+
+function normalizePositiveInteger(value: unknown) {
+  const duration = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isInteger(duration) && duration > 0 ? duration : null;
 }
 
 function isValidSongId(value: string) {

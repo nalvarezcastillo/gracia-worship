@@ -19,12 +19,12 @@ export default async function ServicePage({ searchParams }: { searchParams: Prom
   const [{ data, error }, { data: songsData, error: songsError }, isAdmin, teamMembers] = await Promise.all([
     supabase
       .from("service_items")
-      .select("id, position, type, title, details, song_ids, created_at")
+      .select("id, position, type, title, details, planned_duration_seconds, song_ids, created_at")
       .eq("service_id", serviceId)
       .order("position", { ascending: true }),
     supabase
       .from("songs")
-      .select("id, title, key, bpm, time_signature, audio_url, sheet_url, song_keys(audio_url, sheet_url, song_stems(id))")
+      .select("id, title, key, bpm, duration, time_signature, audio_url, sheet_url, song_keys(audio_url, sheet_url, song_stems(id))")
       .order("title", { ascending: true }),
     hasAuthenticatedUser(),
     getTeamMembers(true),

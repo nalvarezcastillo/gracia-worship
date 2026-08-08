@@ -20,7 +20,7 @@ export default async function RehearsalPage() {
       .maybeSingle();
   const itemsResult = await supabase
       .from("service_items")
-      .select("id, position, type, title, details, song_ids, created_at")
+      .select("id, position, type, title, details, planned_duration_seconds, song_ids, created_at")
       .eq("service_id", serviceResult.data?.id ?? -1)
       .order("position", { ascending: true });
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { ActiveSetlistRow } from "@/lib/database.types";
 import { parseAssignmentText } from "@/lib/assignment-text";
+import { formatDuration, getServiceItemDurationSeconds, getSongDurationSeconds } from "@/lib/duration";
 import type { ServiceItem, WorshipSongEntry } from "@/lib/service";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -13,6 +14,7 @@ type LiveService = Pick<ActiveSetlistRow, "service_name" | "service_date" | "ser
 export type LiveSong = {
   audio_url: string;
   bpm: number;
+  duration: string;
   id: string;
   key: string;
   lyrics: string;
@@ -57,6 +59,7 @@ export function LiveMode({ canControl, initialState, items, loadError, service, 
   const [startedAt, setStartedAt] = useState(() => initialState?.started_at ?? new Date().toISOString());
   const [elapsedSeconds, setElapsedSeconds] = useState(() => getElapsedSeconds(initialState?.started_at));
   const [currentTime, setCurrentTime] = useState("");
+  const [clockTimestamp, setClockTimestamp] = useState(() => Date.now());
   const [syncStatus, setSyncStatus] = useState<"connected" | "reconnecting">("reconnecting");
   const [controlError, setControlError] = useState("");
   const [isChanging, setIsChanging] = useState(false);
@@ -64,9 +67,14 @@ export function LiveMode({ canControl, initialState, items, loadError, service, 
   const nextEntry = entries[currentIndex + 1];
   const isFirst = currentIndex === 0;
   const isLast = currentIndex >= entries.length - 1;
+  const schedule = getScheduleSummary(service, entries, currentIndex, elapsedSeconds, clockTimestamp);
 
   useEffect(() => {
-    const updateClock = () => setCurrentTime(formatDeviceTime(new Date()));
+    const updateClock = () => {
+      const now = new Date();
+      setCurrentTime(formatDeviceTime(now));
+      setClockTimestamp(now.getTime());
+    };
     updateClock();
     const interval = window.setInterval(updateClock, 1_000);
     return () => window.clearInterval(interval);
@@ -153,6 +161,12 @@ export function LiveMode({ canControl, initialState, items, loadError, service, 
             <p className="mt-1 text-sm text-zinc-400">
               {service?.service_date ? formatServiceDate(service.service_date) : "Fecha no configurada"}
             </p>
+            {schedule ? (
+              <p className="mt-1 text-xs text-zinc-500">
+                Duración {formatPlannedTotal(schedule.totalSeconds)} · Final planeado {schedule.plannedEnd} · Final estimado {schedule.estimatedEnd}
+                {schedule.varianceMinutes !== 0 ? <span className={schedule.varianceMinutes > 0 ? "text-amber-400/80" : "text-emerald-400/80"}> · {schedule.varianceMinutes > 0 ? "+" : ""}{schedule.varianceMinutes} min</span> : null}
+              </p>
+            ) : null}
           </div>
           <div className="shrink-0 text-right">
             <p className="text-sm font-semibold tabular-nums text-zinc-400">
@@ -183,6 +197,7 @@ export function LiveMode({ canControl, initialState, items, loadError, service, 
                 <div className="mt-2">
                   <p className="text-lg font-semibold text-zinc-100">{nextEntry.title}</p>
                   <EntrySupportingText entry={nextEntry} compact />
+                  <EntryDuration entry={nextEntry} />
                 </div>
               ) : (
                 <p className="mt-2 text-base font-semibold text-zinc-400">Fin del servicio</p>
@@ -213,6 +228,11 @@ export function LiveMode({ canControl, initialState, items, loadError, service, 
 }
 
 function CurrentEntryCard({ elapsedSeconds, entry }: { elapsedSeconds: number; entry: LiveEntry }) {
+  const plannedSeconds = getEntryPlannedSeconds(entry);
+  const overtimeMinutes = plannedSeconds && elapsedSeconds > plannedSeconds ? Math.ceil((elapsedSeconds - plannedSeconds) / 60) : 0;
+  const progress = plannedSeconds ? Math.min(100, (elapsedSeconds / plannedSeconds) * 100) : 0;
+  const timingColor = overtimeMinutes >= 5 ? "text-rose-300" : overtimeMinutes > 0 ? "text-amber-300" : "text-emerald-400";
+  const progressColor = overtimeMinutes >= 5 ? "bg-rose-400" : overtimeMinutes > 0 ? "bg-amber-400" : "bg-emerald-400";
   return (
     <article className="rounded-3xl border border-white/[0.08] bg-zinc-900 p-5 shadow-xl shadow-black/20 sm:p-8">
       <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-400">Ahora</p>
@@ -220,11 +240,22 @@ function CurrentEntryCard({ elapsedSeconds, entry }: { elapsedSeconds: number; e
       <EntrySupportingText entry={entry} />
       {entry.kind === "song" ? <SongResourceLinks entry={entry} /> : null}
       <div className="mt-8 border-t border-white/[0.07] pt-5 sm:mt-10">
-        <p className="text-3xl font-bold tabular-nums tracking-tight text-white sm:text-4xl">{formatElapsedTime(elapsedSeconds)}</p>
-        <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Tiempo transcurrido</p>
+        <p className="text-3xl font-bold tabular-nums tracking-tight text-white sm:text-4xl">{formatDuration(elapsedSeconds)}{plannedSeconds ? <span className="text-xl text-zinc-500 sm:text-2xl"> / {formatDuration(plannedSeconds)}</span> : null}</p>
+        <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">{plannedSeconds ? "Tiempo · transcurrido / planeado" : "Tiempo transcurrido"}</p>
+        {plannedSeconds ? (
+          <>
+            <div className="mt-4 h-1 overflow-hidden rounded-full bg-zinc-800" aria-hidden="true"><div className={`h-full ${progressColor} transition-[width] duration-200`} style={{ width: `${progress}%` }} /></div>
+            <p className={`mt-2 text-xs font-semibold ${timingColor}`}>{overtimeMinutes > 0 ? `+${overtimeMinutes} min` : "A tiempo"}</p>
+          </>
+        ) : null}
       </div>
     </article>
   );
+}
+
+function EntryDuration({ entry }: { entry: LiveEntry }) {
+  const duration = getEntryPlannedSeconds(entry);
+  return duration ? <p className="mt-1 text-xs text-zinc-500">{formatDuration(duration)}</p> : null;
 }
 
 function EntrySupportingText({ compact = false, entry }: { compact?: boolean; entry: LiveEntry }) {
@@ -273,9 +304,10 @@ function RunSheet({ canControl, currentIndex, entries, onSelect }: { canControl:
       <ol className="max-h-[calc(100dvh-14rem)] overflow-y-auto p-2">
         {entries.map((entry, index) => (
           <li key={entry.id}>
-            <button type="button" disabled={!canControl} aria-current={index === currentIndex ? "step" : undefined} onClick={() => onSelect(index)} className={`grid min-h-11 w-full grid-cols-[2rem_minmax(0,1fr)] items-center rounded-xl px-3 py-2 text-left transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-emerald-400 disabled:cursor-default ${index === currentIndex ? "bg-emerald-400/[0.12] text-emerald-300" : index < currentIndex ? "text-zinc-600 hover:bg-white/[0.03] hover:text-zinc-400" : "text-zinc-300 hover:bg-white/[0.04]"}`}>
+            <button type="button" disabled={!canControl} aria-current={index === currentIndex ? "step" : undefined} onClick={() => onSelect(index)} className={`grid min-h-11 w-full grid-cols-[2rem_minmax(0,1fr)_auto] items-center rounded-xl px-3 py-2 text-left transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-emerald-400 disabled:cursor-default ${index === currentIndex ? "bg-emerald-400/[0.12] text-emerald-300" : index < currentIndex ? "text-zinc-600 hover:bg-white/[0.03] hover:text-zinc-400" : "text-zinc-300 hover:bg-white/[0.04]"}`}>
               <span className="text-xs font-semibold tabular-nums">{index + 1}</span>
               <span className={`truncate text-sm font-medium ${entry.kind === "item" && entry.item.type === "worship" ? "uppercase tracking-[0.08em]" : ""}`}>{entry.title}</span>
+              {getEntryPlannedSeconds(entry) ? <span className="pl-2 text-xs tabular-nums text-zinc-500">{formatDuration(getEntryPlannedSeconds(entry) ?? 0)}</span> : null}
             </button>
           </li>
         ))}
@@ -323,6 +355,67 @@ function getElapsedSeconds(startedAt?: string) {
   return Math.max(0, Math.floor((Date.now() - timestamp) / 1_000));
 }
 
+function getEntryPlannedSeconds(entry: LiveEntry) {
+  return entry.kind === "song"
+    ? getSongDurationSeconds(entry.entry, entry.song.duration)
+    : getServiceItemDurationSeconds(entry.item);
+}
+
+function getScheduleSummary(
+  service: LiveService | null,
+  entries: LiveEntry[],
+  currentIndex: number,
+  elapsedSeconds: number,
+  nowTimestamp: number,
+) {
+  if (!service?.service_date || entries.length === 0) return null;
+  const durations = entries.map(getEntryPlannedSeconds);
+  if (durations.some((duration) => duration === null)) return null;
+  const serviceStart = parseServiceStart(service.service_date, service.service_time);
+  if (!serviceStart) return null;
+
+  const totalSeconds = durations.reduce<number>((total, duration) => total + (duration ?? 0), 0);
+  const currentPlannedSeconds = durations[currentIndex] ?? 0;
+  const futureSeconds = durations.slice(currentIndex + 1).reduce<number>((total, duration) => total + (duration ?? 0), 0);
+  const remainingSeconds = Math.max(0, currentPlannedSeconds - elapsedSeconds) + futureSeconds;
+  const plannedEndTimestamp = serviceStart.getTime() + totalSeconds * 1_000;
+  const estimatedEndTimestamp = nowTimestamp + remainingSeconds * 1_000;
+
+  return {
+    estimatedEnd: formatDeviceTime(new Date(estimatedEndTimestamp)),
+    plannedEnd: formatDeviceTime(new Date(plannedEndTimestamp)),
+    totalSeconds,
+    varianceMinutes: Math.round((estimatedEndTimestamp - plannedEndTimestamp) / 60_000),
+  };
+}
+
+function formatPlannedTotal(totalSeconds: number) {
+  const hours = Math.floor(totalSeconds / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours === 0) return seconds ? `${minutes}m ${seconds}s` : `${minutes}m`;
+  return seconds ? `${hours}h ${minutes}m ${seconds}s` : `${hours}h ${minutes}m`;
+}
+
+function parseServiceStart(serviceDate: string, serviceTime: string) {
+  const [year, month, day] = serviceDate.split("-").map(Number);
+  const twentyFourHour = serviceTime.match(/(?:^|\s)([01]?\d|2[0-3]):([0-5]\d)(?:\s|$)/);
+  const twelveHour = serviceTime.match(/(1[0-2]|0?[1-9]):([0-5]\d)\s*(AM|PM)/i);
+  let hour: number;
+  let minute: number;
+  if (twelveHour) {
+    hour = Number(twelveHour[1]) % 12 + (twelveHour[3].toUpperCase() === "PM" ? 12 : 0);
+    minute = Number(twelveHour[2]);
+  } else if (twentyFourHour) {
+    hour = Number(twentyFourHour[1]);
+    minute = Number(twentyFourHour[2]);
+  } else {
+    return null;
+  }
+  const date = new Date(year, month - 1, day, hour, minute);
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
 function getSongMetadata(entry: Extract<LiveEntry, { kind: "song" }>) {
   const selectedKeyName = getSavedKeyName(entry.entry);
   return [selectedKeyName || entry.song.key, entry.song.bpm ? `${entry.song.bpm} BPM` : "", entry.song.time_signature].filter(Boolean).join(" • ");
@@ -344,14 +437,6 @@ function getSavedKeyName(entry: WorshipSongEntry) {
   const storedEntry = entry as unknown as Record<string, unknown>;
   const value = storedEntry.keyName ?? storedEntry.key_name ?? storedEntry.selectedKey ?? storedEntry.selected_key ?? storedEntry.key;
   return typeof value === "string" ? value : "";
-}
-
-function formatElapsedTime(totalSeconds: number) {
-  const hours = Math.floor(totalSeconds / 3_600);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (hours > 0) return `${hours}:${String(minutes % 60).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 function formatDeviceTime(date: Date) {

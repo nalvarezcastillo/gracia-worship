@@ -172,3 +172,7 @@ If a new design decision conflicts with this document, update the document first
 - Standard cards use a 24px radius, the shared subtle border, elevated background and shared shadow.
 - Standard motion duration is 200ms for hover, focus and expand/collapse transitions.
 - Standard interface icon sizes are 16px, 18px, 20px and 24px. Choose the smallest size that remains clear.
+
+## 19. Versioning
+
+`package.json` is the single source of truth for the application version. Use semantic versioning: increment PATCH (`0.2.0` → `0.2.1`) for small fixes, MINOR (`0.2.0` → `0.3.0`) for compatible new features, and MAJOR (`0.x` → `1.0.0`) for the first stable/public release or major breaking changes.
