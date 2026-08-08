@@ -10,10 +10,12 @@ import { formatDuration, formatDurationInput, getSongDurationSeconds, hasSongDur
 import type { ServiceItem, ServiceSong, WorshipSongEntry } from "@/lib/service";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { TeamMember } from "@/lib/team";
+import type { CurrentServiceTeamMember } from "@/lib/current-service-team";
+import { getServiceAssignmentResources } from "@/lib/service-team-resources";
 
 type AddStep = "closed" | "type" | "text";
 
-export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceId, serviceName, serviceSchedule, showPreparedToast = false, teamMembers = [] }: { initialItems: ServiceItem[]; songs: ServiceSong[]; isAdmin: boolean; loadError?: string; serviceId: number; serviceName: string; serviceSchedule: string; showPreparedToast?: boolean; teamMembers?: TeamMember[] }) {
+export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceId, serviceName, serviceSchedule, showPreparedToast = false, teamMembers = [], serviceTeamAssignments = [] }: { initialItems: ServiceItem[]; songs: ServiceSong[]; isAdmin: boolean; loadError?: string; serviceId: number; serviceName: string; serviceSchedule: string; showPreparedToast?: boolean; teamMembers?: TeamMember[]; serviceTeamAssignments?: CurrentServiceTeamMember[] }) {
   const [items, setItems] = useState(initialItems);
   const savedItemsRef = useRef(initialItems);
   const [addStep, setAddStep] = useState<AddStep>("closed");
@@ -374,6 +376,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceI
                 <div className="min-w-0 flex-1">
                   <h3 className={item.type === "worship" ? "text-xs font-semibold uppercase tracking-[0.16em] text-emerald-400/80" : "text-base font-semibold leading-6 text-zinc-100"}>{item.title}</h3>
                   {item.type === "text" && item.details ? <p className="mt-1 whitespace-pre-wrap text-sm font-normal leading-5 text-zinc-500">{item.details}</p> : null}
+                  {item.type === "text" ? <AssignedResourcesLine assignmentText={item.details ?? ""} assignments={serviceTeamAssignments} teamMembers={teamMembers} /> : null}
                   {item.planned_duration_seconds ? <p className="mt-1 text-xs text-zinc-500">{formatDuration(item.planned_duration_seconds)}</p> : null}
                 </div>
                 {isAdmin ? (
@@ -407,6 +410,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceI
                           <Link href={`/song/${song.id}`} onClick={(event) => event.stopPropagation()} className="line-clamp-2 text-base font-semibold leading-6 text-white transition-colors duration-200 hover:text-emerald-300 md:line-clamp-1 md:text-zinc-200">{song.title}</Link>
                           <SongMetadataLine songKey={song.key} bpm={song.bpm} timeSignature={song.time_signature} className="mt-1 text-[0.8125rem] font-normal" />
                           {entry.notes ? <p className="mt-1 whitespace-pre-line text-xs leading-5 text-zinc-500 sm:text-[0.8125rem]">{entry.notes}</p> : null}
+                          <AssignedResourcesLine assignmentText={entry.notes} assignments={serviceTeamAssignments} teamMembers={teamMembers} />
                           <SongDurationLine entry={entry} libraryDuration={song.duration} />
                         </div>
                         <div className="col-span-2 row-start-2 mt-2 flex min-w-0 items-center justify-end gap-1 border-t border-white/[0.05] pt-2 md:col-span-1 md:col-start-2 md:row-start-1 md:mt-0 md:border-t-0 md:pt-0">
@@ -590,6 +594,11 @@ function SongDurationLine({ entry, libraryDuration }: { entry: WorshipSongEntry;
   const duration = getSongDurationSeconds(entry, libraryDuration);
   if (!duration) return null;
   return <p className="mt-1 text-xs text-zinc-500">Duración: {formatDuration(duration)} · {hasSongDurationOverride(entry) ? "Personalizada" : "Biblioteca"}</p>;
+}
+
+function AssignedResourcesLine({ assignmentText, assignments, teamMembers }: { assignmentText: string; assignments: CurrentServiceTeamMember[]; teamMembers: TeamMember[] }) {
+  const resources = getServiceAssignmentResources(assignments, assignmentText, teamMembers);
+  return resources.length ? <p className="mt-1 break-words text-xs leading-5 text-zinc-500">{resources.join(" · ")}</p> : null;
 }
 
 function isValidPlannedDuration(value: string) {

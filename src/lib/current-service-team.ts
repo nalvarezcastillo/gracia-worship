@@ -1,6 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export type AssignedServiceResource = { id: string; name: string };
+export type AssignedServiceResource = { categorySortOrder: number; id: string; name: string };
 export type CurrentServiceTeamMember = { id: string; microphone_name: string | null; person_name: string; resources: AssignedServiceResource[]; role_name: string; sort_order: number; team_member_id: string | null };
 
 export type CurrentServiceTeamGroup = {
@@ -52,8 +52,16 @@ export async function getCurrentServiceTeam() {
     const { data: links, error: linksError } = await supabase.from("current_service_team_resources").select("service_team_id, resource_id");
     if (linksError || !links?.length) return members.map((member) => ({ ...member, resources: [] })) as CurrentServiceTeamMember[];
     const resourceIds = [...new Set(links.map((link) => link.resource_id))];
-    const { data: resources } = await supabase.from("resources").select("id, name").in("id", resourceIds);
-    const resourcesById = new Map((resources ?? []).map((resource) => [resource.id, resource]));
+    const [{ data: resources }, { data: categories }] = await Promise.all([
+      supabase.from("resources").select("id, name, category_id").in("id", resourceIds),
+      supabase.from("resource_categories").select("id, sort_order"),
+    ]);
+    const categoryOrder = new Map((categories ?? []).map((category) => [category.id, category.sort_order]));
+    const resourcesById = new Map((resources ?? []).map((resource) => [resource.id, {
+      categorySortOrder: categoryOrder.get(resource.category_id) ?? Number.MAX_SAFE_INTEGER,
+      id: resource.id,
+      name: resource.name,
+    }]));
     return members.map((member) => ({
       ...member,
       resources: links.filter((link) => link.service_team_id === member.id).flatMap((link) => {

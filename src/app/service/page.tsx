@@ -8,6 +8,7 @@ import type { ServiceItem, ServiceSong } from "@/lib/service";
 import { normalizeServiceItemSongIds } from "@/lib/service-item-normalization";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getTeamMembers } from "@/lib/team";
+import { getCurrentServiceTeam } from "@/lib/current-service-team";
 
 export const metadata: Metadata = { title: "Servicio | Gracia Worship" };
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export default async function ServicePage({ searchParams }: { searchParams: Prom
   const supabase = await createSupabaseServerClient();
   const { data: serviceData } = await supabase.from("active_setlist").select("id, service_name, service_date, service_time").eq("status", "active").maybeSingle();
   const serviceId = serviceData?.id ?? 1;
-  const [{ data, error }, { data: songsData, error: songsError }, isAdmin, teamMembers] = await Promise.all([
+  const [{ data, error }, { data: songsData, error: songsError }, isAdmin, teamMembers, serviceTeamAssignments] = await Promise.all([
     supabase
       .from("service_items")
       .select("id, position, type, title, details, planned_duration_seconds, song_ids, created_at")
@@ -28,6 +29,7 @@ export default async function ServicePage({ searchParams }: { searchParams: Prom
       .order("title", { ascending: true }),
     hasAuthenticatedUser(),
     getTeamMembers(true),
+    getCurrentServiceTeam(),
   ]);
 
   const items = error ? [] : (data ?? []).map((item) => normalizeServiceItemSongIds(item)) as ServiceItem[];
@@ -43,7 +45,7 @@ export default async function ServicePage({ searchParams }: { searchParams: Prom
   return (
     <main className="min-h-screen py-6 sm:py-10">
       <MainContainer className="max-w-3xl">
-        <ServiceItems initialItems={items} songs={songs} isAdmin={isAdmin} loadError={loadError} serviceId={serviceId} serviceName={serviceName} serviceSchedule={serviceSchedule} showPreparedToast={(await searchParams).prepared === "1"} teamMembers={teamMembers} />
+        <ServiceItems initialItems={items} songs={songs} isAdmin={isAdmin} loadError={loadError} serviceId={serviceId} serviceName={serviceName} serviceSchedule={serviceSchedule} showPreparedToast={(await searchParams).prepared === "1"} teamMembers={teamMembers} serviceTeamAssignments={serviceTeamAssignments} />
         <PrimaryButton href="/service/rehearsal" className="mt-10 w-full sm:mt-12">
           ▶ Comenzar ensayo
         </PrimaryButton>

@@ -129,7 +129,8 @@ export function ManageCurrentServiceTeam({ availableResources, initialAssignment
       return;
     }
 
-    const selectedResources = availableResources.filter((resource) => selectedResourceIds.includes(resource.id)).map(({ id, name }) => ({ id, name }));
+    const categoryOrder = new Map(resourceCategories.map((category) => [category.id, category.sort_order]));
+    const selectedResources = availableResources.filter((resource) => selectedResourceIds.includes(resource.id)).map(({ category_id, id, name }) => ({ categorySortOrder: categoryOrder.get(category_id) ?? Number.MAX_SAFE_INTEGER, id, name }));
     const saved: CurrentServiceTeamMember = { ...savedBase, resources: selectedResources };
     setAssignments((current) => editing ? current.map((item) => item.id === saved.id ? saved : item) : [...current, saved]);
     await refreshUsages();
