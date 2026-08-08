@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { BottomNavigation } from "@/components/bottom-navigation";
+import { LegacyRecentSongCleanup } from "@/components/legacy-recent-song-cleanup";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,6 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        <LegacyRecentSongCleanup />
         {children}
         <BottomNavigation />
       </body>

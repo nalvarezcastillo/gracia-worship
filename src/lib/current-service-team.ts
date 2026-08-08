@@ -6,25 +6,35 @@ export type CurrentServiceTeamMember = { id: string; microphone_name: string | n
 export type CurrentServiceTeamGroup = {
   personName: string;
   roles: string[];
-  microphones: string[];
   resources: string[];
 };
 
 export function groupCurrentServiceTeam(assignments: CurrentServiceTeamMember[]): CurrentServiceTeamGroup[] {
-  const groups = new Map<string, CurrentServiceTeamGroup>();
+  const groups = new Map<string, CurrentServiceTeamGroup & { resourceIds: Set<string> }>();
 
   for (const assignment of assignments) {
     const personName = assignment.person_name.trim();
     if (!personName) continue;
     const key = personName.toLocaleLowerCase("es");
-    const group = groups.get(key) ?? { personName, roles: [], microphones: [], resources: [] };
+    const group = groups.get(key) ?? { personName, roles: [], resources: [], resourceIds: new Set<string>() };
     addUnique(group.roles, assignment.role_name);
-    addUnique(group.microphones, assignment.microphone_name);
-    for (const resource of assignment.resources) addUnique(group.resources, resource.name);
+    if (assignment.resources.length) {
+      for (const resource of assignment.resources) {
+        if (group.resourceIds.has(resource.id)) continue;
+        group.resourceIds.add(resource.id);
+        addUnique(group.resources, resource.name);
+      }
+    } else {
+      addUnique(group.resources, assignment.microphone_name);
+    }
     groups.set(key, group);
   }
 
-  return [...groups.values()];
+  return [...groups.values()].map(({ personName, roles, resources }) => ({
+    personName,
+    roles,
+    resources: resources.sort((first, second) => first.localeCompare(second, "es", { sensitivity: "base" })),
+  }));
 }
 
 function addUnique(values: string[], candidate: string | null) {

@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppSectionCard } from "@/components/app-section-card";
+import { AppActionBar } from "@/components/app-action-bar";
 import { PrimaryButton } from "@/components/ui/action-button";
+import { appFieldStyles } from "@/components/ui/styles";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type CurrentServiceSettingsProps = {
@@ -13,8 +15,6 @@ type CurrentServiceSettingsProps = {
   initialLeaderNotes: string;
   serviceId: number;
 };
-
-const inputStyles = "mt-2 min-h-12 w-full rounded-2xl border border-white/10 bg-zinc-950/60 px-4 text-base text-white outline-none focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]";
 
 export function CurrentServiceSettings({ initialDate, initialName, initialTime, initialLeaderNotes, serviceId }: CurrentServiceSettingsProps) {
   const router = useRouter();
@@ -85,23 +85,23 @@ export function CurrentServiceSettings({ initialDate, initialName, initialTime, 
       <form onSubmit={save} className="grid gap-4 px-5 py-4 sm:grid-cols-2 sm:px-6 sm:py-5">
         <label className="text-sm font-semibold text-zinc-300 sm:col-span-2">
           Nombre del servicio
-          <input required value={serviceName} onChange={(event) => setServiceName(event.target.value)} className={inputStyles} />
+          <input required value={serviceName} onChange={(event) => setServiceName(event.target.value)} className={`${appFieldStyles} mt-2`} />
         </label>
         <label className="text-sm font-semibold text-zinc-300">
           Fecha del servicio
-          <input type="date" value={serviceDate} onChange={(event) => setServiceDate(event.target.value)} className={inputStyles} />
+          <input type="date" value={serviceDate} onChange={(event) => setServiceDate(event.target.value)} className={`${appFieldStyles} mt-2`} />
         </label>
         <label className="text-sm font-semibold text-zinc-300 sm:col-span-2">
           Notas del líder
-          <textarea value={leaderNotes} onChange={(event) => setLeaderNotes(event.target.value)} rows={5} className={`${inputStyles} resize-y py-3`} />
+          <textarea value={leaderNotes} onChange={(event) => setLeaderNotes(event.target.value)} rows={5} className={`${appFieldStyles} mt-2 resize-y py-3`} />
         </label>
         <label className="text-sm font-semibold text-zinc-300">
           Hora del servicio
-          <input type="time" required value={serviceTime} onChange={(event) => setServiceTime(event.target.value)} className={inputStyles} />
+          <input type="time" required value={serviceTime} onChange={(event) => setServiceTime(event.target.value)} className={`${appFieldStyles} mt-2`} />
         </label>
-        <div className="sm:col-span-2">
+        <AppActionBar className="sm:col-span-2">
           <PrimaryButton type="submit" disabled={isSaving || !serviceName.trim() || !serviceTime.trim()}>{isSaving ? "Guardando..." : "Guardar"}</PrimaryButton>
-        </div>
+        </AppActionBar>
         <p role="status" aria-live="polite" className={`min-h-5 text-sm sm:col-span-2 ${isError ? "text-rose-400" : "text-emerald-400"}`}>{message}</p>
       </form>
     </AppSectionCard>

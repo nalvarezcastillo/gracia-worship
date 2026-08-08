@@ -2,26 +2,30 @@
 
 import { useMemo, useState } from "react";
 import { LockKeyhole } from "lucide-react";
+import { AppActionBar } from "@/components/app-action-bar";
+import { AppList, AppListRow } from "@/components/app-list";
 import { PrimaryButton } from "@/components/ui/action-button";
 import type { CurrentServiceTeamMember } from "@/lib/current-service-team";
-import type { ResourceCategory, ServiceResource } from "@/lib/resources";
+import { buildResourceAvailabilityMap, joinResourceUsages } from "@/lib/resource-availability";
+import type { ResourceCategory, ResourceUsage, ServiceResource } from "@/lib/resources";
 import type { TeamMember } from "@/lib/team";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { appFieldStyles, appRowActionStyles } from "@/components/ui/styles";
 
 const roles = ["Voz", "Piano", "Teclados", "Guitarra Eléctrica", "Guitarra Acústica", "Bajo", "Batería", "Director", "Producción", "Audio", "Luces", "Cámara", "Streaming", "Multimedia", "Tracks", "Playback", "Predicación"];
-const fieldStyles = "min-h-12 w-full rounded-2xl border border-white/10 bg-zinc-950/60 px-4 text-white outline-none focus:border-emerald-400/50";
-const actionStyles = "min-h-11 rounded-xl px-3 text-sm font-semibold text-zinc-400 hover:bg-white/[0.05] disabled:opacity-40";
 const nameCollator = new Intl.Collator("es", { sensitivity: "base" });
 
 type Props = {
   availableResources: ServiceResource[];
   initialAssignments: CurrentServiceTeamMember[];
+  initialUsages: ResourceUsage[];
   resourceCategories: ResourceCategory[];
   teamMembers: TeamMember[];
 };
 
-export function ManageCurrentServiceTeam({ availableResources, initialAssignments, resourceCategories, teamMembers }: Props) {
+export function ManageCurrentServiceTeam({ availableResources, initialAssignments, initialUsages, resourceCategories, teamMembers }: Props) {
   const [assignments, setAssignments] = useState(initialAssignments);
+  const [usages, setUsages] = useState(initialUsages);
   const [editing, setEditing] = useState<CurrentServiceTeamMember | null>(null);
   const [open, setOpen] = useState(false);
   const [memberId, setMemberId] = useState("");
@@ -30,7 +34,7 @@ export function ManageCurrentServiceTeam({ availableResources, initialAssignment
   const [customRole, setCustomRole] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<string[]>([]);
   const [resourceQuery, setResourceQuery] = useState("");
-  const [openCategoryId, setOpenCategoryId] = useState(resourceCategories[0]?.id ?? "");
+  const [openCategoryId, setOpenCategoryId] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -46,9 +50,10 @@ export function ManageCurrentServiceTeam({ availableResources, initialAssignment
     })).filter((group) => group.resources.length);
   }, [resourceQuery, resourcesByCategory]);
   const selectedResources = availableResources.filter((resource) => selectedResourceIds.includes(resource.id)).sort((a, b) => nameCollator.compare(a.name, b.name));
-  const assignedResourceCount = availableResources.filter((resource) => resource.active && assignments.some((assignment) => assignment.id !== editing?.id && assignment.resources.some((assigned) => assigned.id === resource.id))).length;
-  const activeResourceCount = availableResources.filter((resource) => resource.active).length;
-  const inactiveResourceCount = availableResources.length - activeResourceCount;
+  const availabilityMap = useMemo(() => buildResourceAvailabilityMap(availableResources, usages, editing?.id ?? null), [availableResources, editing?.id, usages]);
+  const availableResourceCount = [...availabilityMap.values()].filter((availability) => availability.status === "AVAILABLE").length;
+  const assignedResourceCount = [...availabilityMap.values()].filter((availability) => availability.status === "ASSIGNED_TO_OTHER" || availability.status === "ASSIGNED_TO_CURRENT").length;
+  const inactiveResourceCount = [...availabilityMap.values()].filter((availability) => availability.status === "INACTIVE").length;
 
   function showForm(item?: CurrentServiceTeamMember) {
     setEditing(item ?? null);
@@ -57,33 +62,43 @@ export function ManageCurrentServiceTeam({ availableResources, initialAssignment
     const knownRole = roles.includes(item?.role_name ?? "");
     setRoleName(item?.role_name ?? "");
     setCustomRole(Boolean(item && !knownRole));
-    setSelectedResourceIds(item?.resources.map((resource) => resource.id) ?? []);
+    setSelectedResourceIds(item ? usages.filter((usage) => usage.service_team_id === item.id).map((usage) => usage.resource_id) : []);
     setResourceQuery("");
     const firstSelectedCategory = availableResources.find((resource) => item?.resources.some((selected) => selected.id === resource.id))?.category_id;
-    setOpenCategoryId(firstSelectedCategory ?? resourcesByCategory[0]?.category.id ?? "");
+    setOpenCategoryId(isMobileViewport() ? "" : firstSelectedCategory ?? resourcesByCategory[0]?.category.id ?? "");
     setOpen(true);
     setMessage("");
   }
 
-  function resourceOwner(resourceId: string) {
-    return assignments.find((assignment) => assignment.id !== editing?.id && assignment.resources.some((resource) => resource.id === resourceId));
-  }
-
   function toggleResource(resource: ServiceResource) {
-    const owner = resourceOwner(resource.id);
-    if (owner) {
-      setMessage(`Este recurso ya está asignado a ${owner.person_name}.`);
+    const availability = availabilityMap.get(resource.id);
+    if (availability?.status === "ASSIGNED_TO_OTHER") {
+      setMessage(`Este recurso ya está asignado a ${availability.assignedPersonName}.`);
+      return;
+    }
+    if (availability?.status === "INACTIVE" && !selectedResourceIds.includes(resource.id)) {
       return;
     }
     setSelectedResourceIds((current) => current.includes(resource.id) ? current.filter((id) => id !== resource.id) : [...current, resource.id]);
   }
 
+  async function refreshUsages() {
+    const supabase = createSupabaseBrowserClient();
+    const [{ data: links, error: linksError }, { data: team, error: teamError }] = await Promise.all([
+      supabase.from("current_service_team_resources").select("resource_id, service_team_id"),
+      supabase.from("current_service_team").select("id, person_name"),
+    ]);
+    if (linksError || teamError) return false;
+    setUsages(joinResourceUsages(links ?? [], team ?? []));
+    return true;
+  }
+
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || !personName.trim() || !roleName.trim()) return;
-    const conflict = selectedResourceIds.map(resourceOwner).find(Boolean);
+    const conflict = selectedResourceIds.map((resourceId) => availabilityMap.get(resourceId)).find((availability) => availability?.status === "ASSIGNED_TO_OTHER");
     if (conflict) {
-      setMessage(`Este recurso ya está asignado a ${conflict.person_name}.`);
+      setMessage(`Este recurso ya está asignado a ${conflict.assignedPersonName}.`);
       return;
     }
 
@@ -104,8 +119,12 @@ export function ManageCurrentServiceTeam({ availableResources, initialAssignment
     const { error: resourcesError } = await supabase.rpc("set_current_service_team_resources", { target_service_team_id: savedBase.id, target_resource_ids: selectedResourceIds });
     if (resourcesError) {
       if (!editing) await supabase.from("current_service_team").delete().eq("id", savedBase.id);
-      const conflictOwner = assignments.find((assignment) => assignment.resources.some((resource) => selectedResourceIds.includes(resource.id)));
-      setMessage(resourcesError.code === "23505" ? `Este recurso ya está asignado${conflictOwner ? ` a ${conflictOwner.person_name}` : " a otra persona"}.` : resourcesError.message);
+      if (resourcesError.code === "23505") {
+        setMessage("Este recurso acaba de ser asignado a otra persona. Actualiza la disponibilidad e inténtalo nuevamente.");
+        await refreshUsages();
+      } else {
+        setMessage(resourcesError.message);
+      }
       setBusy(false);
       return;
     }
@@ -113,6 +132,7 @@ export function ManageCurrentServiceTeam({ availableResources, initialAssignment
     const selectedResources = availableResources.filter((resource) => selectedResourceIds.includes(resource.id)).map(({ id, name }) => ({ id, name }));
     const saved: CurrentServiceTeamMember = { ...savedBase, resources: selectedResources };
     setAssignments((current) => editing ? current.map((item) => item.id === saved.id ? saved : item) : [...current, saved]);
+    await refreshUsages();
     setOpen(false);
     setMessage("Equipo actualizado.");
     setBusy(false);
@@ -124,6 +144,7 @@ export function ManageCurrentServiceTeam({ availableResources, initialAssignment
     const { error } = await supabase.from("current_service_team").delete().eq("id", id);
     if (!error) {
       setAssignments((current) => current.filter((item) => item.id !== id));
+      await refreshUsages();
       if (closeForm) setOpen(false);
     }
     else setMessage(error.message);
@@ -145,12 +166,12 @@ export function ManageCurrentServiceTeam({ availableResources, initialAssignment
 
   return (
     <div className="mt-6">
-      <PrimaryButton type="button" onClick={() => showForm()}>+ Agregar persona</PrimaryButton>
+      <PrimaryButton type="button" onClick={() => showForm()} className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100 md:min-h-12 md:rounded-full md:px-6 md:text-base">+ Agregar persona</PrimaryButton>
       {open ? (
-        <form onSubmit={save} className="mt-4 rounded-2xl border border-white/[0.07] bg-zinc-900/30 p-4 sm:p-5">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <label className="text-sm font-semibold text-zinc-300">Persona<select value={memberId} onChange={(event) => { const id = event.target.value; setMemberId(id); const member = teamMembers.find((item) => item.id === id); setPersonName(member?.name ?? ""); }} className={`mt-2 ${fieldStyles}`}><option value="">Seleccionar persona</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}<option value="__other">Otro nombre...</option></select>{memberId === "__other" ? <input value={personName} onChange={(event) => setPersonName(event.target.value)} placeholder="Nombre" className={`mt-2 ${fieldStyles}`} /> : null}</label>
-            <label className="text-sm font-semibold text-zinc-300">Función / posición<select value={customRole ? "__other" : roleName} onChange={(event) => { const custom = event.target.value === "__other"; setCustomRole(custom); setRoleName(custom ? "" : event.target.value); }} className={`mt-2 ${fieldStyles}`}><option value="">Seleccionar función</option>{roles.map((role) => <option key={role}>{role}</option>)}<option value="__other">Otro...</option></select>{customRole ? <input value={roleName} onChange={(event) => setRoleName(event.target.value)} placeholder="Otra función" className={`mt-2 ${fieldStyles}`} /> : null}</label>
+        <form onSubmit={save} className="mt-3 rounded-2xl border border-white/[0.07] bg-zinc-900/30 p-4 pb-32 md:mt-4 md:p-5">
+          <div className="grid gap-3 md:gap-4 lg:grid-cols-2">
+            <label className="text-sm font-semibold text-zinc-300">Persona<select value={memberId} onChange={(event) => { const id = event.target.value; setMemberId(id); const member = teamMembers.find((item) => item.id === id); setPersonName(member?.name ?? ""); }} className={`${appFieldStyles} mt-2`}><option value="">Seleccionar persona</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}<option value="__other">Otro nombre...</option></select>{memberId === "__other" ? <input value={personName} onChange={(event) => setPersonName(event.target.value)} placeholder="Nombre" className={`${appFieldStyles} mt-2`} /> : null}</label>
+            <label className="text-sm font-semibold text-zinc-300">Función / posición<select value={customRole ? "__other" : roleName} onChange={(event) => { const custom = event.target.value === "__other"; setCustomRole(custom); setRoleName(custom ? "" : event.target.value); }} className={`${appFieldStyles} mt-2`}><option value="">Seleccionar función</option>{roles.map((role) => <option key={role}>{role}</option>)}<option value="__other">Otro...</option></select>{customRole ? <input value={roleName} onChange={(event) => setRoleName(event.target.value)} placeholder="Otra función" className={`${appFieldStyles} mt-2`} /> : null}</label>
           </div>
 
           <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_17rem]">
@@ -166,26 +187,34 @@ export function ManageCurrentServiceTeam({ availableResources, initialAssignment
               ) : null}
 
               <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_11rem] lg:items-end">
-                <label className="text-xs font-semibold text-zinc-500"><span className="lg:sr-only">Buscar recursos</span><input type="search" value={resourceQuery} onChange={(event) => { const value = event.target.value; setResourceQuery(value); const normalized = value.trim().toLocaleLowerCase("es"); const firstMatch = resourcesByCategory.find((group) => !normalized || group.category.name.toLocaleLowerCase("es").includes(normalized) || group.resources.some((resource) => resource.name.toLocaleLowerCase("es").includes(normalized))); if (firstMatch) setOpenCategoryId(firstMatch.category.id); }} placeholder="Buscar recursos..." className={`mt-2 lg:mt-0 ${fieldStyles}`} /></label>
-                <label className="hidden text-xs font-semibold text-zinc-500 lg:block">Ver<select value="category" disabled className={`mt-2 ${fieldStyles}`}><option value="category">Por categoría</option></select></label>
+                <label className="text-xs font-semibold text-zinc-500"><span className="lg:sr-only">Buscar recursos</span><input type="search" value={resourceQuery} onChange={(event) => { const value = event.target.value; setResourceQuery(value); const normalized = value.trim().toLocaleLowerCase("es"); const firstMatch = resourcesByCategory.find((group) => !normalized || group.category.name.toLocaleLowerCase("es").includes(normalized) || group.resources.some((resource) => resource.name.toLocaleLowerCase("es").includes(normalized))); if (firstMatch && !isMobileViewport()) setOpenCategoryId(firstMatch.category.id); }} placeholder="Buscar recursos..." className={`${appFieldStyles} mt-2 lg:mt-0`} /></label>
+                <label className="hidden text-xs font-semibold text-zinc-500 lg:block">Ver<select value="category" disabled className={`${appFieldStyles} mt-2`}><option value="category">Por categoría</option></select></label>
               </div>
 
               <div className="mt-3 overflow-hidden rounded-2xl border border-white/[0.07]">
                 {filteredResourceGroups.length ? filteredResourceGroups.map(({ category, resources }) => {
                   const expanded = openCategoryId === category.id;
-                  const availableCount = resources.filter((resource) => resource.active && !resourceOwner(resource.id)).length;
+                  const availableCount = resources.filter((resource) => availabilityMap.get(resource.id)?.status === "AVAILABLE").length;
                   return (
                     <div key={category.id} className="border-b border-white/[0.06] last:border-b-0">
                       <button type="button" aria-expanded={expanded} onClick={() => setOpenCategoryId((current) => current === category.id ? "" : category.id)} className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-3 text-left font-semibold text-white transition-colors duration-200 hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-emerald-400">
-                        <span className="flex min-w-0 items-center gap-3"><span aria-hidden="true" className="text-zinc-500">{expanded ? "▴" : "▾"}</span><span className="truncate text-xs uppercase tracking-[0.14em] sm:text-sm">{category.name}</span></span><span className="flex shrink-0 items-center gap-3 text-xs font-normal text-zinc-500 sm:gap-5"><span>{resources.length}</span><span>{availableCount} disponibles</span></span>
+                        <span className="flex min-w-0 items-center gap-3"><span aria-hidden="true" className="hidden text-zinc-500 md:inline">{expanded ? "▴" : "▾"}</span><span className="truncate text-xs uppercase tracking-[0.14em] md:text-sm">{category.name}</span></span><span className="flex shrink-0 items-center gap-3 text-xs font-normal text-zinc-500 md:gap-5"><span className="hidden md:inline">{resources.length}</span><span>{availableCount} disponibles</span><span aria-hidden="true" className="text-base md:hidden">{expanded ? "⌃" : "›"}</span></span>
                       </button>
                       <div className={`grid transition-[grid-template-rows,opacity] duration-200 ${expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}><div className="overflow-hidden"><div className="divide-y divide-white/[0.06] border-t border-white/[0.06] px-4">
                         {resources.map((resource) => {
-                          const owner = resourceOwner(resource.id);
+                          const availability = availabilityMap.get(resource.id);
                           const checked = selectedResourceIds.includes(resource.id);
-                          const disabled = Boolean(owner) || !resource.active;
-                          const status = !resource.active ? "Inactivo" : owner ? `Asignado a ${owner.person_name}` : "Disponible";
-                          return <label key={resource.id} className={`flex min-h-14 w-full items-center gap-3 px-1 py-2 text-left transition-colors duration-200 ${disabled ? "cursor-not-allowed opacity-55" : "cursor-pointer hover:bg-white/[0.025]"} ${checked ? "bg-white/[0.035]" : ""}`}><input type="checkbox" checked={checked} disabled={disabled} onChange={() => toggleResource(resource)} className="size-5 shrink-0 accent-emerald-500" /><span className="min-w-0 flex-1"><span className="block font-medium text-white">{resource.name}</span><span className="block text-xs text-zinc-500">{status}</span></span><span className="hidden max-w-44 items-center gap-1.5 text-right text-xs text-zinc-500 sm:flex">{owner ? <LockKeyhole aria-hidden="true" className="size-3.5 shrink-0" /> : null}{checked ? "Seleccionado" : status}</span></label>;
+                          const assignedToOther = availability?.status === "ASSIGNED_TO_OTHER";
+                          const inactive = availability?.status === "INACTIVE";
+                          const disabled = assignedToOther || inactive;
+                          const status = inactive
+                            ? `Inactivo${availability.assignedPersonName ? ` · Asignado a ${availability.assignedPersonName}` : ""}`
+                            : assignedToOther
+                              ? `Asignado a ${availability.assignedPersonName}`
+                              : availability?.status === "ASSIGNED_TO_CURRENT"
+                                ? "Seleccionado"
+                                : "Disponible";
+                          return <label key={resource.id} className={`flex min-h-14 w-full items-center gap-3 px-1 py-2 text-left transition-colors duration-200 ${disabled ? "cursor-not-allowed opacity-55" : "cursor-pointer hover:bg-white/[0.025]"} ${checked ? "bg-white/[0.035]" : ""}`}><input type="checkbox" checked={checked} disabled={disabled} onChange={() => toggleResource(resource)} className="size-5 shrink-0 accent-emerald-500" /><span className="min-w-0 flex-1"><span className="block font-medium text-white">{resource.name}</span><span className="block text-xs text-zinc-500">{status}</span></span><span className="hidden max-w-44 items-center gap-1.5 text-right text-xs text-zinc-500 md:flex">{assignedToOther ? <LockKeyhole aria-hidden="true" className="size-3.5 shrink-0" /> : null}{status}</span></label>;
                         })}
                       </div></div></div>
                     </div>
@@ -194,16 +223,16 @@ export function ManageCurrentServiceTeam({ availableResources, initialAssignment
               </div>
             </fieldset>
 
-            <DesktopSelectionSidebar availableCount={activeResourceCount - assignedResourceCount} assignedCount={assignedResourceCount} inactiveCount={inactiveResourceCount} categories={resourceCategories} resources={selectedResources} onRemove={toggleResource} />
+            <DesktopSelectionSidebar availableCount={availableResourceCount} assignedCount={assignedResourceCount} inactiveCount={inactiveResourceCount} categories={resourceCategories} resources={selectedResources} onRemove={toggleResource} />
           </div>
 
-          <div className="mt-5 lg:hidden"><AssignmentSummary personName={personName} roleName={roleName} legacyMicrophone={editing?.microphone_name ?? null} resources={selectedResources} /></div>
-          <div className="mt-5 flex flex-col gap-2 border-t border-white/[0.07] pt-4 sm:flex-row sm:items-center"><button type="button" onClick={() => setOpen(false)} className="min-h-12 w-full rounded-2xl px-4 text-zinc-400 transition-colors duration-200 hover:bg-white/[0.05] sm:w-auto">Cancelar</button><div className="flex flex-col gap-2 sm:ml-auto sm:flex-row">{editing ? <button type="button" onClick={() => void remove(editing.id, true)} className="min-h-12 w-full rounded-2xl border border-rose-400/20 px-4 text-sm font-semibold text-rose-300 transition-colors duration-200 hover:bg-rose-400/[0.08] sm:w-auto">Eliminar asignación</button> : null}<PrimaryButton type="submit" disabled={busy || !personName.trim() || !roleName.trim()} className="w-full sm:w-auto">{busy ? "Guardando..." : editing ? "Guardar cambios" : "Guardar"}</PrimaryButton></div></div>
+          <div className="mt-5 hidden md:block lg:hidden"><AssignmentSummary personName={personName} roleName={roleName} legacyMicrophone={editing?.microphone_name ?? null} resources={selectedResources} /></div>
+          {editing ? <button type="button" onClick={() => void remove(editing.id, true)} className="mt-4 min-h-11 w-full rounded-xl border border-rose-400/20 px-4 text-sm font-semibold text-rose-300 transition-colors duration-200 hover:bg-rose-400/[0.08] md:hidden">Eliminar asignación</button> : null}
+          <div className="hidden md:block"><AppActionBar className="mt-5" separated><button type="button" onClick={() => setOpen(false)} className="min-h-12 w-full rounded-2xl px-4 text-zinc-400 transition-colors duration-200 hover:bg-white/[0.05] sm:w-auto">Cancelar</button><div className="flex flex-col gap-2 sm:ml-auto sm:flex-row">{editing ? <button type="button" onClick={() => void remove(editing.id, true)} className="min-h-12 w-full rounded-2xl border border-rose-400/20 px-4 text-sm font-semibold text-rose-300 transition-colors duration-200 hover:bg-rose-400/[0.08] sm:w-auto">Eliminar asignación</button> : null}<PrimaryButton type="submit" disabled={busy || !personName.trim() || !roleName.trim()} className="w-full sm:w-auto">{busy ? "Guardando..." : editing ? "Guardar cambios" : "Guardar"}</PrimaryButton></div></AppActionBar></div>
+          <div className="fixed inset-x-0 z-40 border-t border-white/[0.08] bg-zinc-950/95 px-4 py-2.5 shadow-[0_-10px_28px_rgba(0,0,0,0.35)] backdrop-blur-xl md:hidden" style={{ bottom: "calc(4.5rem + env(safe-area-inset-bottom))" }}><div className="mx-auto grid max-w-lg grid-cols-2 gap-3"><button type="button" onClick={() => setOpen(false)} className="min-h-12 rounded-2xl border border-white/10 bg-white/[0.04] px-4 font-semibold text-zinc-300">Cancelar</button><PrimaryButton type="submit" disabled={busy || !personName.trim() || !roleName.trim()} className="w-full">{busy ? "Guardando..." : "Guardar"}</PrimaryButton></div></div>
         </form>
       ) : null}
-      <div className="mt-6 divide-y divide-white/[0.07] border-y border-white/[0.07]">
-        {assignments.map((item, index) => <div key={item.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center"><div className="min-w-0 flex-1"><p className="font-semibold text-white">{item.person_name}</p><p className="mt-1 text-sm text-zinc-400">{[item.role_name, item.microphone_name].filter(Boolean).join(" • ")}</p>{item.resources.length ? <p className="mt-1 text-sm text-zinc-500">{item.resources.map((resource) => resource.name).join(" • ")}</p> : null}</div><div className="flex flex-wrap gap-1"><button type="button" onClick={() => void move(index, -1)} disabled={busy || index === 0} className={actionStyles}>Subir</button><button type="button" onClick={() => void move(index, 1)} disabled={busy || index === assignments.length - 1} className={actionStyles}>Bajar</button><button type="button" onClick={() => showForm(item)} className={actionStyles}>Editar</button><button type="button" onClick={() => void remove(item.id)} className={`${actionStyles} text-rose-300`}>Eliminar</button></div></div>)}
-      </div>
+      <AppList className="mt-6">{assignments.map((item, index) => <AppListRow key={item.id}><div className="min-w-0 flex-1"><p className="font-semibold text-white">{item.person_name}</p><p className="mt-1 text-sm text-zinc-400">{[item.role_name, item.microphone_name].filter(Boolean).join(" • ")}</p>{item.resources.length ? <p className="mt-1 text-sm text-zinc-500">{item.resources.map((resource) => resource.name).join(" • ")}</p> : null}</div><div className="flex flex-wrap gap-1"><button type="button" onClick={() => void move(index, -1)} disabled={busy || index === 0} className={appRowActionStyles}>Subir</button><button type="button" onClick={() => void move(index, 1)} disabled={busy || index === assignments.length - 1} className={appRowActionStyles}>Bajar</button><button type="button" onClick={() => showForm(item)} className={appRowActionStyles}>Editar</button><button type="button" onClick={() => void remove(item.id)} className={`${appRowActionStyles} text-rose-300`}>Eliminar</button></div></AppListRow>)}</AppList>
       <p role="status" aria-live="polite" className="mt-4 min-h-5 text-sm text-rose-300">{message}</p>
     </div>
   );
@@ -241,4 +270,8 @@ function DesktopSelectionSidebar({ assignedCount, availableCount, categories, in
       </div>
     </aside>
   );
+}
+
+function isMobileViewport() {
+  return typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches;
 }

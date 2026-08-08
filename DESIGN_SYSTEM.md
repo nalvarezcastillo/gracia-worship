@@ -159,3 +159,16 @@ If a new design decision conflicts with this document, update the document first
 - Create separate `Mobile` and `Desktop` presentation components only when markup or interaction composition is materially different. Keep their business logic in a shared parent, hook or helper.
 - Do not render duplicated responsive trees when CSS can express the layout cleanly.
 - Tablet should adapt naturally from the same components; do not introduce a third application layout.
+
+## 18. Component Foundation
+
+- Use `AppPage` for standard page padding, width and page headers.
+- Use `AppSectionCard` for dashboard modules and `AppFormSection` for grouped form content.
+- Use `AppList` and `AppListRow` for flat divided lists, and `AppEmptyState` when those lists have no content.
+- Use `AppSearch` for labeled searches, `AppActionBar` for related actions, `AppStatusBadge` for compact status labels and `AppConfirmDialog` for confirmation overlays.
+- Reuse the class tokens in `src/components/ui/styles.ts` for fields, labels, rows, focus states and expand/collapse transitions.
+- Standard page spacing is 32px on mobile and 48px from `sm`; section spacing is 24px on mobile and 32px from `sm`.
+- Standard controls are 48px high with a 16px radius. Row actions remain at least 44px high with a 12px radius.
+- Standard cards use a 24px radius, the shared subtle border, elevated background and shared shadow.
+- Standard motion duration is 200ms for hover, focus and expand/collapse transitions.
+- Standard interface icon sizes are 16px, 18px, 20px and 24px. Choose the smallest size that remains clear.

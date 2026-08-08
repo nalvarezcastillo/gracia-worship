@@ -1,7 +1,6 @@
 import Image from "next/image";
 import { MusicIcon } from "@/components/icons";
 import { AppSectionCard } from "@/components/app-section-card";
-import { RecentSongCard } from "@/components/recent-song-card";
 import { ServiceCountdownCard } from "@/components/service-countdown-card";
 import { PrimaryButton, SecondaryButton } from "@/components/ui/action-button";
 import { MainContainer } from "@/components/ui/main-container";
@@ -42,8 +41,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
 
         {(await searchParams).restored === "1" ? <div role="status" className="fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-sm rounded-2xl border border-emerald-400/20 bg-zinc-900 px-4 py-3 text-center text-sm font-medium text-emerald-300 shadow-2xl">✅ Servicio restaurado correctamente.</div> : null}
 
-        <RecentSongCard />
-
         <AppSectionCard
           eyebrow="Próximo servicio"
           title={setlist ? localizeDefaultServiceName(setlist.serviceName) : "Próximo servicio"}
@@ -76,9 +73,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
               {serviceTeamGroups.map((person) => (
                 <div key={person.personName.toLocaleLowerCase("es")} className="py-3 sm:py-4">
                   <p className="text-base font-semibold text-white sm:text-lg">{person.personName}</p>
-                  {person.roles.length || person.microphones.length ? (
-                    <p className="mt-1.5 text-sm text-zinc-400">{[...person.roles, ...person.microphones].join(" • ")}</p>
-                  ) : null}
+                  {person.roles.length ? <p className="mt-1.5 text-sm text-zinc-400">{person.roles.join(" • ")}</p> : null}
                   {person.resources.length ? <p className="mt-1 text-sm text-zinc-500">{person.resources.join(" • ")}</p> : null}
                 </div>
               ))}

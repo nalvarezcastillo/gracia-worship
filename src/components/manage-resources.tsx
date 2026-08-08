@@ -1,13 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { AppActionBar } from "@/components/app-action-bar";
+import { AppEmptyState } from "@/components/app-empty-state";
+import { AppSearch } from "@/components/app-search";
 import { AppSectionCard } from "@/components/app-section-card";
+import { AppStatusBadge } from "@/components/app-status-badge";
 import { PrimaryButton, SecondaryButton } from "@/components/ui/action-button";
+import { appFieldStyles, appRowActionStyles } from "@/components/ui/styles";
 import type { ResourceCategory, ResourceUsage, ServiceResource } from "@/lib/resources";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-const inputStyles = "mt-2 min-h-12 w-full rounded-2xl border border-white/10 bg-zinc-950/60 px-4 text-base text-white outline-none transition-colors duration-200 focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]";
-const actionStyles = "min-h-11 rounded-xl px-3 text-sm font-semibold text-zinc-400 transition-colors duration-200 hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:opacity-40";
 const nameCollator = new Intl.Collator("es", { sensitivity: "base" });
 
 type ManageResourcesProps = {
@@ -112,19 +115,16 @@ export function ManageResources({ initialCategories, initialResources, initialUs
     <div className="mt-6">
       <div className="mb-6 flex flex-wrap gap-x-6 gap-y-2 border-y border-white/[0.07] py-3 text-sm text-zinc-400"><span><strong className="font-semibold text-white">{activeCount}</strong> activos</span><span><strong className="font-semibold text-white">{assignedCount}</strong> asignados</span><span><strong className="font-semibold text-white">{activeCount - assignedCount}</strong> disponibles</span></div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <label className="min-w-0 flex-1 text-sm font-semibold text-zinc-300">
-          Buscar recursos
-          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nombre o categoría" className={inputStyles} />
-        </label>
+        <AppSearch className="min-w-0 flex-1" label="Buscar recursos" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nombre o categoría" />
         <PrimaryButton type="button" onClick={() => openForm()} disabled={!initialCategories.length} className="w-full sm:w-auto">Agregar recurso</PrimaryButton>
       </div>
 
       {showForm ? (
         <form onSubmit={save} className="mt-4 grid gap-4 rounded-2xl border border-white/[0.07] bg-zinc-900/40 p-4 sm:grid-cols-2">
-          <label className="text-sm font-semibold text-zinc-300">Nombre<input autoFocus required value={name} onChange={(event) => setName(event.target.value)} className={inputStyles} /></label>
-          <label className="text-sm font-semibold text-zinc-300">Categoría<select required value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className={inputStyles}>{initialCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-          <label className="text-sm font-semibold text-zinc-300 sm:col-span-2">Notas<textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} className={`${inputStyles} resize-y py-3`} /></label>
-          <div className="flex flex-col gap-3 sm:col-span-2 sm:flex-row"><PrimaryButton type="submit" disabled={busyId !== null}>{busyId ? "Guardando..." : "Guardar"}</PrimaryButton><SecondaryButton type="button" onClick={() => setShowForm(false)}>Cancelar</SecondaryButton></div>
+          <label className="text-sm font-semibold text-zinc-300">Nombre<input autoFocus required value={name} onChange={(event) => setName(event.target.value)} className={`${appFieldStyles} mt-2`} /></label>
+          <label className="text-sm font-semibold text-zinc-300">Categoría<select required value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className={`${appFieldStyles} mt-2`}>{initialCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+          <label className="text-sm font-semibold text-zinc-300 sm:col-span-2">Notas<textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} className={`${appFieldStyles} mt-2 resize-y py-3`} /></label>
+          <AppActionBar className="sm:col-span-2"><PrimaryButton type="submit" disabled={busyId !== null}>{busyId ? "Guardando..." : "Guardar"}</PrimaryButton><SecondaryButton type="button" onClick={() => setShowForm(false)}>Cancelar</SecondaryButton></AppActionBar>
         </form>
       ) : null}
 
@@ -139,23 +139,23 @@ export function ManageResources({ initialCategories, initialResources, initialUs
                     <div className="min-w-0">
                       <p className="break-words font-semibold text-white">{resource.name}</p>
                       {resource.notes ? <p className="mt-1 whitespace-pre-wrap break-words text-sm text-zinc-400">{resource.notes}</p> : null}
-                      <p className="mt-1 text-xs font-medium text-zinc-500">{!resource.active ? "Inactivo" : usageByResourceId.has(resource.id) ? `Asignado a ${usageByResourceId.get(resource.id)?.person_name}` : "Disponible"}</p>
+                      <div className="mt-2"><AppStatusBadge variant={resource.active && !usageByResourceId.has(resource.id) ? "success" : "neutral"}>{!resource.active ? "Inactivo" : usageByResourceId.has(resource.id) ? `Asignado a ${usageByResourceId.get(resource.id)?.person_name}` : "Disponible"}</AppStatusBadge></div>
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      <button type="button" onClick={() => openForm(resource)} className={actionStyles}>Editar</button>
-                      <button type="button" onClick={() => void setActive(resource, !resource.active)} disabled={busyId !== null} className={actionStyles}>{resource.active ? "Desactivar" : "Reactivar"}</button>
-                      <button type="button" onClick={() => void remove(resource)} disabled={busyId !== null} className={`${actionStyles} text-rose-300`}>Eliminar</button>
+                      <button type="button" onClick={() => openForm(resource)} className={appRowActionStyles}>Editar</button>
+                      <button type="button" onClick={() => void setActive(resource, !resource.active)} disabled={busyId !== null} className={appRowActionStyles}>{resource.active ? "Desactivar" : "Reactivar"}</button>
+                      <button type="button" onClick={() => void remove(resource)} disabled={busyId !== null} className={`${appRowActionStyles} text-rose-300`}>Eliminar</button>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-          ) : <p className="px-5 py-5 text-sm text-zinc-500 sm:px-6">No hay recursos en esta categoría.</p>}
+          ) : <AppEmptyState className="px-5 sm:px-6">No hay recursos en esta categoría.</AppEmptyState>}
         </AppSectionCard>
       ))}
       </div>
 
-      {query.trim() && visibleByCategory.length === 0 ? <p className="py-8 text-center text-sm text-zinc-500">No se encontraron recursos.</p> : null}
+      {query.trim() && visibleByCategory.length === 0 ? <AppEmptyState>No se encontraron recursos.</AppEmptyState> : null}
       <p role="status" aria-live="polite" className={`mt-4 min-h-5 text-sm ${isError ? "text-rose-300" : "text-emerald-400"}`}>{message}</p>
     </div>
   );

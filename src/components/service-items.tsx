@@ -375,19 +375,20 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceI
                         onDragEnd={isAdmin ? (event) => { event.stopPropagation(); setDraggedSong(null); } : undefined}
                         onDragOver={isAdmin ? (event) => { event.stopPropagation(); event.preventDefault(); } : undefined}
                         onDrop={isAdmin ? (event) => { event.stopPropagation(); reorderBlockSongs(item.id, entry.songId); } : undefined}
-                        className={`grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 py-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${draggedSong?.songId === entry.songId ? "text-emerald-300" : ""}`}
+                        className={`grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-1 rounded-xl px-2 py-3 transition-colors duration-200 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center md:rounded-none md:px-0 md:py-2 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${draggedSong?.songId === entry.songId ? "bg-emerald-400/[0.04] text-emerald-300" : ""}`}
                       >
-                        <div className="min-w-0 sm:col-start-1 sm:row-start-1">
-                          <Link href={`/song/${song.id}`} onClick={(event) => event.stopPropagation()} className="block truncate text-base font-semibold text-zinc-200 transition-colors duration-200 hover:text-emerald-300">{song.title}</Link>
+                        <div className="min-w-0 md:col-start-1 md:row-start-1">
+                          <Link href={`/song/${song.id}`} onClick={(event) => event.stopPropagation()} className="line-clamp-2 text-base font-semibold leading-6 text-white transition-colors duration-200 hover:text-emerald-300 md:line-clamp-1 md:text-zinc-200">{song.title}</Link>
                           <SongMetadataLine songKey={song.key} bpm={song.bpm} timeSignature={song.time_signature} className="mt-1 text-[0.8125rem] font-normal" />
                           {entry.notes ? <p className="mt-1 whitespace-pre-line text-xs leading-5 text-zinc-500 sm:text-[0.8125rem]">{entry.notes}</p> : null}
                         </div>
-                        <div className="col-span-2 row-start-2 flex min-w-0 items-center justify-end gap-1 sm:col-span-1 sm:col-start-2 sm:row-start-1">
-                          <ResourceIndicators song={song} />
+                        <div className="col-span-2 row-start-2 mt-2 flex min-w-0 items-center justify-end gap-1 border-t border-white/[0.05] pt-2 md:col-span-1 md:col-start-2 md:row-start-1 md:mt-0 md:border-t-0 md:pt-0">
+                          <div className="mr-auto md:mr-0"><ResourceIndicators song={song} /></div>
                           {isAdmin ? <button type="button" aria-label={`Editar notas de ${song.title}`} onClick={(event) => { event.stopPropagation(); setEditingSong({ blockId: item.id, songId: entry.songId, notes: entry.notes }); }} className="min-h-11 shrink-0 rounded-full px-2 text-xs font-medium text-zinc-600 transition-colors hover:bg-white/[0.04] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400">Editar</button> : null}
-                          {isAdmin ? <button type="button" aria-label={`Quitar canción ${song.title}`} onClick={(event) => { event.stopPropagation(); removeSongFromBlock(item.id, entry.songId); }} className="grid size-11 shrink-0 place-items-center rounded-full text-lg text-zinc-600 transition-colors hover:bg-rose-400/10 hover:text-rose-300 focus-visible:outline-2 focus-visible:outline-rose-400">×</button> : null}
+                          {isAdmin ? <details className="relative shrink-0 md:hidden"><summary aria-label={`Más acciones para ${song.title}`} onClick={(event) => event.stopPropagation()} className="grid size-11 cursor-pointer list-none place-items-center rounded-full text-xl leading-none text-zinc-500 transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400 [&::-webkit-details-marker]:hidden">⋯</summary><div className="absolute bottom-full right-0 z-20 mb-1 min-w-44 overflow-hidden rounded-xl border border-white/10 bg-zinc-900 p-1 shadow-xl shadow-black/40"><button type="button" onClick={(event) => { event.stopPropagation(); event.currentTarget.closest("details")?.removeAttribute("open"); removeSongFromBlock(item.id, entry.songId); }} disabled={isSaving} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-rose-300 transition-colors hover:bg-rose-400/[0.08] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-rose-400">Eliminar canción</button></div></details> : null}
+                          {isAdmin ? <button type="button" aria-label={`Quitar canción ${song.title}`} onClick={(event) => { event.stopPropagation(); removeSongFromBlock(item.id, entry.songId); }} className="hidden size-11 shrink-0 place-items-center rounded-full text-lg text-zinc-600 transition-colors hover:bg-rose-400/10 hover:text-rose-300 focus-visible:outline-2 focus-visible:outline-rose-400 md:grid">×</button> : null}
                         </div>
-                        {isAdmin ? <GripIcon label={`Drag ${song.title} to reorder`} className="col-start-2 row-start-1 size-3.5 justify-self-end text-zinc-600 sm:col-start-3" /> : null}
+                        {isAdmin ? <GripIcon label={`Drag ${song.title} to reorder`} className="col-start-2 row-start-1 mt-1 size-3.5 justify-self-end text-zinc-600 md:col-start-3 md:mt-0" /> : null}
                       </li>
                     );
                   })}
@@ -395,7 +396,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceI
               ) : null}
 
               {isAdmin && item.type === "worship" ? (
-                <button type="button" aria-label={`Agregar canción a ${item.title}`} onClick={() => setSongSelectorBlockId(item.id)} className="mt-1 min-h-11 rounded-xl px-3 text-sm font-medium text-emerald-400/80 transition-colors hover:bg-emerald-400/[0.06] hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-emerald-400">+ Agregar canción</button>
+                <button type="button" aria-label={`Agregar canción a ${item.title}`} onClick={() => setSongSelectorBlockId(item.id)} className="mt-3 min-h-11 rounded-xl px-3 text-sm font-medium text-emerald-400/80 transition-colors hover:bg-emerald-400/[0.06] hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-emerald-400 md:mt-1">+ Agregar canción</button>
               ) : null}
             </article>
           ))}

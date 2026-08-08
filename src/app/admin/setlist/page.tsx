@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ManageSetlist } from "@/components/manage-setlist";
-import { MainContainer } from "@/components/ui/main-container";
-import { PageHeader } from "@/components/ui/page-header";
+import { AppPage } from "@/components/app-page";
 import { hasAuthenticatedUser } from "@/lib/auth";
 import { getActiveSetlist, type SetlistSong } from "@/lib/setlist";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export const metadata: Metadata = { title: "Manage Setlist | Gracia Worship" };
+export const metadata: Metadata = { title: "Editar servicio | Gracia Worship" };
 export const dynamic = "force-dynamic";
 
 export default async function ManageSetlistPage() {
@@ -21,15 +20,5 @@ export default async function ManageSetlistPage() {
 
   const allSongs = error ? [] : (data ?? []) as SetlistSong[];
 
-  return (
-    <main className="min-h-screen py-8 sm:py-12">
-      <MainContainer className="max-w-3xl">
-        <PageHeader
-          title="Manage Setlist"
-          description={setlist ? `${setlist.serviceName} · ${setlist.serviceTime}` : "Configure the active service setlist."}
-        />
-        <ManageSetlist allSongs={allSongs} initialSongIds={setlist?.songIds ?? []} serviceId={setlist?.id ?? 1} />
-      </MainContainer>
-    </main>
-  );
+  return <AppPage title="Editar servicio" description={setlist ? `${setlist.serviceName} · ${setlist.serviceTime}` : "Configura el repertorio del servicio actual."}><ManageSetlist allSongs={allSongs} initialSongIds={setlist?.songIds ?? []} serviceId={setlist?.id ?? 1} /></AppPage>;
 }

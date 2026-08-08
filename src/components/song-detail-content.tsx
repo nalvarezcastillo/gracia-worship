@@ -9,7 +9,6 @@ import { SongKeySelector, type PublicSongKey } from "@/components/song-key-selec
 import { SecondaryButton } from "@/components/ui/action-button";
 import { SongMetadataLine } from "@/components/ui/song-tags";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { saveRecentSong } from "@/lib/recent-song";
 
 type SongDetailContentProps = {
   bpm: number;
@@ -140,17 +139,6 @@ export function SongDetailContent({
   const loadingStems = enableMultitrack
     && selectedKey !== null
     && (stemLoad.keyId !== selectedKey.id || stemLoad.loading);
-
-  useEffect(() => {
-    saveRecentSong({
-      bpm,
-      id: songId,
-      selectedKey: displayedKey,
-      timeSignature: timeSignature ?? null,
-      timestamp: Date.now(),
-      title,
-    });
-  }, [bpm, displayedKey, songId, timeSignature, title]);
 
   return (
     <>

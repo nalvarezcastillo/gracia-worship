@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { joinResourceUsages } from "@/lib/resource-availability";
 
 export type ResourceCategory = {
   id: string;
@@ -30,11 +31,7 @@ export async function getResourceManagerData() {
       supabase.from("current_service_team_resources").select("resource_id, service_team_id"),
       supabase.from("current_service_team").select("id, person_name"),
     ]);
-    const namesByTeamId = new Map((team ?? []).map((member) => [member.id, member.person_name]));
-    const usages = linksError ? [] : (links ?? []).flatMap((link) => {
-      const personName = namesByTeamId.get(link.service_team_id);
-      return personName ? [{ resource_id: link.resource_id, service_team_id: link.service_team_id, person_name: personName }] : [];
-    });
+    const usages = linksError ? [] : joinResourceUsages(links ?? [], team ?? []);
 
     return {
       categories: categoriesError ? [] : categories as ResourceCategory[],

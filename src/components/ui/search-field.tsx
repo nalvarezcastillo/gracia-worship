@@ -1,5 +1,6 @@
 import type { ChangeEventHandler } from "react";
 import { SearchIcon } from "@/components/icons";
+import { appFieldStyles } from "@/components/ui/styles";
 
 export function SearchField({ value, onChange, placeholder = "Search" }: { value: string; onChange: ChangeEventHandler<HTMLInputElement>; placeholder?: string }) {
   return (
@@ -11,7 +12,7 @@ export function SearchField({ value, onChange, placeholder = "Search" }: { value
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        className="h-12 w-full rounded-2xl border border-white/8 bg-zinc-900/90 pl-12 pr-4 text-base text-white shadow-sm shadow-black/20 outline-none transition-all duration-200 placeholder:text-zinc-500 hover:border-white/12 focus:border-emerald-400/50 focus:bg-zinc-900 focus:ring-4 focus:ring-emerald-400/[0.07]"
+        className={`${appFieldStyles} pl-12`}
       />
     </label>
   );
