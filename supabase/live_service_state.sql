@@ -30,6 +30,26 @@ create table if not exists public.live_service_state (
     references public.service_items(service_id, id) on delete cascade
 );
 
+create or replace function public.parse_service_song_entry(p_entry text)
+returns jsonb
+language plpgsql
+immutable
+set search_path = public
+as $$
+begin
+  if p_entry is null or btrim(p_entry) = '' then
+    return null;
+  end if;
+  return p_entry::jsonb;
+exception
+  when others then
+    return null;
+end;
+$$;
+
+revoke all on function public.parse_service_song_entry(text)
+from public, anon, authenticated;
+
 create or replace function public.validate_live_service_state()
 returns trigger
 language plpgsql
@@ -50,16 +70,26 @@ begin
   if new.current_song_id is not null then
     if target_item.type <> 'worship' or not exists (
       select 1
-      from jsonb_array_elements(coalesce(target_item.song_ids, '[]'::jsonb)) as song_entry
-      where case jsonb_typeof(song_entry)
-        when 'string' then song_entry #>> '{}'
+      from unnest(coalesce(target_item.song_ids, array[]::text[])) as songs(raw_entry)
+      cross join lateral (
+        select public.parse_service_song_entry(songs.raw_entry) as parsed_entry
+      ) as parsed
+      where coalesce(
+        case
+          when btrim(songs.raw_entry) ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+            then btrim(songs.raw_entry)
+          else null
+        end,
+        case jsonb_typeof(parsed.parsed_entry)
+        when 'string' then parsed.parsed_entry #>> '{}'
         when 'object' then coalesce(
-          song_entry ->> 'songId',
-          song_entry ->> 'song_id',
-          song_entry ->> 'id'
+          parsed.parsed_entry ->> 'songId',
+          parsed.parsed_entry ->> 'song_id',
+          parsed.parsed_entry ->> 'id'
         )
         else null
-      end = new.current_song_id::text
+        end
+      ) = new.current_song_id::text
     ) then
       raise exception 'The live song does not belong to the selected worship block';
     end if;
