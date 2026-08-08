@@ -344,10 +344,10 @@ function FinishedService({ canControl, finishedAt, onReopen, runs, serviceId, se
 
 function CurrentEntryCard({ elapsedSeconds, entry }: { elapsedSeconds: number; entry: LiveEntry }) {
   const plannedSeconds = getEntryPlannedSeconds(entry);
-  const overtimeMinutes = plannedSeconds && elapsedSeconds > plannedSeconds ? Math.ceil((elapsedSeconds - plannedSeconds) / 60) : 0;
+  const remainingSeconds = plannedSeconds === null ? null : plannedSeconds - elapsedSeconds;
   const progress = plannedSeconds ? Math.min(100, (elapsedSeconds / plannedSeconds) * 100) : 0;
-  const timingColor = overtimeMinutes >= 5 ? "text-rose-300" : overtimeMinutes > 0 ? "text-amber-300" : "text-emerald-400";
-  const progressColor = overtimeMinutes >= 5 ? "bg-rose-400" : overtimeMinutes > 0 ? "bg-amber-400" : "bg-emerald-400";
+  const timingColor = remainingSeconds !== null && remainingSeconds <= -300 ? "text-rose-300" : remainingSeconds !== null && remainingSeconds < 0 ? "text-amber-300" : "text-emerald-400";
+  const progressColor = remainingSeconds !== null && remainingSeconds <= -300 ? "bg-rose-400" : remainingSeconds !== null && remainingSeconds < 0 ? "bg-amber-400" : "bg-emerald-400";
   return (
     <article className="rounded-3xl border border-white/[0.08] bg-zinc-900 p-5 shadow-xl shadow-black/20 sm:p-8">
       <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-400">Ahora</p>
@@ -355,17 +355,24 @@ function CurrentEntryCard({ elapsedSeconds, entry }: { elapsedSeconds: number; e
       <EntrySupportingText entry={entry} />
       {entry.kind === "song" ? <SongResourceLinks entry={entry} /> : null}
       <div className="mt-8 border-t border-white/[0.07] pt-5 sm:mt-10">
-        <p className="text-3xl font-bold tabular-nums tracking-tight text-white sm:text-4xl">{formatDuration(elapsedSeconds)}{plannedSeconds ? <span className="text-xl text-zinc-500 sm:text-2xl"> / {formatDuration(plannedSeconds)}</span> : null}</p>
-        <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">{plannedSeconds ? "Tiempo · transcurrido / planeado" : "Tiempo transcurrido"}</p>
+        <p className="whitespace-nowrap text-3xl font-bold tabular-nums tracking-tight text-white sm:text-4xl">{remainingSeconds === null ? formatDuration(elapsedSeconds) : formatLiveTimer(remainingSeconds)}</p>
+        <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">{plannedSeconds ? "Tiempo restante" : "Tiempo transcurrido"}</p>
         {plannedSeconds ? (
           <>
             <div className="mt-4 h-1 overflow-hidden rounded-full bg-zinc-800" aria-hidden="true"><div className={`h-full ${progressColor} transition-[width] duration-200`} style={{ width: `${progress}%` }} /></div>
-            <p className={`mt-2 text-xs font-semibold ${timingColor}`}>{overtimeMinutes > 0 ? `+${overtimeMinutes} min` : "A tiempo"}</p>
+            <p className={`mt-2 text-xs font-semibold ${timingColor}`}>{remainingSeconds !== null && remainingSeconds < 0 ? "OVER RUN" : "A tiempo"}</p>
           </>
         ) : null}
       </div>
     </article>
   );
+}
+
+function formatLiveTimer(seconds: number) {
+  const sign = seconds < 0 ? "-" : "";
+  const absoluteSeconds = Math.abs(seconds);
+  const formatted = formatDuration(absoluteSeconds);
+  return `${sign}${absoluteSeconds < 3_600 ? formatted.replace(/^0/, "") : formatted}`;
 }
 
 function EntryDuration({ entry }: { entry: LiveEntry }) {
