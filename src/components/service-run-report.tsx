@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { formatDuration } from "@/lib/duration";
+import { formatDuration, getActualRunSeconds } from "@/lib/duration";
 
 export type ServiceRunReportRow = {
   ended_at: string | null;
@@ -21,7 +21,7 @@ export function ServiceRunReport({ date, rows, serviceName }: { date: string | n
   }, [rows]);
 
   const reportRows = useMemo(() => addRepetitionLabels(rows), [rows]);
-  const actualTotal = reportRows.reduce((total, row) => total + getActualSeconds(row, now), 0);
+  const actualTotal = reportRows.reduce((total, row) => total + getActualRunSeconds(row, now), 0);
   const plannedTotal = reportRows.reduce((total, row) => total + (row.planned_duration_seconds ?? 0), 0);
   const isInProgress = reportRows.some((row) => row.ended_at === null);
   const hasCompletePlan = reportRows.length > 0 && reportRows.every((row) => row.planned_duration_seconds !== null);
@@ -62,13 +62,13 @@ export function ServiceRunReport({ date, rows, serviceName }: { date: string | n
 type DisplayRow = ServiceRunReportRow & { displayTitle: string };
 
 function MobileRunRow({ now, row }: { now: number; row: DisplayRow }) {
-  const actual = getActualSeconds(row, now);
+  const actual = getActualRunSeconds(row, now);
   const difference = row.planned_duration_seconds === null ? null : actual - row.planned_duration_seconds;
   return <article className="py-4"><h3 className="font-semibold text-white">{row.displayTitle}</h3><p className="mt-1 text-sm text-zinc-400">Planeado {row.planned_duration_seconds === null ? "—" : formatDuration(row.planned_duration_seconds)} · Real {formatDuration(actual)}</p><p className={`mt-1 text-sm font-semibold ${difference === null ? "text-zinc-600" : getDifferenceTone(difference)}`}>{row.ended_at === null ? "En curso" : difference === null ? "Sin duración planeada" : formatDifference(difference)}</p></article>;
 }
 
 function DesktopRunRow({ now, row }: { now: number; row: DisplayRow }) {
-  const actual = getActualSeconds(row, now);
+  const actual = getActualRunSeconds(row, now);
   const difference = row.planned_duration_seconds === null ? null : actual - row.planned_duration_seconds;
   return <tr><td className="px-2 py-4 font-semibold text-white">{row.displayTitle}</td><td className="px-2 py-4 tabular-nums text-zinc-400">{row.planned_duration_seconds === null ? "—" : formatDuration(row.planned_duration_seconds)}</td><td className="px-2 py-4 tabular-nums text-zinc-300">{formatDuration(actual)}{row.ended_at === null ? <span className="ml-2 text-xs text-emerald-400">En curso</span> : null}</td><td className={`px-2 py-4 text-right font-semibold tabular-nums ${difference === null ? "text-zinc-600" : getDifferenceTone(difference)}`}>{difference === null ? "—" : formatDifference(difference)}</td></tr>;
 }
@@ -86,12 +86,6 @@ function addRepetitionLabels(rows: ServiceRunReportRow[]) {
     const title = row.songTitle ?? row.title;
     return { ...row, displayTitle: count > 1 ? `${title} · Repetición ${count}` : title };
   });
-}
-
-function getActualSeconds(row: ServiceRunReportRow, now: number) {
-  const start = new Date(row.started_at).getTime();
-  const end = row.ended_at ? new Date(row.ended_at).getTime() : now;
-  return Math.max(0, Math.floor((end - start) / 1_000));
 }
 
 function formatDifference(seconds: number) {

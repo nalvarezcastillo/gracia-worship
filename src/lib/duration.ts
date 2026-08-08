@@ -33,6 +33,17 @@ export function formatDuration(seconds: number) {
   return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
 }
 
+export function getActualRunSeconds(run: { started_at: string; ended_at: string | null }, fallbackEnd?: string | number) {
+  const start = new Date(run.started_at).getTime();
+  const end = run.ended_at
+    ? new Date(run.ended_at).getTime()
+    : typeof fallbackEnd === "string"
+      ? new Date(fallbackEnd).getTime()
+      : fallbackEnd ?? Date.now();
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return 0;
+  return Math.max(0, Math.floor((end - start) / 1_000));
+}
+
 export function getServiceItemDurationSeconds(item: DurationServiceItem) {
   return positiveInteger(item.planned_duration_seconds)
     ?? multiplyLegacyMinutes(item.planned_duration_minutes);

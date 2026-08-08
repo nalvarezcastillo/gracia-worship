@@ -23,12 +23,16 @@ create table if not exists public.live_service_state (
   current_song_id uuid null
     references public.songs(id) on delete set null,
   started_at timestamptz not null default now(),
+  finished_at timestamptz null,
   updated_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   constraint live_service_state_item_belongs_to_service_fkey
     foreign key (service_id, current_item_id)
     references public.service_items(service_id, id) on delete cascade
 );
+
+alter table public.live_service_state
+add column if not exists finished_at timestamptz null;
 
 create or replace function public.parse_service_song_entry(p_entry text)
 returns jsonb
@@ -143,6 +147,7 @@ security definer
 set search_path = public
 as $$
 declare
+  current_state public.live_service_state%rowtype;
   result public.live_service_state%rowtype;
 begin
   if auth.uid() is null then
@@ -153,6 +158,17 @@ begin
     select 1 from public.active_setlist where id = p_service_id
   ) then
     raise exception 'Service not found';
+  end if;
+
+  perform pg_advisory_xact_lock(71831, p_service_id::integer);
+
+  select * into current_state
+  from public.live_service_state
+  where service_id = p_service_id
+  for update;
+
+  if found and current_state.finished_at is not null then
+    return current_state;
   end if;
 
   if not exists (
@@ -168,14 +184,16 @@ begin
     current_item_id,
     current_song_id,
     started_at,
-    updated_at
+    updated_at,
+    finished_at
   )
-  values (p_service_id, p_item_id, p_song_id, now(), now())
+  values (p_service_id, p_item_id, p_song_id, now(), now(), null)
   on conflict (service_id) do update
   set current_item_id = excluded.current_item_id,
       current_song_id = excluded.current_song_id,
       started_at = now(),
-      updated_at = now()
+      updated_at = now(),
+      finished_at = null
   returning * into result;
 
   return result;

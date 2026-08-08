@@ -1,11 +1,14 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, FileText, Headphones, Music2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, CircleCheck, FileText, Headphones, Music2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AppActionBar } from "@/components/app-action-bar";
+import { AppConfirmDialog } from "@/components/app-confirm-dialog";
+import { PrimaryButton, SecondaryButton } from "@/components/ui/action-button";
 import type { ActiveSetlistRow } from "@/lib/database.types";
 import { parseAssignmentText } from "@/lib/assignment-text";
-import { formatDuration, getServiceItemDurationSeconds, getSongDurationSeconds } from "@/lib/duration";
+import { formatDuration, getActualRunSeconds, getServiceItemDurationSeconds, getSongDurationSeconds } from "@/lib/duration";
 import type { ServiceItem, WorshipSongEntry } from "@/lib/service";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -36,13 +39,17 @@ type LiveEntry =
 type LiveServiceState = {
   current_item_id: string;
   current_song_id: string | null;
+  finished_at: string | null;
   service_id: number;
   started_at: string;
   updated_at: string;
 };
 
+export type LiveRun = { ended_at: string | null; started_at: string };
+
 type LiveModeProps = {
   canControl: boolean;
+  initialRuns: LiveRun[];
   initialState: LiveServiceState | null;
   items: ServiceItem[];
   loadError?: string;
@@ -51,23 +58,37 @@ type LiveModeProps = {
   songs: LiveSong[];
 };
 
-export function LiveMode({ canControl, initialState, items, loadError, service, serviceId, songs }: LiveModeProps) {
+export function LiveMode({ canControl, initialRuns, initialState, items, loadError, service, serviceId, songs }: LiveModeProps) {
   const entries = useMemo(() => buildLiveEntries(items, songs), [items, songs]);
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const initialIndex = resolveStateIndex(entries, initialState);
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [startedAt, setStartedAt] = useState(() => initialState?.started_at ?? new Date().toISOString());
+  const [finishedAt, setFinishedAt] = useState(() => initialState?.finished_at ?? null);
+  const [runs, setRuns] = useState(initialRuns);
   const [elapsedSeconds, setElapsedSeconds] = useState(() => getElapsedSeconds(initialState?.started_at));
   const [currentTime, setCurrentTime] = useState("");
   const [clockTimestamp, setClockTimestamp] = useState(() => Date.now());
   const [syncStatus, setSyncStatus] = useState<"connected" | "reconnecting">("reconnecting");
   const [controlError, setControlError] = useState("");
   const [isChanging, setIsChanging] = useState(false);
+  const [isFinishOpen, setIsFinishOpen] = useState(false);
+  const [isFinishing, setIsFinishing] = useState(false);
   const currentEntry = entries[currentIndex];
   const nextEntry = entries[currentIndex + 1];
   const isFirst = currentIndex === 0;
   const isLast = currentIndex >= entries.length - 1;
   const schedule = getScheduleSummary(service, entries, currentIndex, elapsedSeconds, clockTimestamp);
+
+  const refreshRuns = useCallback(async () => {
+    if (serviceId === null) return;
+    const { data, error } = await supabase
+      .from("service_item_runs")
+      .select("started_at, ended_at")
+      .eq("service_id", serviceId)
+      .order("started_at");
+    if (!error) setRuns((data ?? []) as LiveRun[]);
+  }, [serviceId, supabase]);
 
   useEffect(() => {
     const updateClock = () => {
@@ -93,10 +114,14 @@ export function LiveMode({ canControl, initialState, items, loadError, service, 
     async function refreshState() {
       const { data, error } = await supabase
         .from("live_service_state")
-        .select("service_id, current_item_id, current_song_id, started_at, updated_at")
+        .select("service_id, current_item_id, current_song_id, started_at, finished_at, updated_at")
         .eq("service_id", serviceId)
         .maybeSingle();
-      if (!error && data) applyAuthoritativeState(data as LiveServiceState, entries, setCurrentIndex, setStartedAt);
+      if (!error && data) {
+        const state = data as LiveServiceState;
+        applyAuthoritativeState(state, entries, setCurrentIndex, setStartedAt, setFinishedAt);
+        if (state.finished_at) void refreshRuns();
+      }
     }
 
     const channel = supabase
@@ -106,7 +131,10 @@ export function LiveMode({ canControl, initialState, items, loadError, service, 
         { event: "*", schema: "public", table: "live_service_state", filter: `service_id=eq.${serviceId}` },
         (payload) => {
           const state = payload.new as LiveServiceState;
-          if (state?.service_id === serviceId) applyAuthoritativeState(state, entries, setCurrentIndex, setStartedAt);
+          if (state?.service_id === serviceId) {
+            applyAuthoritativeState(state, entries, setCurrentIndex, setStartedAt, setFinishedAt);
+            if (state.finished_at) void refreshRuns();
+          }
         },
       )
       .subscribe((status) => {
@@ -119,7 +147,7 @@ export function LiveMode({ canControl, initialState, items, loadError, service, 
       });
 
     return () => { void supabase.removeChannel(channel); };
-  }, [entries, serviceId, supabase]);
+  }, [entries, refreshRuns, serviceId, supabase]);
 
   async function selectEntry(index: number) {
     if (!canControl || serviceId === null || isChanging) return;
@@ -138,15 +166,35 @@ export function LiveMode({ canControl, initialState, items, loadError, service, 
       setControlError("No se pudo actualizar En Vivo. Intenta nuevamente.");
       const { data: authoritativeState } = await supabase
         .from("live_service_state")
-        .select("service_id, current_item_id, current_song_id, started_at, updated_at")
+        .select("service_id, current_item_id, current_song_id, started_at, finished_at, updated_at")
         .eq("service_id", serviceId)
         .maybeSingle();
-      if (authoritativeState) applyAuthoritativeState(authoritativeState as LiveServiceState, entries, setCurrentIndex, setStartedAt);
+      if (authoritativeState) applyAuthoritativeState(authoritativeState as LiveServiceState, entries, setCurrentIndex, setStartedAt, setFinishedAt);
     } else {
       const state = Array.isArray(data) ? data[0] : data;
-      if (state) applyAuthoritativeState(state as LiveServiceState, entries, setCurrentIndex, setStartedAt);
+      if (state) applyAuthoritativeState(state as LiveServiceState, entries, setCurrentIndex, setStartedAt, setFinishedAt);
     }
     setIsChanging(false);
+  }
+
+  async function finishService() {
+    if (!canControl || serviceId === null || isFinishing) return;
+    setIsFinishing(true);
+    setControlError("");
+    const { data, error } = await supabase.rpc("finish_live_service", { p_service_id: serviceId });
+    if (error) {
+      setControlError("No se pudo finalizar el servicio. Intenta nuevamente.");
+    } else {
+      const state = Array.isArray(data) ? data[0] : data;
+      if (state) applyAuthoritativeState(state as LiveServiceState, entries, setCurrentIndex, setStartedAt, setFinishedAt);
+      setIsFinishOpen(false);
+      await refreshRuns();
+    }
+    setIsFinishing(false);
+  }
+
+  if (finishedAt) {
+    return <FinishedService canViewReport={canControl} finishedAt={finishedAt} runs={runs} serviceId={serviceId} serviceName={service ? localizeDefaultServiceName(service.service_name) : "Servicio actual"} syncStatus={syncStatus} />;
   }
 
   return (
@@ -204,14 +252,20 @@ export function LiveMode({ canControl, initialState, items, loadError, service, 
               )}
             </section>
 
-            <nav aria-label="Navegación de elementos del servicio" className="mt-4 grid grid-cols-2 gap-3">
+            {!(isLast && !canControl) ? <nav aria-label="Navegación de elementos del servicio" className="mt-4 grid grid-cols-2 gap-3">
               <button type="button" disabled={!canControl || isChanging || isFirst} onClick={() => void selectEntry(currentIndex - 1)} className={secondaryButtonStyles}>
                 <ArrowLeft aria-hidden="true" className="size-5" /> Anterior
               </button>
-              <button type="button" disabled={!canControl || isChanging || isLast} onClick={() => void selectEntry(currentIndex + 1)} className={primaryButtonStyles}>
-                Siguiente <ArrowRight aria-hidden="true" className="size-5" />
-              </button>
-            </nav>
+              {isLast && canControl ? (
+                <button type="button" disabled={isChanging || isFinishing} onClick={() => setIsFinishOpen(true)} className={primaryButtonStyles}>
+                  <CircleCheck aria-hidden="true" className="size-5" /> Finalizar servicio
+                </button>
+              ) : (
+                <button type="button" disabled={!canControl || isChanging || isLast} onClick={() => void selectEntry(currentIndex + 1)} className={primaryButtonStyles}>
+                  Siguiente <ArrowRight aria-hidden="true" className="size-5" />
+                </button>
+              )}
+            </nav> : null}
             {!canControl ? <p className="mt-2 text-center text-xs text-zinc-600">Modo solo lectura</p> : null}
             {controlError ? <p role="alert" className="mt-2 text-center text-sm text-rose-300">{controlError}</p> : null}
           </div>
@@ -223,8 +277,14 @@ export function LiveMode({ canControl, initialState, items, loadError, service, 
           No hay elementos en el servicio actual.
         </div>
       )}
+      {isFinishOpen ? <AppConfirmDialog title="Finalizar servicio" titleId="finish-service-title" descriptionId="finish-service-description" actions={<AppActionBar className="sm:justify-end"><SecondaryButton type="button" onClick={() => setIsFinishOpen(false)} disabled={isFinishing}>Cancelar</SecondaryButton><PrimaryButton type="button" onClick={() => void finishService()} disabled={isFinishing}>{isFinishing ? "Finalizando..." : "Finalizar servicio"}</PrimaryButton></AppActionBar>}><p id="finish-service-description" className="mt-3 text-sm leading-6 text-zinc-400">¿Finalizar “{service ? localizeDefaultServiceName(service.service_name) : "Servicio actual"}”?</p><p className="mt-2 text-sm leading-6 text-zinc-500">Esto cerrará En Vivo en todos los dispositivos y guardará el historial del servicio.</p>{controlError ? <p role="alert" className="mt-3 text-sm text-rose-300">{controlError}</p> : null}</AppConfirmDialog> : null}
     </div>
   );
+}
+
+function FinishedService({ canViewReport, finishedAt, runs, serviceId, serviceName, syncStatus }: { canViewReport: boolean; finishedAt: string; runs: LiveRun[]; serviceId: number | null; serviceName: string; syncStatus: "connected" | "reconnecting" }) {
+  const actualSeconds = runs.reduce((total, run) => total + getActualRunSeconds(run, finishedAt), 0);
+  return <div className="flex min-h-[calc(100dvh-9rem)] items-center justify-center pb-20 sm:pb-8"><section className="w-full max-w-xl rounded-3xl border border-white/[0.08] bg-zinc-900 p-6 text-center shadow-xl shadow-black/20 sm:p-10"><CircleCheck aria-hidden="true" className="mx-auto size-10 text-emerald-400" /><p className="mt-5 text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">Servicio finalizado</p><h1 className="mt-3 text-2xl font-bold tracking-[-0.03em] text-white sm:text-4xl">{serviceName}</h1><dl className="mt-8 grid grid-cols-2 gap-4 border-y border-white/[0.07] py-5"><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Finalizado a las</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{formatDeviceTime(new Date(finishedAt))}</dd></div><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Duración real</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{formatDuration(actualSeconds)}</dd></div></dl><p className="mt-5 text-sm text-zinc-400">{runs.length} {runs.length === 1 ? "ejecución registrada" : "ejecuciones registradas"}</p>{canViewReport && serviceId !== null ? <Link href={`/service/${serviceId}/report`} className={`${primaryButtonStyles} mt-7 w-full`}>Ver reporte del servicio</Link> : null}<p className={`mt-4 text-[0.6875rem] ${syncStatus === "connected" ? "text-zinc-600" : "text-amber-400/70"}`}>{syncStatus === "connected" ? "Sincronizado" : "Reconectando..."}</p></section></div>;
 }
 
 function CurrentEntryCard({ elapsedSeconds, entry }: { elapsedSeconds: number; entry: LiveEntry }) {
@@ -341,11 +401,13 @@ function applyAuthoritativeState(
   entries: LiveEntry[],
   setCurrentIndex: React.Dispatch<React.SetStateAction<number>>,
   setStartedAt: React.Dispatch<React.SetStateAction<string>>,
+  setFinishedAt: React.Dispatch<React.SetStateAction<string | null>>,
 ) {
   const index = resolveStateIndex(entries, state);
   if (index < 0) return;
   setCurrentIndex(index);
   setStartedAt(state.started_at);
+  setFinishedAt(state.finished_at);
 }
 
 function getElapsedSeconds(startedAt?: string) {

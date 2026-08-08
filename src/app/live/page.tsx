@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { LiveMode, type LiveSong } from "@/components/live-mode";
+import { LiveMode, type LiveRun, type LiveSong } from "@/components/live-mode";
 import { MainContainer } from "@/components/ui/main-container";
 import { hasAuthenticatedUser } from "@/lib/auth";
 import type { ActiveSetlistRow } from "@/lib/database.types";
@@ -35,14 +35,21 @@ export default async function LivePage() {
         .in("id", songIds)
     : { data: [], error: null };
   const songs = songsError ? [] : (songsData ?? []) as LiveSong[];
-  const [{ data: stateData, error: stateError }, canControl] = await Promise.all([
+  const [{ data: stateData, error: stateError }, { data: runsData, error: runsError }, canControl] = await Promise.all([
     serviceData?.id
       ? supabase
           .from("live_service_state")
-          .select("service_id, current_item_id, current_song_id, started_at, updated_at")
+          .select("service_id, current_item_id, current_song_id, started_at, finished_at, updated_at")
           .eq("service_id", serviceData.id)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
+    serviceData?.id
+      ? supabase
+          .from("service_item_runs")
+          .select("started_at, ended_at")
+          .eq("service_id", serviceData.id)
+          .order("started_at")
+      : Promise.resolve({ data: [], error: null }),
     hasAuthenticatedUser(),
   ]);
   if (stateError && process.env.NODE_ENV !== "production") {
@@ -55,6 +62,7 @@ export default async function LivePage() {
       <MainContainer className="max-w-6xl">
         <LiveMode
           canControl={canControl}
+          initialRuns={runsError ? [] : runsData as LiveRun[]}
           initialState={stateError ? null : stateData}
           items={items}
           loadError={loadError}
