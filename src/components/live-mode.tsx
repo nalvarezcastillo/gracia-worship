@@ -63,8 +63,9 @@ export function LiveMode({ canControl, initialRuns, initialState, items, loadErr
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const initialIndex = resolveStateIndex(entries, initialState);
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
-  const [startedAt, setStartedAt] = useState(() => initialState?.started_at ?? new Date().toISOString());
+  const [startedAt, setStartedAt] = useState<string | null>(() => initialState?.started_at ?? null);
   const [finishedAt, setFinishedAt] = useState(() => initialState?.finished_at ?? null);
+  const [hasLiveState, setHasLiveState] = useState(Boolean(initialState));
   const [runs, setRuns] = useState(initialRuns);
   const [elapsedSeconds, setElapsedSeconds] = useState(() => getElapsedSeconds(initialState?.started_at));
   const [currentTime, setCurrentTime] = useState("");
@@ -74,11 +75,18 @@ export function LiveMode({ canControl, initialRuns, initialState, items, loadErr
   const [isChanging, setIsChanging] = useState(false);
   const [isFinishOpen, setIsFinishOpen] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
+  const [isReopenOpen, setIsReopenOpen] = useState(false);
+  const [isReopening, setIsReopening] = useState(false);
+  const [reopenError, setReopenError] = useState("");
+  const [isStartOpen, setIsStartOpen] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+  const [startError, setStartError] = useState("");
   const currentEntry = entries[currentIndex];
   const nextEntry = entries[currentIndex + 1];
   const isFirst = currentIndex === 0;
   const isLast = currentIndex >= entries.length - 1;
-  const schedule = getScheduleSummary(service, entries, currentIndex, elapsedSeconds, clockTimestamp);
+  const livePhase = !hasLiveState ? "notStarted" : finishedAt ? "finished" : "live";
+  const schedule = livePhase === "live" ? getScheduleSummary(service, entries, currentIndex, elapsedSeconds, clockTimestamp) : null;
 
   const refreshRuns = useCallback(async () => {
     if (serviceId === null) return;
@@ -102,11 +110,15 @@ export function LiveMode({ canControl, initialRuns, initialState, items, loadErr
   }, []);
 
   useEffect(() => {
+    if (livePhase !== "live" || !startedAt) {
+      setElapsedSeconds(0);
+      return;
+    }
     const updateElapsed = () => setElapsedSeconds(getElapsedSeconds(startedAt));
     updateElapsed();
     const interval = window.setInterval(updateElapsed, 1_000);
     return () => window.clearInterval(interval);
-  }, [startedAt]);
+  }, [livePhase, startedAt]);
 
   useEffect(() => {
     if (serviceId === null) return;
@@ -119,7 +131,7 @@ export function LiveMode({ canControl, initialRuns, initialState, items, loadErr
         .maybeSingle();
       if (!error && data) {
         const state = data as LiveServiceState;
-        applyAuthoritativeState(state, entries, setCurrentIndex, setStartedAt, setFinishedAt);
+        applyAuthoritativeState(state, entries, setCurrentIndex, setStartedAt, setFinishedAt, setHasLiveState);
         if (state.finished_at) void refreshRuns();
       }
     }
@@ -132,7 +144,7 @@ export function LiveMode({ canControl, initialRuns, initialState, items, loadErr
         (payload) => {
           const state = payload.new as LiveServiceState;
           if (state?.service_id === serviceId) {
-            applyAuthoritativeState(state, entries, setCurrentIndex, setStartedAt, setFinishedAt);
+            applyAuthoritativeState(state, entries, setCurrentIndex, setStartedAt, setFinishedAt, setHasLiveState);
             if (state.finished_at) void refreshRuns();
           }
         },
@@ -169,10 +181,10 @@ export function LiveMode({ canControl, initialRuns, initialState, items, loadErr
         .select("service_id, current_item_id, current_song_id, started_at, finished_at, updated_at")
         .eq("service_id", serviceId)
         .maybeSingle();
-      if (authoritativeState) applyAuthoritativeState(authoritativeState as LiveServiceState, entries, setCurrentIndex, setStartedAt, setFinishedAt);
+      if (authoritativeState) applyAuthoritativeState(authoritativeState as LiveServiceState, entries, setCurrentIndex, setStartedAt, setFinishedAt, setHasLiveState);
     } else {
       const state = Array.isArray(data) ? data[0] : data;
-      if (state) applyAuthoritativeState(state as LiveServiceState, entries, setCurrentIndex, setStartedAt, setFinishedAt);
+      if (state) applyAuthoritativeState(state as LiveServiceState, entries, setCurrentIndex, setStartedAt, setFinishedAt, setHasLiveState);
     }
     setIsChanging(false);
   }
@@ -186,15 +198,54 @@ export function LiveMode({ canControl, initialRuns, initialState, items, loadErr
       setControlError("No se pudo finalizar el servicio. Intenta nuevamente.");
     } else {
       const state = Array.isArray(data) ? data[0] : data;
-      if (state) applyAuthoritativeState(state as LiveServiceState, entries, setCurrentIndex, setStartedAt, setFinishedAt);
+      if (state) applyAuthoritativeState(state as LiveServiceState, entries, setCurrentIndex, setStartedAt, setFinishedAt, setHasLiveState);
       setIsFinishOpen(false);
       await refreshRuns();
     }
     setIsFinishing(false);
   }
 
-  if (finishedAt) {
-    return <FinishedService canViewReport={canControl} finishedAt={finishedAt} runs={runs} serviceId={serviceId} serviceName={service ? localizeDefaultServiceName(service.service_name) : "Servicio actual"} syncStatus={syncStatus} />;
+  async function reopenService() {
+    if (!canControl || serviceId === null || isReopening) return;
+    setIsReopening(true);
+    setReopenError("");
+    const { data, error } = await supabase.rpc("reopen_live_service", { p_service_id: serviceId });
+    if (error) {
+      setReopenError("No se pudo reabrir el servicio. Intenta nuevamente.");
+    } else {
+      const state = Array.isArray(data) ? data[0] : data;
+      if (state) applyAuthoritativeState(state as LiveServiceState, entries, setCurrentIndex, setStartedAt, setFinishedAt, setHasLiveState);
+      setIsReopenOpen(false);
+      await refreshRuns();
+    }
+    setIsReopening(false);
+  }
+
+  async function startService() {
+    if (!canControl || serviceId === null || isStarting) return;
+    setIsStarting(true);
+    setStartError("");
+    const { data, error } = await supabase.rpc("start_live_service", { p_service_id: serviceId });
+    if (error) {
+      setStartError("No se pudo iniciar el servicio. Intenta nuevamente.");
+    } else {
+      const state = Array.isArray(data) ? data[0] : data;
+      if (state) applyAuthoritativeState(state as LiveServiceState, entries, setCurrentIndex, setStartedAt, setFinishedAt, setHasLiveState);
+      setIsStartOpen(false);
+      await refreshRuns();
+    }
+    setIsStarting(false);
+  }
+
+  if (livePhase === "finished" && finishedAt) {
+    const serviceName = service ? localizeDefaultServiceName(service.service_name) : "Servicio actual";
+    return <><FinishedService canControl={canControl} finishedAt={finishedAt} onReopen={() => { setReopenError(""); setIsReopenOpen(true); }} runs={runs} serviceId={serviceId} serviceName={serviceName} syncStatus={syncStatus} />{isReopenOpen ? <AppConfirmDialog title="Reabrir servicio" titleId="reopen-service-title" descriptionId="reopen-service-description" actions={<AppActionBar className="sm:justify-end"><SecondaryButton type="button" onClick={() => setIsReopenOpen(false)} disabled={isReopening}>Cancelar</SecondaryButton><PrimaryButton type="button" onClick={() => void reopenService()} disabled={isReopening}>{isReopening ? "Reabriendo..." : "Reabrir servicio"}</PrimaryButton></AppActionBar>}><p id="reopen-service-description" className="mt-3 text-sm leading-6 text-zinc-400">¿Quieres volver a iniciar “{serviceName}”?</p><p className="mt-2 text-sm leading-6 text-zinc-500">El historial anterior se conservará y se iniciará una nueva ejecución desde el primer elemento.</p>{reopenError ? <p role="alert" className="mt-3 text-sm text-rose-300">{reopenError}</p> : null}</AppConfirmDialog> : null}</>;
+  }
+
+  if (livePhase === "notStarted") {
+    const serviceName = service ? localizeDefaultServiceName(service.service_name) : "Servicio actual";
+    const plannedSeconds = getCompletePlannedDuration(entries);
+    return <><NotStartedService canControl={canControl} entryCount={entries.length} onStart={() => { setStartError(""); setIsStartOpen(true); }} plannedSeconds={plannedSeconds} service={service} serviceName={serviceName} syncStatus={syncStatus} />{isStartOpen ? <AppConfirmDialog title="Iniciar servicio" titleId="start-service-title" descriptionId="start-service-description" actions={<AppActionBar className="sm:justify-end"><SecondaryButton type="button" onClick={() => setIsStartOpen(false)} disabled={isStarting}>Cancelar</SecondaryButton><PrimaryButton type="button" onClick={() => void startService()} disabled={isStarting}>{isStarting ? "Iniciando..." : "Iniciar servicio"}</PrimaryButton></AppActionBar>}><p id="start-service-description" className="mt-3 text-sm leading-6 text-zinc-400">¿Comenzar “{serviceName}”?</p><p className="mt-2 text-sm leading-6 text-zinc-500">El timer y la sincronización En Vivo comenzarán para todos los dispositivos.</p>{startError ? <p role="alert" className="mt-3 text-sm text-rose-300">{startError}</p> : null}</AppConfirmDialog> : null}</>;
   }
 
   return (
@@ -282,9 +333,13 @@ export function LiveMode({ canControl, initialRuns, initialState, items, loadErr
   );
 }
 
-function FinishedService({ canViewReport, finishedAt, runs, serviceId, serviceName, syncStatus }: { canViewReport: boolean; finishedAt: string; runs: LiveRun[]; serviceId: number | null; serviceName: string; syncStatus: "connected" | "reconnecting" }) {
+function NotStartedService({ canControl, entryCount, onStart, plannedSeconds, service, serviceName, syncStatus }: { canControl: boolean; entryCount: number; onStart: () => void; plannedSeconds: number | null; service: LiveService | null; serviceName: string; syncStatus: "connected" | "reconnecting" }) {
+  return <div className="flex min-h-[calc(100dvh-9rem)] items-center justify-center pb-20 sm:pb-8"><section className="w-full max-w-xl rounded-3xl border border-white/[0.08] bg-zinc-900 p-6 text-center shadow-xl shadow-black/20 sm:p-10"><p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">En Vivo</p><h1 className="mt-3 text-2xl font-bold tracking-[-0.03em] text-white sm:text-4xl">{serviceName}</h1>{service ? <p className="mt-2 text-sm text-zinc-400">{[service.service_date ? formatServiceDate(service.service_date) : "", service.service_time].filter(Boolean).join(" · ")}</p> : null}{canControl ? <><dl className="mt-8 grid grid-cols-2 gap-4 border-y border-white/[0.07] py-5"><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Elementos</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{entryCount}</dd></div><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Duración planeada</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{plannedSeconds === null ? "—" : formatDuration(plannedSeconds)}</dd></div></dl><button type="button" onClick={onStart} disabled={entryCount === 0} className={`${primaryButtonStyles} mt-7 w-full`}>▶ Iniciar servicio</button><p className="mt-3 text-xs text-zinc-500">El servicio comenzará en el primer elemento del Run Sheet.</p></> : <p className="mt-8 text-base text-zinc-400">El servicio aún no ha comenzado.</p>}<p className={`mt-5 text-[0.6875rem] ${syncStatus === "connected" ? "text-zinc-600" : "text-amber-400/70"}`}>{syncStatus === "connected" ? "Sincronizado" : "Reconectando..."}</p></section></div>;
+}
+
+function FinishedService({ canControl, finishedAt, onReopen, runs, serviceId, serviceName, syncStatus }: { canControl: boolean; finishedAt: string; onReopen: () => void; runs: LiveRun[]; serviceId: number | null; serviceName: string; syncStatus: "connected" | "reconnecting" }) {
   const actualSeconds = runs.reduce((total, run) => total + getActualRunSeconds(run, finishedAt), 0);
-  return <div className="flex min-h-[calc(100dvh-9rem)] items-center justify-center pb-20 sm:pb-8"><section className="w-full max-w-xl rounded-3xl border border-white/[0.08] bg-zinc-900 p-6 text-center shadow-xl shadow-black/20 sm:p-10"><CircleCheck aria-hidden="true" className="mx-auto size-10 text-emerald-400" /><p className="mt-5 text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">Servicio finalizado</p><h1 className="mt-3 text-2xl font-bold tracking-[-0.03em] text-white sm:text-4xl">{serviceName}</h1><dl className="mt-8 grid grid-cols-2 gap-4 border-y border-white/[0.07] py-5"><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Finalizado a las</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{formatDeviceTime(new Date(finishedAt))}</dd></div><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Duración real</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{formatDuration(actualSeconds)}</dd></div></dl><p className="mt-5 text-sm text-zinc-400">{runs.length} {runs.length === 1 ? "ejecución registrada" : "ejecuciones registradas"}</p>{canViewReport && serviceId !== null ? <Link href={`/service/${serviceId}/report`} className={`${primaryButtonStyles} mt-7 w-full`}>Ver reporte del servicio</Link> : null}<p className={`mt-4 text-[0.6875rem] ${syncStatus === "connected" ? "text-zinc-600" : "text-amber-400/70"}`}>{syncStatus === "connected" ? "Sincronizado" : "Reconectando..."}</p></section></div>;
+  return <div className="flex min-h-[calc(100dvh-9rem)] items-center justify-center pb-20 sm:pb-8"><section className="w-full max-w-xl rounded-3xl border border-white/[0.08] bg-zinc-900 p-6 text-center shadow-xl shadow-black/20 sm:p-10"><CircleCheck aria-hidden="true" className="mx-auto size-10 text-emerald-400" /><p className="mt-5 text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">Servicio finalizado</p><h1 className="mt-3 text-2xl font-bold tracking-[-0.03em] text-white sm:text-4xl">{serviceName}</h1><dl className="mt-8 grid grid-cols-2 gap-4 border-y border-white/[0.07] py-5"><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Finalizado a las</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{formatDeviceTime(new Date(finishedAt))}</dd></div><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Duración real</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{formatDuration(actualSeconds)}</dd></div></dl><p className="mt-5 text-sm text-zinc-400">{runs.length} {runs.length === 1 ? "ejecución registrada" : "ejecuciones registradas"}</p>{canControl && serviceId !== null ? <div className="mt-7 grid gap-3"><Link href={`/service/${serviceId}/report`} className={`${primaryButtonStyles} w-full`}>Ver reporte del servicio</Link><button type="button" onClick={onReopen} className={`${secondaryButtonStyles} w-full`}>Reabrir servicio</button></div> : null}<p className={`mt-4 text-[0.6875rem] ${syncStatus === "connected" ? "text-zinc-600" : "text-amber-400/70"}`}>{syncStatus === "connected" ? "Sincronizado" : "Reconectando..."}</p></section></div>;
 }
 
 function CurrentEntryCard({ elapsedSeconds, entry }: { elapsedSeconds: number; entry: LiveEntry }) {
@@ -385,12 +440,12 @@ function buildLiveEntries(items: ServiceItem[], songs: LiveSong[]) {
       const song = songById.get(entry.songId);
       return song ? [{ entry, id: `song:${item.id}:${song.id}`, item, kind: "song", song, title: song.title }] : [];
     });
-    return [itemEntry, ...songEntries];
+    return songEntries;
   });
 }
 
 function resolveStateIndex(entries: LiveEntry[], state: LiveServiceState | null) {
-  if (!state) return 0;
+  if (!state) return -1;
   const index = entries.findIndex((entry) => entry.item.id === state.current_item_id
     && (entry.kind === "song" ? entry.song.id === state.current_song_id : state.current_song_id === null));
   return index >= 0 ? index : 0;
@@ -400,17 +455,27 @@ function applyAuthoritativeState(
   state: LiveServiceState,
   entries: LiveEntry[],
   setCurrentIndex: React.Dispatch<React.SetStateAction<number>>,
-  setStartedAt: React.Dispatch<React.SetStateAction<string>>,
+  setStartedAt: React.Dispatch<React.SetStateAction<string | null>>,
   setFinishedAt: React.Dispatch<React.SetStateAction<string | null>>,
+  setHasLiveState: React.Dispatch<React.SetStateAction<boolean>>,
 ) {
   const index = resolveStateIndex(entries, state);
   if (index < 0) return;
   setCurrentIndex(index);
   setStartedAt(state.started_at);
   setFinishedAt(state.finished_at);
+  setHasLiveState(true);
 }
 
-function getElapsedSeconds(startedAt?: string) {
+function getCompletePlannedDuration(entries: LiveEntry[]) {
+  if (!entries.length) return null;
+  const durations = entries.map(getEntryPlannedSeconds);
+  return durations.some((duration) => duration === null)
+    ? null
+    : durations.reduce<number>((total, duration) => total + (duration ?? 0), 0);
+}
+
+function getElapsedSeconds(startedAt?: string | null) {
   if (!startedAt) return 0;
   const timestamp = new Date(startedAt).getTime();
   if (!Number.isFinite(timestamp)) return 0;

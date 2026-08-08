@@ -48,7 +48,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </AppSectionCard>
 
           <AppSectionCard eyebrow="Administración" title="Administración">
-            <div className="divide-y divide-white/[0.06]"><AppMenuRow href="/admin/team" label="Equipo" /><AppMenuRow href="/admin/resources" label="Recursos" /><AppMenuRow href="/admin/settings" label="Configuración" /></div>
+            <div className="divide-y divide-white/[0.06]"><AppMenuRow href="/admin/team" label="Equipo" /><AppMenuRow href="/admin/reports" label="Reportes" /><AppMenuRow href="/admin/resources" label="Recursos" /><AppMenuRow href="/admin/settings" label="Configuración" /></div>
           </AppSectionCard>
 
           <div className="border-t border-white/[0.07] pt-6 lg:col-span-3"><SignOutButton /></div>
