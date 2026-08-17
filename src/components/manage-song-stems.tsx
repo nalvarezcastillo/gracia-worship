@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { PrimaryButton } from "@/components/ui/action-button";
 import type { SongKeyRow, SongStemRow } from "@/lib/database.types";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -15,11 +15,26 @@ type ManageSongStemsProps = {
   stems: SongStemRow[];
 };
 
+type BulkStemStatus = "waiting" | "uploading" | "completed" | "failed" | "invalid";
+
+type BulkStemItem = {
+  id: string;
+  file: File;
+  name: string;
+  status: BulkStemStatus;
+  error: string;
+  sortOrder: number | null;
+  savedStem: SongStemRow | null;
+};
+
 export function ManageSongStems({ onChange, onClose, songId, songKey, stems }: ManageSongStemsProps) {
   const [editingStem, setEditingStem] = useState<SongStemRow | "new" | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
+  const [bulkItems, setBulkItems] = useState<BulkStemItem[] | null>(null);
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const bulkInputRef = useRef<HTMLInputElement>(null);
   const orderedStems = [...stems].sort((a, b) => a.sort_order - b.sort_order);
 
   async function requireSession() {
@@ -210,6 +225,98 @@ export function ManageSongStems({ onChange, onClose, songId, songKey, stems }: M
     }
   }
 
+  function addBulkFiles(files: FileList | null) {
+    if (!files?.length) return;
+    const selected = Array.from(files).map(createBulkStemItem);
+    setBulkItems((current) => [...(current ?? []), ...selected]);
+    if (bulkInputRef.current) bulkInputRef.current.value = "";
+  }
+
+  function updateBulkItem(itemId: string, patch: Partial<BulkStemItem>) {
+    setBulkItems((current) => current?.map((item) => item.id === itemId ? { ...item, ...patch } : item) ?? null);
+  }
+
+  function removeBulkItem(itemId: string) {
+    setBulkItems((current) => {
+      const next = current?.filter((item) => item.id !== itemId) ?? [];
+      return next.length > 0 ? next : null;
+    });
+  }
+
+  async function runBulkUpload(retryFailed = false) {
+    if (!bulkItems || bulkRunning) return;
+    const nameErrors = getBulkNameErrors(bulkItems, orderedStems);
+    if (nameErrors.size > 0) return;
+
+    const targetIds = new Set(bulkItems
+      .filter((item) => retryFailed ? item.status === "failed" : item.status === "waiting")
+      .map((item) => item.id));
+    if (targetIds.size === 0) return;
+
+    const nextSortOrder = Math.max(-1, ...orderedStems.map((stem) => stem.sort_order)) + 1;
+    let assignedCount = 0;
+    const queue: BulkStemItem[] = bulkItems
+      .filter((item) => targetIds.has(item.id))
+      .map((item) => ({
+        ...item,
+        error: "",
+        sortOrder: item.sortOrder ?? nextSortOrder + assignedCount++,
+        status: "waiting",
+      }));
+    const queueById = new Map(queue.map((item) => [item.id, item]));
+    setBulkRunning(true);
+    setBulkItems((current) => current?.map((item) => queueById.get(item.id) ?? item) ?? null);
+
+    let cursor = 0;
+    async function worker() {
+      while (cursor < queue.length) {
+        const item = queue[cursor++];
+        updateBulkItem(item.id, { status: "uploading", error: "" });
+        let uploadedPath: string | null = null;
+        try {
+          const supabase = await requireSession();
+          validateAudioFile(item.file);
+          uploadedPath = await uploadStemFile(supabase, item.file);
+          const { data, error } = await supabase
+            .from("song_stems")
+            .insert({
+              song_key_id: songKey.id,
+              name: item.name.trim(),
+              storage_path: uploadedPath,
+              sort_order: item.sortOrder,
+              mime_type: item.file.type || null,
+              file_size_bytes: item.file.size,
+            })
+            .select("id, song_key_id, name, storage_path, sort_order, mime_type, file_size_bytes, created_at")
+            .single();
+          if (error) throw error;
+          const savedStem = data as SongStemRow;
+          item.savedStem = savedStem;
+          item.status = "completed";
+          updateBulkItem(item.id, { savedStem, status: "completed" });
+        } catch (error) {
+          let errorMessage = readableStemError(error, "No se pudo subir la pista.");
+          if (uploadedPath) {
+            const supabase = createSupabaseBrowserClient();
+            const { error: cleanupError } = await supabase.storage.from("songs").remove([uploadedPath]);
+            if (cleanupError) errorMessage = "No se pudo completar la pista y el archivo puede requerir limpieza manual.";
+          }
+          item.status = "failed";
+          item.error = errorMessage;
+          updateBulkItem(item.id, { status: "failed", error: errorMessage });
+        }
+      }
+    }
+
+    await Promise.all([worker(), worker()]);
+    const results = new Map(queue.map((item) => [item.id, item]));
+    const finalItems = bulkItems.map((item) => results.get(item.id) ?? item);
+    const completed = finalItems.flatMap((item) => item.savedStem ? [item.savedStem] : []);
+    setBulkItems(finalItems);
+    onChange(mergeStems(orderedStems, completed));
+    setBulkRunning(false);
+  }
+
   return (
     <div className="fixed inset-0 z-[80] overflow-y-auto bg-black/75 px-4 py-6 backdrop-blur-sm sm:py-10" role="presentation">
       <section role="dialog" aria-modal="true" aria-labelledby="manage-stems-title" className="mx-auto w-full max-w-2xl rounded-3xl border border-white/10 bg-zinc-900 p-5 shadow-2xl shadow-black/60 sm:p-7">
@@ -248,13 +355,187 @@ export function ManageSongStems({ onChange, onClose, songId, songKey, stems }: M
             </div>
           </form>
         ) : (
-          <button type="button" onClick={() => { setEditingStem("new"); setMessage(""); }} disabled={busyId !== null} className="mt-6 min-h-12 rounded-full bg-emerald-400 px-6 font-semibold text-zinc-950 hover:bg-emerald-300 disabled:opacity-40">+ Agregar pista</button>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <button type="button" onClick={() => { setEditingStem("new"); setMessage(""); }} disabled={busyId !== null} className="min-h-12 rounded-full bg-emerald-400 px-6 font-semibold text-zinc-950 hover:bg-emerald-300 disabled:opacity-40">+ Agregar pista</button>
+            <button type="button" onClick={() => bulkInputRef.current?.click()} disabled={busyId !== null} className="min-h-12 rounded-full border border-white/10 px-6 font-semibold text-emerald-400 hover:bg-white/[0.05] disabled:opacity-40">+ Subir varias pistas</button>
+            <input ref={bulkInputRef} type="file" multiple accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/aac,audio/*,.mp3,.m4a,.wav,.aac" onChange={(event) => addBulkFiles(event.target.files)} className="sr-only" tabIndex={-1} />
+          </div>
         )}
 
         <p role="status" aria-live="polite" className={`mt-4 min-h-5 text-sm ${isError ? "text-rose-400" : "text-emerald-400"}`}>{message}</p>
       </section>
+
+      {bulkItems ? (
+        <BulkUploadDialog
+          existingStems={orderedStems}
+          items={bulkItems}
+          running={bulkRunning}
+          onAddFiles={() => bulkInputRef.current?.click()}
+          onClose={() => setBulkItems(null)}
+          onRemove={removeBulkItem}
+          onRetry={() => void runBulkUpload(true)}
+          onStart={() => void runBulkUpload(false)}
+          onUpdateName={(itemId, name) => updateBulkItem(itemId, { name })}
+        />
+      ) : null}
     </div>
   );
+}
+
+function BulkUploadDialog({ existingStems, items, onAddFiles, onClose, onRemove, onRetry, onStart, onUpdateName, running }: {
+  existingStems: SongStemRow[];
+  items: BulkStemItem[];
+  onAddFiles: () => void;
+  onClose: () => void;
+  onRemove: (itemId: string) => void;
+  onRetry: () => void;
+  onStart: () => void;
+  onUpdateName: (itemId: string, name: string) => void;
+  running: boolean;
+}) {
+  const nameErrors = getBulkNameErrors(items, existingStems);
+  const waitingCount = items.filter((item) => item.status === "waiting").length;
+  const completedCount = items.filter((item) => item.status === "completed").length;
+  const failedCount = items.filter((item) => item.status === "failed").length;
+  const uploadingCount = items.filter((item) => item.status === "uploading").length;
+  const invalidCount = items.filter((item) => item.status === "invalid").length;
+  const finished = !running && waitingCount === 0 && uploadingCount === 0;
+
+  return (
+    <div className="fixed inset-0 z-[90] overflow-y-auto bg-black/80 px-3 py-4 backdrop-blur-sm sm:px-4 sm:py-8" role="presentation">
+      <section role="dialog" aria-modal="true" aria-labelledby="bulk-stems-title" className="mx-auto w-full max-w-3xl rounded-3xl border border-white/10 bg-zinc-900 p-4 shadow-2xl shadow-black/60 sm:p-7">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">Multitracks</p>
+            <h2 id="bulk-stems-title" className="mt-1 text-2xl font-bold text-white">Revisar carga masiva</h2>
+            <p className="mt-2 text-sm text-zinc-400">{items.length} {items.length === 1 ? "archivo seleccionado" : "archivos seleccionados"}</p>
+          </div>
+          <button type="button" onClick={onClose} disabled={running} aria-label="Cerrar carga masiva" className="grid size-11 shrink-0 place-items-center rounded-full text-xl text-zinc-400 hover:bg-white/[0.06] hover:text-white disabled:opacity-30">×</button>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          {items.map((item) => {
+            const nameError = nameErrors.get(item.id);
+            return (
+              <div key={item.id} className="rounded-2xl border border-white/[0.08] bg-zinc-950/45 p-4 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-4">
+                <div className="min-w-0">
+                  <label className="block text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">
+                    Nombre
+                    <input value={item.name} onChange={(event) => onUpdateName(item.id, event.target.value)} disabled={running || item.status === "completed"} aria-invalid={Boolean(nameError)} className={`mt-2 ${fieldStyles} ${nameError ? "border-rose-400/60" : ""}`} />
+                  </label>
+                  {nameError ? <p className="mt-1.5 text-sm text-rose-400">{nameError}</p> : null}
+                  <p className="mt-3 truncate text-sm text-zinc-300" title={item.file.name}>{item.file.name}</p>
+                  <p className="mt-1 text-xs text-zinc-500">{formatFileSize(item.file.size)}</p>
+                  {item.error ? <p className="mt-2 text-sm text-rose-400">{item.error}</p> : null}
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-3 sm:mt-7 sm:justify-end">
+                  <span className={`text-sm font-semibold ${bulkStatusColor(item.status)}`}>{bulkStatusLabel(item.status)}</span>
+                  <button type="button" onClick={() => onRemove(item.id)} disabled={running || item.status === "completed"} className="min-h-10 rounded-full px-3 text-sm text-rose-400 hover:bg-rose-400/[0.08] disabled:opacity-30">Eliminar</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-white/[0.07] bg-zinc-950/35 p-4" aria-live="polite">
+          {running ? <p className="font-semibold text-white">Subiendo {completedCount + failedCount} de {items.length} · {uploadingCount} en curso</p> : null}
+          {finished && completedCount > 0 ? <p className="font-semibold text-white">{completedCount === items.length ? `${completedCount} pistas subidas correctamente` : `${completedCount} de ${items.length} pistas subidas`}</p> : null}
+          {invalidCount > 0 ? <p className="mt-1 text-sm text-amber-300">{invalidCount} {invalidCount === 1 ? "archivo no compatible" : "archivos no compatibles"}; elimínalos o agrega archivos correctos.</p> : null}
+        </div>
+
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          {!finished ? <PrimaryButton type="button" onClick={onStart} disabled={running || waitingCount === 0 || nameErrors.size > 0}>Subir {waitingCount} {waitingCount === 1 ? "pista" : "pistas"}</PrimaryButton> : null}
+          {failedCount > 0 && !running ? <PrimaryButton type="button" onClick={onRetry} disabled={nameErrors.size > 0}>Reintentar fallidos</PrimaryButton> : null}
+          {!running && completedCount === 0 ? <button type="button" onClick={onAddFiles} className="min-h-12 rounded-full border border-white/10 px-5 font-semibold text-emerald-400 hover:bg-white/[0.05]">Agregar archivos</button> : null}
+          {!running ? <button type="button" onClick={onClose} className="min-h-12 rounded-full px-5 font-semibold text-zinc-400 hover:bg-white/[0.05]">{finished && completedCount > 0 ? "Listo" : "Cancelar"}</button> : null}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function createBulkStemItem(file: File): BulkStemItem {
+  let status: BulkStemStatus = "waiting";
+  let error = "";
+  try {
+    validateAudioFile(file);
+  } catch {
+    status = "invalid";
+    error = "Archivo no compatible";
+  }
+  return {
+    id: crypto.randomUUID(),
+    file,
+    name: deriveStemName(file.name),
+    status,
+    error,
+    sortOrder: null,
+    savedStem: null,
+  };
+}
+
+function deriveStemName(filename: string) {
+  const withoutExtension = filename.replace(/\.[^.]+$/, "");
+  const withoutNumber = withoutExtension.replace(/^\s*\d+\s*(?:[-_.]+\s*|\s+)/, "");
+  return withoutNumber
+    .replace(/[_]+/g, " ")
+    .replace(/\s+-\s+|\s*-\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getBulkNameErrors(items: BulkStemItem[], existingStems: SongStemRow[]) {
+  const errors = new Map<string, string>();
+  const existingNames = new Set(existingStems.map((stem) => normalizeStemName(stem.name)));
+  const occurrences = new Map<string, number>();
+  for (const item of items) {
+    const normalized = normalizeStemName(item.name);
+    if (normalized) occurrences.set(normalized, (occurrences.get(normalized) ?? 0) + 1);
+  }
+  for (const item of items) {
+    const normalized = normalizeStemName(item.name);
+    if (!normalized) errors.set(item.id, "El nombre es obligatorio.");
+    else if (existingNames.has(normalized) && !item.savedStem) errors.set(item.id, "Ya existe una pista con ese nombre para esta tonalidad.");
+    else if ((occurrences.get(normalized) ?? 0) > 1) errors.set(item.id, "El nombre está repetido dentro de esta selección.");
+  }
+  return errors;
+}
+
+function normalizeStemName(name: string) {
+  return name.trim().toLocaleLowerCase();
+}
+
+function mergeStems(existingStems: SongStemRow[], completedStems: SongStemRow[]) {
+  const byId = new Map(existingStems.map((stem) => [stem.id, stem]));
+  for (const stem of completedStems) byId.set(stem.id, stem);
+  return [...byId.values()].sort((a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at));
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB"];
+  let value = bytes / 1024;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  return `${value >= 10 ? value.toFixed(1) : value.toFixed(2)} ${units[unitIndex]}`;
+}
+
+function bulkStatusLabel(status: BulkStemStatus) {
+  if (status === "uploading") return "↑ Subiendo";
+  if (status === "completed") return "✓ Completada";
+  if (status === "failed") return "✕ Falló";
+  if (status === "invalid") return "✕ No compatible";
+  return "○ En espera";
+}
+
+function bulkStatusColor(status: BulkStemStatus) {
+  if (status === "completed") return "text-emerald-400";
+  if (status === "failed" || status === "invalid") return "text-rose-400";
+  if (status === "uploading") return "text-amber-300";
+  return "text-zinc-500";
 }
 
 function validateAudioFile(file: File) {
