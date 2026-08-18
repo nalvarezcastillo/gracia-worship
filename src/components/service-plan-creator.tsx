@@ -177,4 +177,4 @@ function suggestNextServiceDate(services: ServiceSummary[]) { const today = toDa
 function parseDate(value: string) { const [year, month, day] = value.split("-").map(Number); return new Date(year, month - 1, day); }
 function toDateInput(value: Date) { return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`; }
 function formatSourceOption(service: ServiceSummary) { const date = service.serviceDate ? new Intl.DateTimeFormat("es-419", { weekday: "short", day: "numeric", month: "short" }).format(parseDate(service.serviceDate)).replaceAll(".", "") : "Sin fecha"; return `${date} · ${service.serviceName} · ${statusLabel(service.status)}`; }
-function statusLabel(status: ServiceSummary["status"]) { if (status === "active") return "Activo"; if (status === "planned") return "Planificado"; if (status === "completed") return "Completado"; return "Archivado"; }
+function statusLabel(status: ServiceSummary["status"]) { if (status === "active") return "Próximo"; if (status === "planned") return "Planificado"; if (status === "completed") return "Completado"; return "Archivado"; }

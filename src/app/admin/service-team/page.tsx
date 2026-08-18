@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { ManageCurrentServiceTeam } from "@/components/manage-current-service-team";
 import { AppPage } from "@/components/app-page";
+import { ServiceContextEmptyState } from "@/components/service-context-empty-state";
 import { hasAuthenticatedUser } from "@/lib/auth";
 import { getServiceTeam } from "@/lib/current-service-team";
 import { getResourceManagerData } from "@/lib/resources";
@@ -20,7 +21,7 @@ export default async function ServiceTeamPage({ searchParams }: { searchParams: 
     ? await query.eq("id", requestedServiceId).maybeSingle()
     : await query.eq("status", "active").maybeSingle();
   if (requestedService && !service) notFound();
-  if (!service) redirect("/admin");
+  if (!service) return <AppPage title="Equipo del servicio" desktopAdminSidebar><ServiceContextEmptyState message="Selecciona un servicio para administrar su equipo." /></AppPage>;
   if (service.status === "completed" || service.status === "archived") redirect(`/service/${service.id}`);
   const [assignments, members, resourceData] = await Promise.all([
     getServiceTeam(service.id),

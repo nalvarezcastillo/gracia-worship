@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { ManageResources } from "@/components/manage-resources";
 import { AppPage } from "@/components/app-page";
+import { ServiceContextEmptyState } from "@/components/service-context-empty-state";
 import { hasAuthenticatedUser } from "@/lib/auth";
 import { getResourceManagerData } from "@/lib/resources";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -19,7 +20,7 @@ export default async function ResourcesPage({ searchParams }: { searchParams: Pr
     ? await query.eq("id", requestedServiceId).maybeSingle()
     : await query.eq("status", "active").maybeSingle();
   if (requestedService && !service) notFound();
-  if (!service) redirect("/admin");
+  if (!service) return <AppPage title="Recursos" desktopAdminSidebar><ServiceContextEmptyState message="Selecciona un servicio para administrar sus recursos." /></AppPage>;
   if (service.status === "completed" || service.status === "archived") redirect(`/service/${service.id}`);
   const { categories, resources, usages, loadError } = await getResourceManagerData(service.id);
 

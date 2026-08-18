@@ -2,11 +2,11 @@
 
 import { ArrowLeft, ArrowRight, CircleCheck, FileText, Headphones, Music2 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppActionBar } from "@/components/app-action-bar";
 import { AppConfirmDialog } from "@/components/app-confirm-dialog";
 import { PrimaryButton, SecondaryButton } from "@/components/ui/action-button";
-import type { ActiveSetlistRow } from "@/lib/database.types";
+import type { ActiveSetlistRow, CompleteLiveServiceAndAdvanceResult } from "@/lib/database.types";
 import { parseAssignmentText } from "@/lib/assignment-text";
 import { formatDuration, getActualRunSeconds, getServiceItemDurationSeconds, getSongDurationSeconds } from "@/lib/duration";
 import type { ServiceItem, WorshipSongEntry } from "@/lib/service";
@@ -60,6 +60,8 @@ type LiveModeProps = {
 };
 
 export function LiveMode({ canControl, initialRuns, initialState, items, loadError, service, serviceId, songs }: LiveModeProps) {
+  const finishInFlightRef = useRef(false);
+  const reopenInFlightRef = useRef(false);
   const entries = useMemo(() => buildLiveEntries(items, songs), [items, songs]);
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const initialIndex = resolveStateIndex(entries, initialState);
@@ -76,6 +78,7 @@ export function LiveMode({ canControl, initialRuns, initialState, items, loadErr
   const [isChanging, setIsChanging] = useState(false);
   const [isFinishOpen, setIsFinishOpen] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
+  const [completionResult, setCompletionResult] = useState<CompleteLiveServiceAndAdvanceResult | null>(null);
   const [isReopenOpen, setIsReopenOpen] = useState(false);
   const [isReopening, setIsReopening] = useState(false);
   const [reopenError, setReopenError] = useState("");
@@ -191,35 +194,63 @@ export function LiveMode({ canControl, initialRuns, initialState, items, loadErr
   }
 
   async function finishService() {
-    if (!canControl || serviceId === null || isFinishing) return;
+    if (!canControl || serviceId === null || finishInFlightRef.current) return;
+    finishInFlightRef.current = true;
     setIsFinishing(true);
     setControlError("");
-    const { data, error } = await supabase.rpc("finish_live_service", { p_service_id: serviceId });
-    if (error) {
-      setControlError("No se pudo finalizar el servicio. Intenta nuevamente.");
-    } else {
-      const state = Array.isArray(data) ? data[0] : data;
-      if (state) applyAuthoritativeState(state as LiveServiceState, entries, setCurrentIndex, setStartedAt, setFinishedAt, setHasLiveState);
-      setIsFinishOpen(false);
-      await refreshRuns();
+    try {
+      const { data, error } = await supabase.rpc("complete_live_service_and_advance", { p_service_id: serviceId });
+      if (error) {
+        setControlError(formatCompletionError(error.message));
+      } else {
+        const result = (Array.isArray(data) ? data[0] : data) as CompleteLiveServiceAndAdvanceResult | null;
+        if (!result) {
+          setControlError("No se recibió un resultado válido de finalización. Verifica el estado del servicio antes de intentarlo nuevamente.");
+        } else {
+          setCompletionResult(result);
+          setHasLiveState(true);
+          setFinishedAt(new Date().toISOString());
+          setIsFinishOpen(false);
+          await refreshRuns();
+        }
+      }
+    } catch (error) {
+      setControlError(`No se pudo finalizar el servicio: ${error instanceof Error ? error.message : "Error inesperado"}`);
+    } finally {
+      finishInFlightRef.current = false;
+      setIsFinishing(false);
     }
-    setIsFinishing(false);
   }
 
   async function reopenService() {
-    if (!canControl || serviceId === null || isReopening) return;
+    if (!canControl || serviceId === null || reopenInFlightRef.current) return;
+    reopenInFlightRef.current = true;
     setIsReopening(true);
     setReopenError("");
-    const { data, error } = await supabase.rpc("reopen_live_service", { p_service_id: serviceId });
-    if (error) {
-      setReopenError("No se pudo reabrir el servicio. Intenta nuevamente.");
-    } else {
-      const state = Array.isArray(data) ? data[0] : data;
-      if (state) applyAuthoritativeState(state as LiveServiceState, entries, setCurrentIndex, setStartedAt, setFinishedAt, setHasLiveState);
-      setIsReopenOpen(false);
-      await refreshRuns();
+    const isLifecycleReopen = completionResult !== null;
+    try {
+      const { data, error } = isLifecycleReopen
+        ? await supabase.rpc("reopen_completed_live_service", { p_service_id: completionResult.completed_service_id })
+        : await supabase.rpc("reopen_live_service", { p_service_id: serviceId });
+      if (error) {
+        setReopenError(formatReopenError(error.message, isLifecycleReopen));
+      } else {
+        const state = Array.isArray(data) ? data[0] : data;
+        if (!state) {
+          setReopenError("No se recibió un estado válido al reabrir el servicio.");
+        } else {
+          applyAuthoritativeState(state as LiveServiceState, entries, setCurrentIndex, setStartedAt, setFinishedAt, setHasLiveState);
+          setCompletionResult(null);
+          setIsReopenOpen(false);
+          await refreshRuns();
+        }
+      }
+    } catch (error) {
+      setReopenError(`No se pudo reabrir el servicio: ${error instanceof Error ? error.message : "Error inesperado"}`);
+    } finally {
+      reopenInFlightRef.current = false;
+      setIsReopening(false);
     }
-    setIsReopening(false);
   }
 
   async function startService() {
@@ -240,10 +271,11 @@ export function LiveMode({ canControl, initialRuns, initialState, items, loadErr
 
   if (livePhase === "finished" && finishedAt) {
     const serviceName = service ? localizeDefaultServiceName(service.service_name) : "Servicio actual";
-    return <><FinishedService canControl={canControl} finishedAt={finishedAt} onReopen={() => { setReopenError(""); setIsReopenOpen(true); }} runs={runs} serviceId={serviceId} serviceName={serviceName} syncStatus={syncStatus} />{isReopenOpen ? <AppConfirmDialog title="Reabrir servicio" titleId="reopen-service-title" descriptionId="reopen-service-description" actions={<AppActionBar className="sm:justify-end"><SecondaryButton type="button" onClick={() => setIsReopenOpen(false)} disabled={isReopening}>Cancelar</SecondaryButton><PrimaryButton type="button" onClick={() => void reopenService()} disabled={isReopening}>{isReopening ? "Reabriendo..." : "Reabrir servicio"}</PrimaryButton></AppActionBar>}><p id="reopen-service-description" className="mt-3 text-sm leading-6 text-zinc-400">¿Quieres volver a iniciar “{serviceName}”?</p><p className="mt-2 text-sm leading-6 text-zinc-500">El historial anterior se conservará y se iniciará una nueva ejecución desde el primer elemento.</p>{reopenError ? <p role="alert" className="mt-3 text-sm text-rose-300">{reopenError}</p> : null}</AppConfirmDialog> : null}</>;
+    return <><FinishedService canControl={canControl && !isFinishing} completionResult={completionResult} finishedAt={finishedAt} onReopen={() => { setReopenError(""); setIsReopenOpen(true); }} runs={runs} serviceId={serviceId} serviceName={serviceName} syncStatus={syncStatus} />{isReopenOpen ? <AppConfirmDialog title="Reabrir servicio" titleId="reopen-service-title" descriptionId="reopen-service-description" actions={<AppActionBar className="sm:justify-end"><SecondaryButton type="button" onClick={() => setIsReopenOpen(false)} disabled={isReopening}>Cancelar</SecondaryButton><PrimaryButton type="button" onClick={() => void reopenService()} disabled={isReopening}>{isReopening ? "Reabriendo…" : "Reabrir servicio"}</PrimaryButton></AppActionBar>}><p id="reopen-service-description" className="mt-3 text-sm leading-6 text-zinc-400">{completionResult ? "Esto volverá a poner este servicio como el próximo servicio En Vivo y creará una nueva ejecución desde el inicio." : `¿Quieres volver a iniciar “${serviceName}”?`}</p><p className="mt-2 text-sm leading-6 text-zinc-500">{completionResult?.promotion_status === "promoted" ? "El servicio que quedó como próximo volverá a Planificado si todavía no ha comenzado En Vivo." : "El historial anterior se conservará y se iniciará una nueva ejecución desde el primer elemento."}</p>{reopenError ? <p role="alert" className="mt-3 text-sm text-rose-300">{reopenError}</p> : null}</AppConfirmDialog> : null}</>;
   }
 
   if (livePhase === "notStarted") {
+    if (!service || serviceId === null) return <EmptyLiveService />;
     const serviceName = service ? localizeDefaultServiceName(service.service_name) : "Servicio actual";
     const plannedSeconds = getCompletePlannedDuration(entries);
     return <><NotStartedService canControl={canControl} entryCount={entries.length} onStart={() => { setStartError(""); setIsStartOpen(true); }} plannedSeconds={plannedSeconds} service={service} serviceName={serviceName} syncStatus={syncStatus} />{isStartOpen ? <AppConfirmDialog title="Iniciar servicio" titleId="start-service-title" descriptionId="start-service-description" actions={<AppActionBar className="sm:justify-end"><SecondaryButton type="button" onClick={() => setIsStartOpen(false)} disabled={isStarting}>Cancelar</SecondaryButton><PrimaryButton type="button" onClick={() => void startService()} disabled={isStarting}>{isStarting ? "Iniciando..." : "Iniciar servicio"}</PrimaryButton></AppActionBar>}><p id="start-service-description" className="mt-3 text-sm leading-6 text-zinc-400">¿Comenzar “{serviceName}”?</p><p className="mt-2 text-sm leading-6 text-zinc-500">El timer y la sincronización En Vivo comenzarán para todos los dispositivos.</p>{startError ? <p role="alert" className="mt-3 text-sm text-rose-300">{startError}</p> : null}</AppConfirmDialog> : null}</>;
@@ -329,7 +361,7 @@ export function LiveMode({ canControl, initialRuns, initialState, items, loadErr
           No hay elementos en el servicio actual.
         </div>
       )}
-      {isFinishOpen ? <AppConfirmDialog title="Finalizar servicio" titleId="finish-service-title" descriptionId="finish-service-description" actions={<AppActionBar className="sm:justify-end"><SecondaryButton type="button" onClick={() => setIsFinishOpen(false)} disabled={isFinishing}>Cancelar</SecondaryButton><PrimaryButton type="button" onClick={() => void finishService()} disabled={isFinishing}>{isFinishing ? "Finalizando..." : "Finalizar servicio"}</PrimaryButton></AppActionBar>}><p id="finish-service-description" className="mt-3 text-sm leading-6 text-zinc-400">¿Finalizar “{service ? localizeDefaultServiceName(service.service_name) : "Servicio actual"}”?</p><p className="mt-2 text-sm leading-6 text-zinc-500">Esto cerrará En Vivo en todos los dispositivos y guardará el historial del servicio.</p>{controlError ? <p role="alert" className="mt-3 text-sm text-rose-300">{controlError}</p> : null}</AppConfirmDialog> : null}
+      {isFinishOpen ? <AppConfirmDialog title="Finalizar servicio" titleId="finish-service-title" descriptionId="finish-service-description" actions={<AppActionBar className="sm:justify-end"><SecondaryButton type="button" onClick={() => setIsFinishOpen(false)} disabled={isFinishing}>Cancelar</SecondaryButton><PrimaryButton type="button" onClick={() => void finishService()} disabled={isFinishing}>{isFinishing ? "Finalizando…" : "Finalizar servicio"}</PrimaryButton></AppActionBar>}><p id="finish-service-description" className="mt-3 text-sm leading-6 text-zinc-400">¿Finalizar “{service ? localizeDefaultServiceName(service.service_name) : "Servicio actual"}”?</p><p className="mt-2 text-sm leading-6 text-zinc-500">Finalizar cerrará el servicio En Vivo y guardará el historial de tiempos.</p>{controlError ? <p role="alert" className="mt-3 text-sm text-rose-300">{controlError}</p> : null}</AppConfirmDialog> : null}
     </div>
   );
 }
@@ -338,9 +370,42 @@ function NotStartedService({ canControl, entryCount, onStart, plannedSeconds, se
   return <div className="flex min-h-[calc(100dvh-9rem)] items-center justify-center pb-20 sm:pb-8"><section className="w-full max-w-xl rounded-3xl border border-white/[0.08] bg-zinc-900 p-6 text-center shadow-xl shadow-black/20 sm:p-10"><p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">En Vivo</p><h1 className="mt-3 text-2xl font-bold tracking-[-0.03em] text-white sm:text-4xl">{serviceName}</h1>{service ? <p className="mt-2 text-sm text-zinc-400">{[service.service_date ? formatServiceDate(service.service_date) : "", service.service_time].filter(Boolean).join(" · ")}</p> : null}{canControl ? <><dl className="mt-8 grid grid-cols-2 gap-4 border-y border-white/[0.07] py-5"><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Elementos</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{entryCount}</dd></div><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Duración planeada</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{plannedSeconds === null ? "—" : formatDuration(plannedSeconds)}</dd></div></dl><button type="button" onClick={onStart} disabled={entryCount === 0} className={`${primaryButtonStyles} mt-7 w-full`}>▶ Iniciar servicio</button><p className="mt-3 text-xs text-zinc-500">El servicio comenzará en el primer elemento del Run Sheet.</p></> : <p className="mt-8 text-base text-zinc-400">El servicio aún no ha comenzado.</p>}<p className={`mt-5 text-[0.6875rem] ${syncStatus === "connected" ? "text-zinc-600" : "text-amber-400/70"}`}>{syncStatus === "connected" ? "Sincronizado" : "Reconectando..."}</p></section></div>;
 }
 
-function FinishedService({ canControl, finishedAt, onReopen, runs, serviceId, serviceName, syncStatus }: { canControl: boolean; finishedAt: string; onReopen: () => void; runs: LiveRun[]; serviceId: number | null; serviceName: string; syncStatus: "connected" | "reconnecting" }) {
+function FinishedService({ canControl, completionResult, finishedAt, onReopen, runs, serviceId, serviceName, syncStatus }: { canControl: boolean; completionResult: CompleteLiveServiceAndAdvanceResult | null; finishedAt: string; onReopen: () => void; runs: LiveRun[]; serviceId: number | null; serviceName: string; syncStatus: "connected" | "reconnecting" }) {
   const actualSeconds = runs.reduce((total, run) => total + getActualRunSeconds(run, finishedAt), 0);
-  return <div className="flex min-h-[calc(100dvh-9rem)] items-center justify-center pb-20 sm:pb-8"><section className="w-full max-w-xl rounded-3xl border border-white/[0.08] bg-zinc-900 p-6 text-center shadow-xl shadow-black/20 sm:p-10"><CircleCheck aria-hidden="true" className="mx-auto size-10 text-emerald-400" /><p className="mt-5 text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">Servicio finalizado</p><h1 className="mt-3 text-2xl font-bold tracking-[-0.03em] text-white sm:text-4xl">{serviceName}</h1><dl className="mt-8 grid grid-cols-2 gap-4 border-y border-white/[0.07] py-5"><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Finalizado a las</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{formatDeviceTime(new Date(finishedAt))}</dd></div><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Duración real</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{formatDuration(actualSeconds)}</dd></div></dl><p className="mt-5 text-sm text-zinc-400">{runs.length} {runs.length === 1 ? "ejecución registrada" : "ejecuciones registradas"}</p>{canControl && serviceId !== null ? <div className="mt-7 grid gap-3"><Link href={`/service/${serviceId}/report`} className={`${primaryButtonStyles} w-full`}>Ver reporte del servicio</Link><button type="button" onClick={onReopen} className={`${secondaryButtonStyles} w-full`}>Reabrir servicio</button></div> : null}<p className={`mt-4 text-[0.6875rem] ${syncStatus === "connected" ? "text-zinc-600" : "text-amber-400/70"}`}>{syncStatus === "connected" ? "Sincronizado" : "Reconectando..."}</p></section></div>;
+  const completedServiceId = completionResult?.completed_service_id ?? serviceId;
+  return <div className="flex min-h-[calc(100dvh-9rem)] items-center justify-center pb-20 sm:pb-8"><section className="w-full max-w-xl rounded-3xl border border-white/[0.08] bg-zinc-900 p-6 text-center shadow-xl shadow-black/20 sm:p-10"><CircleCheck aria-hidden="true" className="mx-auto size-10 text-emerald-400" /><p className="mt-5 text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">Servicio finalizado</p><h1 className="mt-3 text-2xl font-bold tracking-[-0.03em] text-white sm:text-4xl">{serviceName}</h1><dl className="mt-8 grid grid-cols-2 gap-4 border-y border-white/[0.07] py-5"><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Finalizado a las</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{formatDeviceTime(new Date(finishedAt))}</dd></div><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Duración real</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{formatDuration(actualSeconds)}</dd></div></dl><p className="mt-5 text-sm text-zinc-400">{completionResult ? completionMessage(completionResult.promotion_status) : `${runs.length} ${runs.length === 1 ? "ejecución registrada" : "ejecuciones registradas"}`}</p>{canControl && completedServiceId !== null ? <div className="mt-7 grid gap-3"><Link href={`/service/${completedServiceId}/report`} className={`${primaryButtonStyles} w-full`}>Ver reporte</Link><button type="button" onClick={onReopen} className={`${secondaryButtonStyles} w-full`}>Reabrir servicio</button>{completionResult ? <CompletionNextAction result={completionResult} /> : null}</div> : null}<p className={`mt-4 text-[0.6875rem] ${syncStatus === "connected" ? "text-zinc-600" : "text-amber-400/70"}`}>{syncStatus === "connected" ? "Sincronizado" : "Reconectando..."}</p></section></div>;
+}
+
+function EmptyLiveService() {
+  return <div className="flex min-h-[calc(100dvh-9rem)] items-center justify-center pb-20 sm:pb-8"><section className="w-full max-w-xl rounded-3xl border border-white/[0.08] bg-zinc-900 p-6 text-center shadow-xl shadow-black/20 sm:p-10"><p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">En Vivo</p><h1 className="mt-3 text-2xl font-bold tracking-[-0.03em] text-white sm:text-4xl">No hay un servicio próximo seleccionado.</h1><p className="mt-4 text-sm leading-6 text-zinc-400">Selecciona un servicio planificado y actívalo como próximo antes de iniciar En Vivo.</p><Link href="/service" className={`${primaryButtonStyles} mt-7 w-full`}>Ver servicios</Link></section></div>;
+}
+
+function CompletionNextAction({ result }: { result: CompleteLiveServiceAndAdvanceResult }) {
+  if (result.promotion_status === "promoted" && result.promoted_service_id !== null) return <Link href={`/service/${result.promoted_service_id}`} className={`${secondaryButtonStyles} w-full`}>Ir al próximo servicio</Link>;
+  return <Link href="/service" className={`${secondaryButtonStyles} w-full`}>{result.promotion_status === "ambiguous" ? "Seleccionar próximo servicio" : "Ver servicios"}</Link>;
+}
+
+function completionMessage(status: CompleteLiveServiceAndAdvanceResult["promotion_status"]) {
+  if (status === "promoted") return "El próximo servicio ya está preparado.";
+  if (status === "none") return "No hay otro servicio planificado para activar automáticamente.";
+  if (status === "ambiguous") return "Hay más de un servicio en el próximo horario. Selecciona cuál debe ser el próximo servicio.";
+  return "No pudimos seleccionar automáticamente el próximo servicio porque la fecha u hora de este servicio necesita revisión.";
+}
+
+function formatCompletionError(message: string) {
+  if (/only the active service can be completed/i.test(message)) return "Este servicio ya no es el próximo servicio activo. Actualiza En Vivo antes de intentarlo nuevamente.";
+  if (/another service is already live/i.test(message)) return "Otro servicio está En Vivo. Verifica el estado antes de finalizar.";
+  if (/live service has not started/i.test(message)) return "Este servicio todavía no ha comenzado En Vivo.";
+  return `No se pudo finalizar el servicio: ${message}`;
+}
+
+function formatReopenError(message: string, lifecycleReopen: boolean) {
+  if (/current active service has live history/i.test(message)) return "No se puede reabrir este servicio porque el próximo servicio ya tiene historial de En Vivo.";
+  if (/another service is already live/i.test(message)) return "No se puede reabrir mientras otro servicio está En Vivo.";
+  if (/only a completed service can be reopened/i.test(message)) return "Este servicio ya no está Completado. Actualiza la página antes de intentarlo nuevamente.";
+  if (/no finished Live state/i.test(message)) return "Este servicio no tiene un estado En Vivo finalizado que pueda reabrirse.";
+  if (/open service item run|open run/i.test(message)) return "No se puede reabrir mientras existe una ejecución abierta.";
+  return lifecycleReopen ? `No se pudo reabrir el servicio completado: ${message}` : `No se pudo reabrir el servicio: ${message}`;
 }
 
 function CurrentEntryCard({ elapsedSeconds, entry }: { elapsedSeconds: number; entry: LiveEntry }) {

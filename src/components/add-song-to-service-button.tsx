@@ -73,7 +73,7 @@ export function AddSongToServiceButton({ serviceId, songId, songTitle }: { servi
         {isSaving ? "Agregando..." : "+ Agregar al servicio"}
       </SecondaryButton>
       {notice === "success" ? <div role="status" aria-live="polite" className="fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-sm rounded-2xl border border-emerald-400/20 bg-zinc-900 px-4 py-3 text-center text-sm font-medium text-emerald-300 shadow-2xl">✅ Canción agregada al servicio.</div> : null}
-      {notice === "no-service" ? <p role="status" className="basis-full text-sm text-rose-300">No existe un servicio activo. <Link href="/admin" className="ml-1 font-semibold text-emerald-400 underline underline-offset-4">Crear servicio</Link></p> : null}
+      {notice === "no-service" ? <p role="status" className="basis-full text-sm text-rose-300">No hay un servicio próximo seleccionado. <Link href="/service" className="ml-1 font-semibold text-emerald-400 underline underline-offset-4">Ver servicios</Link></p> : null}
       {notice === "error" ? <p role="status" className="basis-full text-sm text-rose-300">No se pudo agregar la canción al servicio.</p> : null}
     </>
   );

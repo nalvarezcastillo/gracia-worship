@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Mic } from "lucide-react";
-import { PrepareNextServiceButton } from "@/components/prepare-next-service-button";
 import { DeletePlannedServiceButton } from "@/components/delete-planned-service-button";
+import { ServiceLifecycleActions } from "@/components/service-lifecycle-actions";
 import { AssignmentFields } from "@/components/assignment-fields";
 import { PrimaryButton, SecondaryButton } from "@/components/ui/action-button";
 import { SongMetadataLine } from "@/components/ui/song-tags";
@@ -13,6 +13,7 @@ import type { ServiceItem, ServiceSong, WorshipSongEntry } from "@/lib/service";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { TeamMember } from "@/lib/team";
 import type { CurrentServiceTeamMember } from "@/lib/current-service-team";
+import type { ServiceStatus } from "@/lib/database.types";
 import { getServiceEntryMicrophones } from "@/lib/service-team-resources";
 import { buildOperationalServiceEntries } from "@/lib/service-entries";
 import { parseAssignmentText } from "@/lib/assignment-text";
@@ -20,7 +21,7 @@ import { buildServiceSchedule } from "@/lib/service-schedule";
 
 type AddStep = "closed" | "type" | "text" | "song";
 
-export function ServiceItems({ initialItems, songs, isAdmin, canPrepareNext = false, canDeleteService = false, loadError, serviceId, serviceName, serviceSchedule, serviceTime = null, showPreparedToast = false, teamMembers = [], serviceTeamAssignments = [] }: { initialItems: ServiceItem[]; songs: ServiceSong[]; isAdmin: boolean; canPrepareNext?: boolean; canDeleteService?: boolean; loadError?: string; serviceId: number; serviceName: string; serviceSchedule: string; serviceTime?: string | null; showPreparedToast?: boolean; teamMembers?: TeamMember[]; serviceTeamAssignments?: CurrentServiceTeamMember[] }) {
+export function ServiceItems({ initialItems, songs, isAdmin, authenticated, lifecycleStatus, hasCurrentActive, canDeleteService = false, loadError, serviceId, serviceName, serviceSchedule, serviceTime = null, showPreparedToast = false, teamMembers = [], serviceTeamAssignments = [] }: { initialItems: ServiceItem[]; songs: ServiceSong[]; isAdmin: boolean; authenticated: boolean; lifecycleStatus: ServiceStatus; hasCurrentActive: boolean; canDeleteService?: boolean; loadError?: string; serviceId: number; serviceName: string; serviceSchedule: string; serviceTime?: string | null; showPreparedToast?: boolean; teamMembers?: TeamMember[]; serviceTeamAssignments?: CurrentServiceTeamMember[] }) {
   const [items, setItems] = useState(initialItems);
   const savedItemsRef = useRef(initialItems);
   const [addStep, setAddStep] = useState<AddStep>("closed");
@@ -437,6 +438,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, canPrepareNext = fa
         <p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Servicio</p>
         <h2 className="mt-4 text-lg font-semibold text-white">{serviceName}</h2>
         <p className="mt-1 text-sm leading-6 text-zinc-400">{serviceSchedule || "Horario por confirmar"}</p>
+        <p className="mt-1 text-xs font-medium text-zinc-500">{serviceStatusLabel(lifecycleStatus)}</p>
         <div className="mt-6 rounded-xl border border-white/[0.07] bg-white/[0.025] p-4"><p className="text-xs text-zinc-500">Duración planeada</p><p className="mt-1 text-xl font-semibold tabular-nums text-white">{totalDuration ? formatLongDuration(totalDuration) : "—"}</p></div>
         <nav aria-label="Secciones del servicio" className="mt-7 space-y-1 text-sm font-medium"><a href="#orden" className="block rounded-lg bg-emerald-400/[0.09] px-3 py-2.5 text-emerald-300">Orden</a><Link href={`/service/${serviceId}/rehearsal`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Ensayo</Link><Link href={`/admin/service-team?service=${serviceId}`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Equipo</Link><Link href={`/admin/resources?service=${serviceId}`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Recursos</Link><Link href={`/service/${serviceId}/report`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Reporte</Link></nav>
         {serviceTeamAssignments.length ? <div className="mt-8 border-t border-white/[0.07] pt-6"><p className="text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-zinc-500">Equipo</p><div className="mt-3 max-h-80 space-y-2.5 overflow-y-auto pr-1">{serviceTeamAssignments.map((assignment) => <p key={assignment.id} className="text-sm text-zinc-300">{assignment.person_name}<span className="mt-0.5 block text-xs text-zinc-500">{[assignment.role_name, ...assignment.resources.map((resource) => resource.name), assignment.microphone_name].filter(Boolean).join(" · ")}</span></p>)}</div><Link href={`/admin/service-team?service=${serviceId}`} className="mt-3 block text-xs font-semibold text-zinc-500 transition-colors hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400">Ver equipo completo →</Link></div> : null}
@@ -445,9 +447,9 @@ export function ServiceItems({ initialItems, songs, isAdmin, canPrepareNext = fa
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-b border-white/[0.08] pb-6">
         <h1 className="col-start-1 row-start-1 min-w-0 text-[1.75rem] font-bold tracking-[-0.035em] text-white sm:text-[2rem]"><span className="lg:hidden">{serviceName}</span><span className="hidden lg:inline">Orden del servicio</span></h1>
         {isAdmin ? <PrimaryButton type="button" onClick={() => setAddStep("type")} disabled={isSaving} className="col-start-2 row-start-1 min-h-11 rounded-xl px-4 text-sm shadow-none">+ Agregar elemento</PrimaryButton> : null}
-        {serviceSchedule ? <p className="col-start-1 row-start-2 min-w-0 text-sm text-zinc-400 sm:text-base">{serviceSchedule}</p> : <span />}
+        <p className="col-start-1 row-start-2 min-w-0 text-sm text-zinc-400 sm:text-base">{serviceSchedule ? `${serviceSchedule} · ` : ""}<span className="text-zinc-500">{serviceStatusLabel(lifecycleStatus)}</span></p>
         <p className="col-start-2 row-start-2 text-right text-sm text-zinc-500">{operationalEntries.length} {operationalEntries.length === 1 ? "elemento" : "elementos"}<span className="hidden lg:inline"> · {totalDuration ? formatLongDuration(totalDuration) : "sin duración"}</span></p>
-        {isAdmin ? <div className="col-span-2 row-start-3 mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end"><SecondaryButton href={`/admin?service=${serviceId}`} className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">Editar fecha</SecondaryButton>{canPrepareNext ? <PrepareNextServiceButton /> : null}{canDeleteService ? <DeletePlannedServiceButton serviceId={serviceId} serviceName={serviceName} /> : null}<SecondaryButton href="/archive" className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">Archivo</SecondaryButton></div> : null}
+        {authenticated ? <div className="col-span-2 row-start-3 mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">{isAdmin ? <SecondaryButton href={`/admin?service=${serviceId}`} className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">Editar fecha</SecondaryButton> : null}<ServiceLifecycleActions hasCurrentActive={hasCurrentActive} serviceId={serviceId} status={lifecycleStatus} />{canDeleteService ? <DeletePlannedServiceButton serviceId={serviceId} serviceName={serviceName} /> : null}<SecondaryButton href="/archive" className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">Archivo</SecondaryButton></div> : null}
       </header>
 
       {showSuccessToast ? <div role="status" aria-live="polite" className="fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-sm rounded-2xl border border-emerald-400/20 bg-zinc-900 px-4 py-3 text-center text-sm font-medium text-emerald-300 shadow-2xl">✅ Próximo servicio preparado correctamente.</div> : null}
@@ -852,4 +854,11 @@ function GripIcon({ className, label }: { className: string; label: string }) {
       <circle cx="3" cy="15" r="1.2" /><circle cx="9" cy="15" r="1.2" />
     </svg>
   );
+}
+
+function serviceStatusLabel(status: ServiceStatus) {
+  if (status === "active") return "Próximo";
+  if (status === "planned") return "Planificado";
+  if (status === "completed") return "Completado";
+  return "Archivado";
 }

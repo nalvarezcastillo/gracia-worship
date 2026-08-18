@@ -7,14 +7,13 @@ import { AppStatusBadge } from "@/components/app-status-badge";
 import { hasAuthenticatedUser } from "@/lib/auth";
 import { formatDuration, getActualRunSeconds } from "@/lib/duration";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { ServiceStatus } from "@/lib/database.types";
 
 export const metadata: Metadata = { title: "Reportes de servicios | Gracia Worship" };
 export const dynamic = "force-dynamic";
 
 type ServiceRun = { ended_at: string | null; service_id: number; started_at: string };
 type ServiceState = { finished_at: string | null; service_id: number };
-type ServiceRecord = { id: number; service_date: string | null; service_name: string; status: ServiceStatus };
+type ServiceRecord = { id: number; service_date: string | null; service_name: string };
 
 export default async function ServiceReportsPage() {
   if (!(await hasAuthenticatedUser())) redirect("/login?next=/admin/reports");
@@ -28,7 +27,7 @@ export default async function ServiceReportsPage() {
 
   const [{ data: serviceData }, { data: stateData }] = serviceIds.length
     ? await Promise.all([
-        supabase.from("active_setlist").select("id, service_name, service_date, status").in("id", serviceIds),
+        supabase.from("active_setlist").select("id, service_name, service_date").in("id", serviceIds),
         supabase.from("live_service_state").select("service_id, finished_at").in("service_id", serviceIds),
       ])
     : [{ data: [] }, { data: [] }];
@@ -38,7 +37,7 @@ export default async function ServiceReportsPage() {
     const serviceRuns = runs.filter((run) => run.service_id === service.id);
     const state = states.get(service.id);
     const hasOpenRun = serviceRuns.some((run) => run.ended_at === null);
-    const isLive = service.status === "active" && (hasOpenRun || Boolean(state && !state.finished_at));
+    const isLive = hasOpenRun || Boolean(state && !state.finished_at);
     const latestTimestamp = serviceRuns.reduce((latest, run) => Math.max(latest, new Date(run.ended_at ?? run.started_at).getTime()), 0);
     const finalTimestamp = state?.finished_at ?? serviceRuns.find((run) => run.ended_at)?.ended_at ?? null;
     return {
@@ -72,7 +71,7 @@ export default async function ServiceReportsPage() {
                     <h2 className="text-lg font-semibold text-white sm:text-xl">{localizeDefaultServiceName(service.service_name)}</h2>
                     <p className="mt-1 text-sm text-zinc-400">{formatServiceDate(service.service_date)}</p>
                   </div>
-                  <span className="lg:hidden"><AppStatusBadge variant={isLive ? "success" : "neutral"}>{isLive ? "En vivo" : "Finalizado"}</AppStatusBadge></span>
+                  <span className="lg:hidden"><AppStatusBadge variant={isLive ? "success" : "neutral"}>{isLive ? "En Vivo" : "Finalizado"}</AppStatusBadge></span>
                 </div>
 
                 <p className="mt-5 text-sm text-zinc-400 sm:hidden">{formatDuration(durationSeconds)} · {runCount} {runCount === 1 ? "ejecución" : "ejecuciones"}</p>
@@ -82,7 +81,7 @@ export default async function ServiceReportsPage() {
                   <ReportMetric label="Finalizado" value={isLive ? "—" : formatServiceTime(finalTimestamp)} />
                 </dl>
               </div>
-              <span className="hidden text-sm tabular-nums text-zinc-300 lg:block">{formatDuration(durationSeconds)}</span><span className="hidden text-sm text-zinc-400 lg:block">{runCount} {runCount === 1 ? "ejecución" : "ejecuciones"}</span><span className="hidden lg:block"><AppStatusBadge variant={isLive ? "success" : "neutral"}>{isLive ? "En vivo" : "Finalizado"}</AppStatusBadge></span>
+              <span className="hidden text-sm tabular-nums text-zinc-300 lg:block">{formatDuration(durationSeconds)}</span><span className="hidden text-sm text-zinc-400 lg:block">{runCount} {runCount === 1 ? "ejecución" : "ejecuciones"}</span><span className="hidden lg:block"><AppStatusBadge variant={isLive ? "success" : "neutral"}>{isLive ? "En Vivo" : "Finalizado"}</AppStatusBadge></span>
               <Link href={`/service/${service.id}/report`} className="flex min-h-12 items-center justify-between border-t border-white/[0.07] px-5 text-sm font-semibold text-white transition-colors duration-200 hover:bg-white/[0.045] hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-emerald-400 sm:px-6 lg:min-h-10 lg:justify-end lg:border-t-0 lg:px-0">Ver <span aria-hidden="true" className="ml-2">→</span></Link>
             </article>
           ))}

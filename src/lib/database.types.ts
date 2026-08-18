@@ -79,6 +79,18 @@ export type DeletePlannedServiceArgs = {
 
 export type ServicePlanRpcResult = number;
 
+export type ServiceLifecycleRpcArgs = {
+  p_service_id: number;
+};
+
+export type ArchiveCompletedServiceArgs = ServiceLifecycleRpcArgs;
+
+export type CompleteLiveServiceAndAdvanceResult = {
+  completed_service_id: number;
+  promotion_status: "promoted" | "none" | "ambiguous" | "malformed_completed_schedule";
+  promoted_service_id: number | null;
+};
+
 export type SongKeyRow = {
   id: string;
   song_id: string;
