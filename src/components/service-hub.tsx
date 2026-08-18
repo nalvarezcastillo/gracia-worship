@@ -1,16 +1,11 @@
 import Link from "next/link";
+import { ServicePlanCreator } from "@/components/service-plan-creator";
 import type { ServiceHubData, ServiceSummary } from "@/lib/services";
 
-export function ServiceHub({ data }: { data: ServiceHubData }) {
-  const hasServices = data.upcoming.length || data.unscheduled.length || data.recent.length || data.archived.length;
-
-  if (!hasServices) {
-    return <div className="mt-8 border-y border-white/[0.07] py-14 text-center text-sm text-zinc-500">No hay servicios disponibles.</div>;
-  }
-
+export function ServiceHub({ authenticated, data }: { authenticated: boolean; data: ServiceHubData }) {
   return (
     <div className="mt-7 space-y-9 sm:mt-9">
-      {data.upcoming.length ? <ServiceSection label="Próximos" services={data.upcoming} /> : null}
+      {data.upcoming.length ? <ServiceSection label="Próximos" services={data.upcoming} /> : <section><h2 className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Próximos</h2><div className="mt-2 border-y border-white/[0.07] py-10 text-center"><p className="text-sm text-zinc-500">No hay servicios próximos.</p>{authenticated ? <div className="mx-auto mt-4 max-w-xs"><ServicePlanCreator services={data.services} wide /></div> : null}</div></section>}
       {data.unscheduled.length ? <ServiceSection label="Sin programar" services={data.unscheduled} /> : null}
       {data.recent.length ? <ServiceSection label="Recientes" services={data.recent} /> : null}
       {data.archived.length ? <ServiceSection label="Archivo" services={data.archived} /> : null}

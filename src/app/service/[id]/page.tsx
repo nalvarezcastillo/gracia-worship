@@ -49,7 +49,7 @@ export default async function ServiceWorkspacePage({ params, searchParams }: { p
   return (
     <main className="min-h-screen py-6 sm:py-10 lg:py-0">
       <MainContainer className="max-w-3xl lg:max-w-none lg:px-0">
-        <ServiceItems initialItems={items} songs={songs} isAdmin={authenticated && isEditable} canPrepareNext={authenticated && isActive} loadError={loadError} serviceId={serviceId} serviceName={localizeDefaultServiceName(service.service_name)} serviceSchedule={serviceSchedule} serviceTime={service.service_time} showPreparedToast={(await searchParams).prepared === "1"} teamMembers={teamMembers} serviceTeamAssignments={serviceTeamAssignments} />
+        <ServiceItems initialItems={items} songs={songs} isAdmin={authenticated && isEditable} canPrepareNext={authenticated && isActive} canDeleteService={authenticated && service.status === "planned"} loadError={loadError} serviceId={serviceId} serviceName={localizeDefaultServiceName(service.service_name)} serviceSchedule={serviceSchedule} serviceTime={service.service_time} showPreparedToast={(await searchParams).prepared === "1"} teamMembers={teamMembers} serviceTeamAssignments={serviceTeamAssignments} />
         {service.leader_notes?.trim() ? (
           <section className="mt-6 overflow-hidden rounded-3xl border border-white/[0.07] bg-zinc-900/60 shadow-xl shadow-black/10 sm:mt-8">
             <div className="border-b border-white/[0.06] p-5 sm:p-6">

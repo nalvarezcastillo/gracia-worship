@@ -10,6 +10,7 @@ export type ServiceSummary = {
 };
 
 export type ServiceHubData = {
+  services: ServiceSummary[];
   archived: ServiceSummary[];
   recent: ServiceSummary[];
   unscheduled: ServiceSummary[];
@@ -38,6 +39,7 @@ export async function getServiceHubData(): Promise<ServiceHubData> {
     .sort(compareScheduledAscending);
 
   return {
+    services: [...services].sort(compareScheduledDescending),
     upcoming: scheduledUpcoming,
     unscheduled: services
       .filter((service) => (service.status === "active" || service.status === "planned") && service.serviceDate === null)

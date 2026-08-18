@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Mic } from "lucide-react";
 import { PrepareNextServiceButton } from "@/components/prepare-next-service-button";
+import { DeletePlannedServiceButton } from "@/components/delete-planned-service-button";
 import { AssignmentFields } from "@/components/assignment-fields";
 import { PrimaryButton, SecondaryButton } from "@/components/ui/action-button";
 import { SongMetadataLine } from "@/components/ui/song-tags";
@@ -19,7 +20,7 @@ import { buildServiceSchedule } from "@/lib/service-schedule";
 
 type AddStep = "closed" | "type" | "text" | "song";
 
-export function ServiceItems({ initialItems, songs, isAdmin, canPrepareNext = false, loadError, serviceId, serviceName, serviceSchedule, serviceTime = null, showPreparedToast = false, teamMembers = [], serviceTeamAssignments = [] }: { initialItems: ServiceItem[]; songs: ServiceSong[]; isAdmin: boolean; canPrepareNext?: boolean; loadError?: string; serviceId: number; serviceName: string; serviceSchedule: string; serviceTime?: string | null; showPreparedToast?: boolean; teamMembers?: TeamMember[]; serviceTeamAssignments?: CurrentServiceTeamMember[] }) {
+export function ServiceItems({ initialItems, songs, isAdmin, canPrepareNext = false, canDeleteService = false, loadError, serviceId, serviceName, serviceSchedule, serviceTime = null, showPreparedToast = false, teamMembers = [], serviceTeamAssignments = [] }: { initialItems: ServiceItem[]; songs: ServiceSong[]; isAdmin: boolean; canPrepareNext?: boolean; canDeleteService?: boolean; loadError?: string; serviceId: number; serviceName: string; serviceSchedule: string; serviceTime?: string | null; showPreparedToast?: boolean; teamMembers?: TeamMember[]; serviceTeamAssignments?: CurrentServiceTeamMember[] }) {
   const [items, setItems] = useState(initialItems);
   const savedItemsRef = useRef(initialItems);
   const [addStep, setAddStep] = useState<AddStep>("closed");
@@ -446,7 +447,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, canPrepareNext = fa
         {isAdmin ? <PrimaryButton type="button" onClick={() => setAddStep("type")} disabled={isSaving} className="col-start-2 row-start-1 min-h-11 rounded-xl px-4 text-sm shadow-none">+ Agregar elemento</PrimaryButton> : null}
         {serviceSchedule ? <p className="col-start-1 row-start-2 min-w-0 text-sm text-zinc-400 sm:text-base">{serviceSchedule}</p> : <span />}
         <p className="col-start-2 row-start-2 text-right text-sm text-zinc-500">{operationalEntries.length} {operationalEntries.length === 1 ? "elemento" : "elementos"}<span className="hidden lg:inline"> · {totalDuration ? formatLongDuration(totalDuration) : "sin duración"}</span></p>
-        {isAdmin ? <div className="col-span-2 row-start-3 mt-2 flex flex-col gap-2 sm:flex-row sm:justify-end"><SecondaryButton href={`/admin?service=${serviceId}`} className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">Editar fecha</SecondaryButton>{canPrepareNext ? <PrepareNextServiceButton /> : null}<SecondaryButton href="/archive" className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">Archivo</SecondaryButton></div> : null}
+        {isAdmin ? <div className="col-span-2 row-start-3 mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end"><SecondaryButton href={`/admin?service=${serviceId}`} className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">Editar fecha</SecondaryButton>{canPrepareNext ? <PrepareNextServiceButton /> : null}{canDeleteService ? <DeletePlannedServiceButton serviceId={serviceId} serviceName={serviceName} /> : null}<SecondaryButton href="/archive" className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">Archivo</SecondaryButton></div> : null}
       </header>
 
       {showSuccessToast ? <div role="status" aria-live="polite" className="fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-sm rounded-2xl border border-emerald-400/20 bg-zinc-900 px-4 py-3 text-center text-sm font-medium text-emerald-300 shadow-2xl">✅ Próximo servicio preparado correctamente.</div> : null}

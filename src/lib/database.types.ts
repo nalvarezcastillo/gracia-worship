@@ -61,6 +61,24 @@ export type SetServiceTeamAssignmentResourcesArgs = {
   p_resource_ids: string[];
 };
 
+export type CreateServicePlanArgs = {
+  p_service_name: string;
+  p_service_date: string;
+  p_service_time: string;
+};
+
+export type DuplicateServicePlanArgs = CreateServicePlanArgs & {
+  p_source_service_id: number;
+  p_copy_order?: boolean;
+  p_copy_team?: boolean;
+};
+
+export type DeletePlannedServiceArgs = {
+  p_service_id: number;
+};
+
+export type ServicePlanRpcResult = number;
+
 export type SongKeyRow = {
   id: string;
   song_id: string;
