@@ -45,11 +45,15 @@ export default async function ServiceWorkspacePage({ params, searchParams }: { p
     service.service_date ? formatServiceDate(service.service_date) : null,
     service.service_time ? formatServiceTime(service.service_time) : null,
   ].filter(Boolean).join(" • ");
+  const mobileServiceSchedule = [
+    service.service_date ? formatCompactServiceDate(service.service_date) : null,
+    service.service_time ? formatServiceTime(service.service_time) : null,
+  ].filter(Boolean).join(" • ");
 
   return (
-    <main className="min-h-screen py-6 sm:py-10 lg:py-0">
+    <main className="min-h-screen pb-[calc(5rem+env(safe-area-inset-bottom))] pt-3 sm:py-10 lg:py-0">
       <MainContainer className="max-w-3xl lg:max-w-none lg:px-0">
-        <ServiceItems initialItems={items} songs={songs} isAdmin={authenticated && isEditable} authenticated={authenticated} lifecycleStatus={service.status} hasCurrentActive={Boolean(activeService)} canDeleteService={authenticated && service.status === "planned"} loadError={loadError} serviceId={serviceId} serviceName={localizeDefaultServiceName(service.service_name)} serviceSchedule={serviceSchedule} serviceTime={service.service_time} showPreparedToast={(await searchParams).prepared === "1"} teamMembers={teamMembers} serviceTeamAssignments={serviceTeamAssignments} />
+        <ServiceItems initialItems={items} songs={songs} isAdmin={authenticated && isEditable} authenticated={authenticated} lifecycleStatus={service.status} hasCurrentActive={Boolean(activeService)} canDeleteService={authenticated && service.status === "planned"} loadError={loadError} mobileServiceSchedule={mobileServiceSchedule} serviceId={serviceId} serviceName={localizeDefaultServiceName(service.service_name)} serviceSchedule={serviceSchedule} serviceTime={service.service_time} showPreparedToast={(await searchParams).prepared === "1"} teamMembers={teamMembers} serviceTeamAssignments={serviceTeamAssignments} />
         {service.leader_notes?.trim() ? (
           <section className="mt-6 overflow-hidden rounded-3xl border border-white/[0.07] bg-zinc-900/60 shadow-xl shadow-black/10 sm:mt-8">
             <div className="border-b border-white/[0.06] p-5 sm:p-6">
@@ -69,6 +73,12 @@ function localizeDefaultServiceName(value: string) { return value === "Saturday 
 function formatServiceDate(value: string) {
   const [year, month, day] = value.split("-").map(Number);
   const formatted = new Intl.DateTimeFormat("es-419", { weekday: "long", day: "numeric", month: "long" }).format(new Date(year, month - 1, day));
+  return formatted.charAt(0).toLocaleUpperCase("es-419") + formatted.slice(1);
+}
+
+function formatCompactServiceDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  const formatted = new Intl.DateTimeFormat("es-419", { weekday: "short", day: "numeric", month: "short" }).format(new Date(year, month - 1, day)).replaceAll(".", "");
   return formatted.charAt(0).toLocaleUpperCase("es-419") + formatted.slice(1);
 }
 

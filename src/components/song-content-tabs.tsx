@@ -132,12 +132,12 @@ function LegacySongContent({ lyrics, rehearsalMode = false, sheetUrl, title }: P
   const pdfFileName = getPdfFileName(sheetUrl);
 
   return (
-    <section className="mt-6">
-      <div role="tablist" aria-label="Song content" className={`grid ${sheetUrl ? "grid-cols-2" : "grid-cols-1"} rounded-2xl border border-white/[0.07] bg-zinc-900/60 p-1`}>
+    <section className={rehearsalMode ? "mt-3 lg:mt-6" : "mt-6"}>
+      <div role="tablist" aria-label="Song content" className={`grid ${sheetUrl ? "grid-cols-2" : "grid-cols-1"} rounded-xl border border-white/[0.07] bg-zinc-900/60 p-0.5 lg:rounded-2xl lg:p-1`}>
         <TabButton active={activeTab === "lyrics"} controls="lyrics-panel" onClick={() => setActiveTab("lyrics")}>Letra</TabButton>
         {sheetUrl ? <TabButton active={activeTab === "pdf"} controls="pdf-panel" onClick={() => setActiveTab("pdf")}>Partitura</TabButton> : null}
       </div>
-      <div className="mt-4 overflow-hidden rounded-2xl border border-white/[0.07] bg-zinc-900/60 p-5 sm:p-6">
+      <div className={rehearsalMode ? "mt-3 border-t border-white/[0.07] pt-4 lg:mt-4 lg:overflow-hidden lg:rounded-2xl lg:border lg:bg-zinc-900/60 lg:p-5" : "mt-4 overflow-hidden rounded-2xl border border-white/[0.07] bg-zinc-900/60 p-5 sm:p-6"}>
         {activeTab === "lyrics"
           ? <div id="lyrics-panel" role="tabpanel"><LyricsContent lyrics={lyrics} emphasizeSections={rehearsalMode} /></div>
           : (
@@ -156,7 +156,7 @@ function LyricsContent({ emphasizeSections, lyrics }: { emphasizeSections: boole
   const lines = lyrics.split("\n");
 
   return (
-    <p className="whitespace-pre-wrap text-base leading-8 text-white sm:text-lg sm:leading-9">
+    <p className="whitespace-pre-wrap text-[1.0625rem] leading-[1.55] text-white sm:text-lg sm:leading-9">
       {lines.map((line, index) => isLyricsSection(line)
         ? <span key={index} className="mt-6 block text-lg font-semibold uppercase text-emerald-400 first:mt-0">{line}</span>
         : <span key={index}>{line}{index < lines.length - 1 ? "\n" : ""}</span>)}

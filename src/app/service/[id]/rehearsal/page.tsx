@@ -63,7 +63,7 @@ export default async function ServiceRehearsalPage({ params }: { params: Promise
   }
 
   return (
-    <main className="min-h-screen py-6 sm:py-10">
+    <main className="min-h-screen py-2 sm:py-10">
       <MainContainer className="max-w-4xl">
         <RehearsalMode service={service} serviceId={serviceId} items={items} songs={songs} loadError={itemsError?.message} />
       </MainContainer>

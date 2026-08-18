@@ -6,6 +6,7 @@ import { AppEmptyState } from "@/components/app-empty-state";
 import { AppSearch } from "@/components/app-search";
 import { AppSectionCard } from "@/components/app-section-card";
 import { AppStatusBadge } from "@/components/app-status-badge";
+import { SearchIcon } from "@/components/icons";
 import { PrimaryButton, SecondaryButton } from "@/components/ui/action-button";
 import { appFieldStyles, appRowActionStyles } from "@/components/ui/styles";
 import type { ResourceCategory, ResourceUsage, ServiceResource } from "@/lib/resources";
@@ -112,12 +113,17 @@ export function ManageResources({ initialCategories, initialResources, initialUs
   }
 
   return (
-    <div className="mt-6">
-      <div className="mb-6 flex flex-wrap gap-x-6 gap-y-2 border-y border-white/[0.07] py-3 text-sm text-zinc-400"><span><strong className="font-semibold text-white">{activeCount}</strong> activos</span><span><strong className="font-semibold text-white">{assignedCount}</strong> asignados</span><span><strong className="font-semibold text-white">{activeCount - assignedCount}</strong> disponibles</span></div>
+    <div className="pb-[calc(6rem+env(safe-area-inset-bottom))] lg:mt-6 lg:pb-0">
+      <div className="lg:hidden">
+        <div className="flex items-center justify-between gap-3"><h1 className="text-[1.75rem] font-bold tracking-[-0.035em] text-white">Recursos</h1><button type="button" onClick={() => openForm()} disabled={!initialCategories.length} className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400 px-3 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400">+ Agregar</button></div>
+        <p className="mt-1 text-sm text-zinc-500"><strong className="font-semibold text-zinc-300">{activeCount}</strong> activos · <strong className="font-semibold text-zinc-300">{assignedCount}</strong> asignados · <strong className="font-semibold text-zinc-300">{activeCount - assignedCount}</strong> disponibles</p>
+        <label className="relative mt-3 block"><span className="sr-only">Buscar recursos</span><SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-zinc-500" /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nombre o categoría" className="h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.035] pl-11 pr-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-emerald-400/45" /></label>
+      </div>
+      <div className="hidden lg:block"><div className="mb-6 flex flex-wrap gap-x-6 gap-y-2 border-y border-white/[0.07] py-3 text-sm text-zinc-400"><span><strong className="font-semibold text-white">{activeCount}</strong> activos</span><span><strong className="font-semibold text-white">{assignedCount}</strong> asignados</span><span><strong className="font-semibold text-white">{activeCount - assignedCount}</strong> disponibles</span></div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <AppSearch className="min-w-0 flex-1" label="Buscar recursos" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nombre o categoría" />
         <PrimaryButton type="button" onClick={() => openForm()} disabled={!initialCategories.length} className="w-full sm:w-auto">Agregar recurso</PrimaryButton>
-      </div>
+      </div></div>
 
       {showForm ? (
         <form onSubmit={save} className="mt-4 grid gap-4 rounded-2xl border border-white/[0.07] bg-zinc-900/40 p-4 sm:grid-cols-2">
@@ -128,7 +134,19 @@ export function ManageResources({ initialCategories, initialResources, initialUs
         </form>
       ) : null}
 
-      <div className="lg:grid lg:grid-cols-2 lg:gap-x-5">
+      <div className="mt-5 space-y-5 lg:hidden">
+      {visibleByCategory.map(({ category, items }) => (
+        <section key={category.id}>
+          <div className="flex items-baseline justify-between gap-3 border-b border-white/[0.07] pb-1.5"><h2 className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-400">{category.name}</h2><span className="text-xs text-zinc-600">{items.length} {items.length === 1 ? "recurso" : "recursos"}</span></div>
+          {items.length ? <div className="divide-y divide-white/[0.07]">{items.map((resource) => {
+            const status = getResourceStatus(resource, usageByResourceId.get(resource.id));
+            return <div key={resource.id} className={`grid items-start gap-x-3 py-2.5 ${resource.active ? "" : "opacity-60"}`} style={{ gridTemplateColumns: "minmax(0, 1fr) 40px" }}><div className="min-w-0"><p className="truncate text-[0.9375rem] font-semibold leading-5 text-zinc-100">{resource.name}</p><p className="mt-0.5 truncate text-xs leading-4 text-zinc-400/80">{status}</p></div><details className="relative -mt-1 justify-self-end"><summary aria-label={`Acciones para ${resource.name}`} className="grid size-10 cursor-pointer list-none place-items-center rounded-xl text-lg leading-none text-zinc-500 transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400 [&::-webkit-details-marker]:hidden">•••</summary><div className="absolute right-0 z-30 mt-1 min-w-40 overflow-hidden rounded-xl border border-white/10 bg-zinc-900 p-1 shadow-xl shadow-black/40"><button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); openForm(resource); }} className={mobileMenuActionStyles}>Editar</button><button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); void setActive(resource, !resource.active); }} disabled={busyId !== null} className={mobileMenuActionStyles}>{resource.active ? "Desactivar" : "Reactivar"}</button><button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); void remove(resource); }} disabled={busyId !== null} className={`${mobileMenuActionStyles} text-rose-300`}>Eliminar</button></div></details></div>;
+          })}</div> : <AppEmptyState className="px-0">No hay recursos en esta categoría.</AppEmptyState>}
+        </section>
+      ))}
+      </div>
+
+      <div className="hidden lg:grid lg:grid-cols-2 lg:gap-x-5">
       {visibleByCategory.map(({ category, items }) => (
         <AppSectionCard key={category.id} eyebrow="Categoría" title={category.name} className="lg:mt-5 lg:rounded-xl lg:border-t lg:bg-transparent lg:shadow-none">
           {items.length ? (
@@ -160,3 +178,10 @@ export function ManageResources({ initialCategories, initialResources, initialUs
     </div>
   );
 }
+
+function getResourceStatus(resource: ServiceResource, usage?: ResourceUsage) {
+  if (!resource.active) return "Inactivo";
+  return usage ? `Asignado a ${usage.person_name}` : "Disponible";
+}
+
+const mobileMenuActionStyles = "min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-zinc-200 transition-colors hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-2 focus-visible:outline-emerald-400";

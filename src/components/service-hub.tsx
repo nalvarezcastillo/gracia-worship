@@ -4,8 +4,8 @@ import type { ServiceHubData, ServiceSummary } from "@/lib/services";
 
 export function ServiceHub({ authenticated, data }: { authenticated: boolean; data: ServiceHubData }) {
   return (
-    <div className="mt-7 space-y-9 sm:mt-9">
-      {data.upcoming.length ? <ServiceSection label="Próximos" services={data.upcoming} /> : <section><h2 className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Próximos</h2><div className="mt-2 border-y border-white/[0.07] py-10 text-center"><p className="text-sm text-zinc-500">No hay servicios próximos.</p>{authenticated ? <div className="mx-auto mt-4 max-w-xs"><ServicePlanCreator services={data.services} wide /></div> : null}</div></section>}
+    <div className="mt-3.5 space-y-5 sm:mt-9 sm:space-y-9">
+      {data.upcoming.length ? <ServiceSection label="Próximos" services={data.upcoming} /> : <section><h2 className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Próximos</h2><div className="mt-1.5 border-y border-white/[0.07] py-6 text-center sm:mt-2 sm:py-10"><p className="text-sm text-zinc-500">No hay servicios próximos.</p>{authenticated ? <div className="mx-auto mt-3 max-w-xs sm:mt-4"><ServicePlanCreator services={data.services} wide /></div> : null}</div></section>}
       {data.unscheduled.length ? <ServiceSection label="Sin programar" services={data.unscheduled} /> : null}
       {data.recent.length ? <ServiceSection label="Recientes" services={data.recent} /> : null}
       {data.archived.length ? <ServiceSection label="Archivo" services={data.archived} /> : null}
@@ -17,7 +17,7 @@ function ServiceSection({ label, services }: { label: string; services: ServiceS
   return (
     <section>
       <h2 className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">{label}</h2>
-      <div className="mt-2 divide-y divide-white/[0.07] border-y border-white/[0.07]">
+      <div className="mt-1.5 divide-y divide-white/[0.07] border-y border-white/[0.07] sm:mt-2">
         {services.map((service) => <ServiceRow key={service.id} service={service} />)}
       </div>
     </section>
@@ -27,19 +27,19 @@ function ServiceSection({ label, services }: { label: string; services: ServiceS
 function ServiceRow({ service }: { service: ServiceSummary }) {
   const date = formatServiceDate(service.serviceDate);
   return (
-    <Link href={`/service/${service.id}`} className="group grid min-h-20 grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-3 px-2 py-3 transition-colors hover:bg-white/[0.025] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-emerald-400 sm:min-h-16 sm:grid-cols-[105px_minmax(0,1fr)_100px_92px_28px] sm:gap-4 sm:px-3 sm:py-2.5">
-      <span className="text-center sm:text-left">
-        <span className="block text-[0.625rem] font-bold uppercase tracking-[0.12em] text-zinc-500">{date.weekday}</span>
-        <span className="mt-0.5 block text-lg font-bold tabular-nums text-zinc-200 sm:inline sm:text-sm">{date.day}</span>
+    <Link href={`/service/${service.id}`} className={`group grid min-h-[4.5rem] grid-cols-[60px_minmax(0,1fr)_24px] items-center gap-2 px-1.5 py-1.5 transition-colors hover:bg-white/[0.025] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-emerald-400 sm:min-h-16 sm:grid-cols-[105px_minmax(0,1fr)_100px_92px_28px] sm:gap-4 sm:px-3 sm:py-2.5 ${service.status === "active" ? "border-l-2 border-emerald-400/55 sm:border-l-0" : "border-l-2 border-transparent sm:border-l-0"}`}>
+      <span className="self-center pl-1 text-left sm:pl-0">
+        <span className="block truncate text-[0.6875rem] font-bold uppercase tracking-[0.12em] text-zinc-500">{date.weekday}</span>
+        <span className="block text-2xl font-bold leading-7 tabular-nums text-zinc-200 sm:mt-0.5 sm:inline sm:text-sm">{date.day}</span>
         <span className="ml-1 hidden text-xs font-semibold uppercase text-zinc-500 sm:inline">{date.month}</span>
       </span>
       <span className="min-w-0">
-        <span className="block truncate text-sm font-semibold text-zinc-100 transition-colors group-hover:text-white sm:text-base">{service.serviceName}</span>
-        <span className="mt-1 block text-xs text-zinc-500 sm:hidden">{formatServiceTime(service.serviceTime)} · {statusLabel(service.status)}</span>
+        <span className="block truncate text-base font-semibold leading-5 text-zinc-100 transition-colors group-hover:text-white">{service.serviceName}</span>
+        <span className="mt-1 block truncate text-[0.8125rem] leading-4 text-zinc-500 sm:hidden">{formatServiceTime(service.serviceTime)} · <span className={service.status === "active" ? "font-medium text-emerald-400" : ""}>{statusLabel(service.status)}</span></span>
       </span>
-      <span className="text-right text-sm tabular-nums text-zinc-400 sm:text-left">{formatServiceTime(service.serviceTime)}</span>
+      <span className="hidden text-right text-sm tabular-nums text-zinc-400 sm:block sm:text-left">{formatServiceTime(service.serviceTime)}</span>
       <span className="hidden text-xs font-medium text-zinc-500 sm:block">{statusLabel(service.status)}</span>
-      <span aria-hidden="true" className="text-right text-lg text-zinc-600 transition-colors group-hover:text-emerald-300">→</span>
+      <span aria-hidden="true" className="text-right text-xl text-zinc-600 transition-colors group-hover:text-emerald-300"><span className="sm:hidden">›</span><span className="hidden text-lg sm:inline">→</span></span>
     </Link>
   );
 }

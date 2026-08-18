@@ -1,8 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BarChart3, Cable, ListMusic, Music2, Plus, Users } from "lucide-react";
+import { BarChart3, Cable, ChevronRight, CircleUserRound, ListMusic, Music2, Plus, Users } from "lucide-react";
 import { MusicIcon } from "@/components/icons";
-import { AppSectionCard } from "@/components/app-section-card";
 import { ServiceCountdownCard } from "@/components/service-countdown-card";
 import { PrimaryButton, SecondaryButton } from "@/components/ui/action-button";
 import { MainContainer } from "@/components/ui/main-container";
@@ -15,31 +14,31 @@ import { getActiveSetlist } from "@/lib/setlist";
 import { getAppSettings } from "@/lib/app-settings";
 import { getServiceTeam, groupCurrentServiceTeam, type CurrentServiceTeamGroup } from "@/lib/current-service-team";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { hasAuthenticatedUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-type DashboardSong = { duration: string; id: string; title: string };
+type DashboardSong = { duration: string; id: string; key?: string | null; title: string };
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ restored?: string }> }) {
-  const [setlist, appSettings] = await Promise.all([getActiveSetlist(), getAppSettings()]);
+  const [setlist, appSettings, authenticated] = await Promise.all([getActiveSetlist(), getAppSettings(), hasAuthenticatedUser()]);
   const serviceTeam = setlist ? await getServiceTeam(setlist.id) : [];
   const operationalData = setlist ? await getOperationalServiceData(setlist.id, setlist.songs) : { items: [], songs: [] };
   const operationalEntries = buildOperationalServiceEntries(operationalData.items, operationalData.songs);
   const schedule = buildServiceSchedule(operationalData.items, operationalData.songs, setlist?.serviceTime ?? null);
-  const previewSongs = setlist?.songs.slice(0, 5) ?? [];
-  const remainingSongs = Math.max((setlist?.songs.length ?? 0) - previewSongs.length, 0);
   const serviceTeamGroups = groupCurrentServiceTeam(serviceTeam);
   const serviceSchedule = setlist ? [setlist.serviceDate ? formatServiceDate(setlist.serviceDate) : null, setlist.serviceTime ? formatServiceTime(setlist.serviceTime) : null].filter(Boolean).join(" • ") : "";
 
   return (
-    <main className="min-h-screen py-8 sm:py-12 lg:py-7">
+    <main className="min-h-screen pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 sm:py-12 lg:py-7">
       <MainContainer className="max-w-4xl lg:max-w-7xl">
         <div className="lg:hidden">
-          <header className="flex flex-col items-center text-center">
-            <Image src={appSettings.logo_url ?? "/branding/gracia-worship-logo.png"} alt="Logo de Gracia Worship" width={1254} height={1254} priority className="h-auto w-[170px] object-contain sm:w-[220px]" />
-            <h1 className="mt-3 text-[28px] font-bold tracking-[-0.03em] text-white sm:text-4xl">{appSettings.ministry_name}</h1>
+          <header className="flex items-center justify-between gap-4 border-b border-white/[0.07] pb-3">
+            <div className="flex min-w-0 items-center gap-2.5"><Image src={appSettings.logo_url ?? "/branding/gracia-worship-logo.png"} alt="" width={1254} height={1254} priority className="size-9 shrink-0 object-contain" /><p className="truncate text-sm font-semibold text-zinc-200">{appSettings.ministry_name}</p></div>
+            <Link href={authenticated ? "/profile" : "/login"} aria-label={authenticated ? "Cuenta" : "Iniciar sesión"} className="grid size-10 shrink-0 place-items-center rounded-xl text-zinc-500 transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400"><CircleUserRound aria-hidden="true" className="size-5" /></Link>
           </header>
-          <MobileHomeContent previewSongs={previewSongs} remainingSongs={remainingSongs} serviceSchedule={serviceSchedule} serviceTeamGroups={serviceTeamGroups} setlist={setlist} />
+          <p className="mt-2.5 text-[1.375rem] font-semibold tracking-[-0.025em] text-white">{formatGreeting(new Date())}</p>
+          <MobileHomeContent authenticated={authenticated} entries={operationalEntries} serviceTeamGroups={serviceTeamGroups} setlist={setlist} />
         </div>
 
         <div className="hidden lg:block">
@@ -69,8 +68,51 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   );
 }
 
-function MobileHomeContent({ previewSongs, remainingSongs, serviceSchedule, serviceTeamGroups, setlist }: { previewSongs: Array<{ id: string; title: string }>; remainingSongs: number; serviceSchedule: string; serviceTeamGroups: CurrentServiceTeamGroup[]; setlist: Awaited<ReturnType<typeof getActiveSetlist>> }) {
-  return <><AppSectionCard eyebrow="Próximo servicio" title={setlist ? localizeDefaultServiceName(setlist.serviceName) : "Próximo servicio"} subtitle={setlist ? (setlist.serviceDate ? <><p>{formatServiceDate(setlist.serviceDate)}</p><p>{formatServiceTime(setlist.serviceTime)}</p></> : setlist.serviceTime) : "Next service is not configured."}><div className="px-4 py-3 sm:px-6 sm:py-4">{previewSongs.length ? <ol className="divide-y divide-white/[0.055]">{previewSongs.map((song, index) => <li key={song.id} className="flex min-h-10 items-center gap-3 px-1 py-1.5 text-sm font-semibold text-zinc-200 sm:text-base"><span className="w-5 shrink-0 text-xs tabular-nums text-zinc-600">{index + 1}</span><MusicIcon className="size-4 shrink-0 text-emerald-400/65" /><span className="truncate">{song.title}</span></li>)}</ol> : <p className="py-4 text-center text-sm text-zinc-500">No songs in the setlist.</p>}{remainingSongs > 0 ? <p className="mt-2 text-sm font-medium text-zinc-500">+{remainingSongs} more</p> : null}<div className="mt-4 flex flex-col gap-3 sm:flex-row"><PrimaryButton href={setlist ? `/service/${setlist.id}` : "/service"} className="w-full sm:w-auto">Abrir repertorio</PrimaryButton><SecondaryButton href="/archive" className="w-full sm:w-auto">Archivo</SecondaryButton></div></div></AppSectionCard><div>{serviceTeamGroups.length ? <AppSectionCard eyebrow="Equipo del servicio" title="Equipo del servicio" subtitle={`${serviceTeamGroups.length} ${serviceTeamGroups.length === 1 ? "persona sirviendo" : "personas sirviendo"}`}><div className="divide-y divide-white/[0.055] px-4 sm:px-6">{serviceTeamGroups.map((person) => <div key={person.personName.toLocaleLowerCase("es")} className="py-3 sm:py-4"><p className="text-base font-semibold text-white sm:text-lg">{person.personName}</p>{person.roles.length ? <p className="mt-1.5 text-sm text-zinc-400">{person.roles.join(" • ")}</p> : null}{person.resources.length ? <p className="mt-1 text-sm text-zinc-500">{person.resources.join(" • ")}</p> : null}</div>)}</div></AppSectionCard> : null}{setlist?.leaderNotes?.trim() ? <AppSectionCard eyebrow="Notas" title="Notas del líder"><div className="px-5 py-4 sm:px-6 sm:py-5"><p className="whitespace-pre-wrap break-words text-base leading-7 text-zinc-300">{setlist.leaderNotes}</p></div></AppSectionCard> : null}{setlist ? <ServiceCountdownCard serviceDate={setlist.serviceDate} serviceTime={setlist.serviceTime} serviceName={localizeDefaultServiceName(setlist.serviceName)} serviceSchedule={serviceSchedule} /> : null}</div></>;
+function MobileHomeContent({ authenticated, entries, serviceTeamGroups, setlist }: { authenticated: boolean; entries: OperationalServiceEntry<DashboardSong>[]; serviceTeamGroups: CurrentServiceTeamGroup[]; setlist: Awaited<ReturnType<typeof getActiveSetlist>> }) {
+  if (!setlist) {
+    return (
+      <section className="mt-4 rounded-2xl border border-white/[0.08] bg-zinc-900/55 px-4 py-5">
+        <p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Próximo servicio</p>
+        <h1 className="mt-2 text-xl font-bold tracking-[-0.025em] text-white">No hay un servicio próximo seleccionado.</h1>
+        <p className="mt-2 text-sm leading-6 text-zinc-500">Consulta los servicios disponibles y selecciona el próximo desde su workspace.</p>
+        <Link href="/service" className="mt-4 inline-flex min-h-10 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-semibold text-zinc-200 transition-colors hover:bg-white/[0.05] focus-visible:outline-2 focus-visible:outline-emerald-400">Ver servicios</Link>
+      </section>
+    );
+  }
+
+  const songEntries = entries.filter((entry): entry is Extract<OperationalServiceEntry<DashboardSong>, { kind: "song" }> => entry.kind === "song");
+  const previewSongs = songEntries.slice(0, 5);
+  const remainingSongs = Math.max(songEntries.length - previewSongs.length, 0);
+  const date = setlist.serviceDate ? formatHeroDate(setlist.serviceDate) : null;
+
+  return (
+    <div className="mt-4 space-y-5">
+      <section className="relative overflow-hidden rounded-2xl border border-white/[0.045] bg-zinc-900/65 px-4 pb-5 pt-3 shadow-lg shadow-black/10">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-14 size-40 rounded-full bg-emerald-400/[0.055] blur-3xl" />
+        <p className="relative text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Próximo servicio</p>
+        <div className="relative mt-1.5 flex items-start justify-between gap-4">
+          {date ? <p className="shrink-0 text-xs font-bold uppercase tracking-[0.12em] text-zinc-400"><span className="block">{date.weekday}</span><span className="mt-0.5 block text-2xl leading-7 tabular-nums text-white">{date.day}</span><span className="block text-zinc-500">{date.month}</span></p> : <p className="text-xs font-semibold text-zinc-500">Fecha pendiente</p>}
+          <p className="pt-1 text-right text-sm font-semibold tabular-nums text-zinc-300">{formatServiceTime(setlist.serviceTime)}</p>
+        </div>
+        <h1 className="relative mt-1.5 truncate text-[1.375rem] font-bold leading-7 tracking-[-0.025em] text-white">{localizeDefaultServiceName(setlist.serviceName)}</h1>
+        <p className="relative mt-1 text-[0.8125rem] text-zinc-500">{entries.length} {entries.length === 1 ? "elemento" : "elementos"} · {songEntries.length} {songEntries.length === 1 ? "canción" : "canciones"}</p>
+        <div className="relative mt-4 flex gap-2.5">
+          <Link href={`/service/${setlist.id}`} className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-xl bg-emerald-400 px-3 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400">Abrir servicio</Link>
+          <Link href="/live" className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-xl border border-emerald-400/20 bg-white/[0.035] px-3 text-[0.8125rem] font-semibold text-emerald-300 transition-colors hover:bg-emerald-400/[0.08] focus-visible:outline-2 focus-visible:outline-emerald-400"><span aria-hidden="true" className="mr-1.5 text-[0.5rem]">●</span>En Vivo</Link>
+        </div>
+      </section>
+
+      <section>
+        <div className="flex items-center justify-between gap-4"><h2 className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Repertorio</h2><Link href={`/service/${setlist.id}`} className="text-xs font-semibold text-zinc-500 transition-colors hover:text-emerald-300">Ver repertorio ›</Link></div>
+        {previewSongs.length ? <ol className="mt-1.5 divide-y divide-white/[0.07] border-y border-white/[0.07]">{previewSongs.map((entry) => <li key={entry.id}><Link href={`/song/${entry.song.id}?service=${setlist.id}`} className="flex min-h-12 items-center gap-2.5 px-1 py-2 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-emerald-400"><MusicIcon className="size-3.5 shrink-0 text-emerald-400/60" /><span className="min-w-0 flex-1 truncate text-[0.9375rem] font-semibold text-zinc-200">{entry.title}</span>{entry.song.key ? <span className="shrink-0 text-sm font-bold text-emerald-300">{entry.song.key}</span> : null}</Link></li>)}</ol> : <p className="mt-1.5 border-y border-white/[0.07] py-5 text-center text-sm text-zinc-500">No hay canciones en este servicio.</p>}
+        {remainingSongs > 0 ? <p className="mt-1.5 text-right text-xs text-zinc-600">+{remainingSongs} {remainingSongs === 1 ? "canción" : "canciones"}</p> : null}
+      </section>
+
+      {serviceTeamGroups.length ? <section className="border-y border-white/[0.07] py-3"><div className="flex min-h-10 items-center gap-3"><Users aria-hidden="true" className="size-4 shrink-0 text-emerald-400/70" /><div className="min-w-0 flex-1"><h2 className="text-sm font-semibold text-zinc-200">Equipo del servicio</h2><p className="mt-0.5 text-xs text-zinc-500">{serviceTeamGroups.length} {serviceTeamGroups.length === 1 ? "persona sirviendo" : "personas sirviendo"}</p></div>{authenticated ? <Link href={`/admin/service-team?service=${setlist.id}`} aria-label="Ver equipo" className="grid size-10 shrink-0 place-items-center rounded-xl text-zinc-600 hover:bg-white/[0.04] hover:text-emerald-300"><ChevronRight aria-hidden="true" className="size-4" /></Link> : null}</div></section> : null}
+
+      {setlist.leaderNotes?.trim() ? <section><h2 className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Preparación</h2><p className="mt-1.5 whitespace-pre-wrap border-y border-white/[0.07] py-3 text-sm leading-6 text-zinc-400">{setlist.leaderNotes}</p></section> : null}
+    </div>
+  );
 }
 
 function DashboardCard({ aside, children, label }: { aside: string; children: React.ReactNode; label: string }) { return <section className="overflow-hidden rounded-2xl border border-white/[0.08] border-t-[3px] border-t-emerald-500 bg-zinc-900/50 shadow-lg shadow-black/10"><header className="flex items-center justify-between gap-4 border-b border-white/[0.07] px-4 py-3"><h2 className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-400">{label}</h2><p className="text-xs text-zinc-500">{aside}</p></header>{children}</section>; }
@@ -96,11 +138,13 @@ async function getOperationalServiceData(serviceId: number, existingSongs: Dashb
   const reusableIds = new Set(reusableSongs.map((song) => song.id));
   const missingSongIds = songIds.filter((id) => !reusableIds.has(id));
   if (!missingSongIds.length) return { items, songs: reusableSongs };
-  const { data: songData, error: songError } = await supabase.from("songs").select("id, title, duration").in("id", missingSongIds);
+  const { data: songData, error: songError } = await supabase.from("songs").select("id, title, key, duration").in("id", missingSongIds);
   return { items, songs: [...reusableSongs, ...(songError ? [] : (songData ?? []) as DashboardSong[])] };
 }
 
 function formatDashboardDate(value: Date) { const formatted = new Intl.DateTimeFormat("es-419", { weekday: "long", day: "numeric", month: "long" }).format(value); return formatted.charAt(0).toLocaleUpperCase("es-419") + formatted.slice(1); }
+function formatGreeting(value: Date) { const hour = value.getHours(); return hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches"; }
+function formatHeroDate(value: string) { const [year, month, day] = value.split("-").map(Number); const date = new Date(year, month - 1, day); return { weekday: new Intl.DateTimeFormat("es-419", { weekday: "short" }).format(date).replaceAll(".", ""), day: String(day).padStart(2, "0"), month: new Intl.DateTimeFormat("es-419", { month: "short" }).format(date).replaceAll(".", "") }; }
 function formatServiceDate(value: string) { const [year, month, day] = value.split("-").map(Number); const formatted = new Intl.DateTimeFormat("es-419", { weekday: "long", month: "long", day: "numeric" }).format(new Date(year, month - 1, day)); return formatted.charAt(0).toLocaleUpperCase("es-419") + formatted.slice(1); }
 function formatServiceTime(value: string) { const match = value.match(/^([01]\d|2[0-3]):([0-5]\d)$/); if (!match) return value; const hour = Number(match[1]); return `${hour % 12 || 12}:${match[2]} ${hour >= 12 ? "PM" : "AM"}`; }
 function localizeDefaultServiceName(value: string) { return value === "Saturday Service" ? "Servicio del Sábado" : value; }

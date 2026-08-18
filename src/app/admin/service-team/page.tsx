@@ -16,7 +16,7 @@ export default async function ServiceTeamPage({ searchParams }: { searchParams: 
   const requestedServiceId = Number(requestedService);
   if (requestedService && (!Number.isSafeInteger(requestedServiceId) || requestedServiceId < 1 || requestedServiceId > 32767)) notFound();
   const supabase = await createSupabaseServerClient();
-  const query = supabase.from("active_setlist").select("id, status");
+  const query = supabase.from("active_setlist").select("id, service_name, status");
   const { data: service } = requestedService
     ? await query.eq("id", requestedServiceId).maybeSingle()
     : await query.eq("status", "active").maybeSingle();
@@ -28,5 +28,6 @@ export default async function ServiceTeamPage({ searchParams }: { searchParams: 
     getTeamMembers(true),
     getResourceManagerData(service.id),
   ]);
-  return <AppPage title="Equipo del servicio" maxWidth="max-w-6xl" desktopAdminSidebar breadcrumb={<><span>Administración</span><span className="mx-2">›</span><span className="text-zinc-300">Equipo del servicio</span></>}><ManageCurrentServiceTeam initialAssignments={assignments} teamMembers={members} resourceCategories={resourceData.categories} availableResources={resourceData.resources} initialUsages={resourceData.usages} serviceId={service.id} /></AppPage>;
+  const serviceName = service.service_name === "Saturday Service" ? "Servicio del Sábado" : service.service_name;
+  return <AppPage title="Equipo del servicio" maxWidth="max-w-6xl" desktopAdminSidebar hideMobileHeader breadcrumb={<><span>Administración</span><span className="mx-2">›</span><span className="text-zinc-300">Equipo del servicio</span></>}><ManageCurrentServiceTeam initialAssignments={assignments} teamMembers={members} resourceCategories={resourceData.categories} availableResources={resourceData.resources} initialUsages={resourceData.usages} serviceId={service.id} serviceName={serviceName} /></AppPage>;
 }

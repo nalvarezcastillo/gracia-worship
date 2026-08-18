@@ -24,5 +24,5 @@ export default async function ResourcesPage({ searchParams }: { searchParams: Pr
   if (service.status === "completed" || service.status === "archived") redirect(`/service/${service.id}`);
   const { categories, resources, usages, loadError } = await getResourceManagerData(service.id);
 
-  return <AppPage title="Recursos" maxWidth="max-w-6xl" desktopAdminSidebar><ManageResources initialCategories={categories} initialResources={resources} initialUsages={usages} loadError={loadError} /></AppPage>;
+  return <AppPage title="Recursos" maxWidth="max-w-6xl" desktopAdminSidebar hideMobileHeader><ManageResources initialCategories={categories} initialResources={resources} initialUsages={usages} loadError={loadError} /></AppPage>;
 }

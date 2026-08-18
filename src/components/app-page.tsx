@@ -13,17 +13,17 @@ type AppPageProps = {
   maxWidth?: string;
   title: string;
   desktopAdminSidebar?: boolean;
+  hideMobileHeader?: boolean;
 };
 
-export function AppPage({ aside, breadcrumb, children, description, eyebrow, maxWidth = "max-w-3xl", title, desktopAdminSidebar = false }: AppPageProps) {
+export function AppPage({ aside, breadcrumb, children, description, eyebrow, maxWidth = "max-w-3xl", title, desktopAdminSidebar = false, hideMobileHeader = false }: AppPageProps) {
   return (
-    <main className={`min-h-screen py-8 sm:py-12 ${desktopAdminSidebar ? "lg:py-0" : ""}`}>
+    <main className={`min-h-screen ${hideMobileHeader ? "pt-4 pb-0 lg:py-0" : `py-8 sm:py-12 ${desktopAdminSidebar ? "lg:py-0" : ""}`}`}>
       <MainContainer className={desktopAdminSidebar ? "lg:max-w-none lg:px-0" : maxWidth}>
         <div className={desktopAdminSidebar ? "lg:grid lg:min-h-[calc(100vh-4rem)] lg:grid-cols-[220px_minmax(0,1fr)]" : ""}>
         {desktopAdminSidebar ? <DesktopAdminSidebar version={packageJson.version} /> : null}
         <div className={desktopAdminSidebar ? `min-w-0 lg:px-7 lg:py-7 xl:px-9 ${maxWidth} lg:mx-auto lg:w-full` : ""}>
-        {breadcrumb ? <div className="mb-2 text-sm text-zinc-500">{breadcrumb}</div> : null}
-        <PageHeader aside={aside} description={description} eyebrow={eyebrow} title={title} />
+        <div className={hideMobileHeader ? "hidden lg:block" : ""}>{breadcrumb ? <div className="mb-2 text-sm text-zinc-500">{breadcrumb}</div> : null}<PageHeader aside={aside} description={description} eyebrow={eyebrow} title={title} /></div>
         {children}
         </div>
         </div>

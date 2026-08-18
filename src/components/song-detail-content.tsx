@@ -25,6 +25,8 @@ type SongDetailContentProps = {
   initialKeyName?: string;
   headerNavigation?: React.ReactNode;
   rehearsalMode?: boolean;
+  rehearsalProgressLabel?: string;
+  rehearsalSubtitle?: string;
   timeSignature?: string | null;
   title: string;
 };
@@ -44,6 +46,8 @@ export function SongDetailContent({
   initialKeyName,
   headerNavigation,
   rehearsalMode = false,
+  rehearsalProgressLabel,
+  rehearsalSubtitle,
   timeSignature,
   title,
 }: SongDetailContentProps) {
@@ -144,7 +148,8 @@ export function SongDetailContent({
 
   return (
     <>
-      <SongMetadataLine songKey={displayedKey} bpm={bpm} timeSignature={timeSignature} className="mt-2" />
+      {rehearsalMode ? <div className="lg:hidden"><h2 className="truncate text-[1.625rem] font-bold leading-8 tracking-[-0.03em] text-white">{title}</h2><div className="mt-1 flex items-center justify-between gap-3 text-[0.8125rem]"><p className="min-w-0 truncate text-zinc-500">{rehearsalSubtitle}</p><p className="shrink-0 font-semibold"><span className="text-emerald-300">{displayedKey}</span>{bpm ? <span className="text-zinc-500"> · {bpm} BPM</span> : null}</p></div></div> : null}
+      <SongMetadataLine songKey={displayedKey} bpm={bpm} timeSignature={timeSignature} className={`${rehearsalMode ? "hidden lg:block" : ""} mt-2`} />
       {headerNavigation}
       <SongKeySelector keys={keys} selectedKey={selectedKey} onSelect={setSelectedKey} polished={enableMultitrack} />
       {editHref || canAddToService ? (
@@ -164,8 +169,9 @@ export function SongDetailContent({
             <SongContentTabs audioUrl={audioUrl} key={mediaSelectionId} lyrics={lyrics} rehearsalMode={rehearsalMode} sheetUrl={sheetUrl} stems={selectedStems} stemsLoading={loadingStems} title={title} />
         ) : (
           <>
-            <div className="sticky top-0 z-30 -mx-2 mt-5 border-b border-white/[0.04] bg-zinc-950/90 px-2 py-3 shadow-[0_10px_24px_rgba(0,0,0,0.18)] backdrop-blur-xl sm:mt-7">
-              <section className="rounded-2xl border border-white/[0.07] bg-zinc-900/90 p-4 shadow-xl shadow-black/15 sm:p-5"><AudioPlayer /></section>
+            <div className={`sticky top-0 z-30 -mx-2 border-b border-white/[0.04] bg-zinc-950/90 px-2 shadow-[0_10px_24px_rgba(0,0,0,0.18)] backdrop-blur-xl ${rehearsalMode ? "mt-3 py-2 lg:mt-5 lg:py-3" : "mt-5 py-3 sm:mt-7"}`}>
+              {rehearsalMode ? <div className="mb-2 flex h-10 items-center justify-between gap-3 border-b border-white/[0.06] text-xs lg:hidden"><span className="min-w-0 truncate font-semibold text-zinc-200">{title}</span><span className="shrink-0"><span className="text-emerald-300">{displayedKey}</span>{bpm ? <span className="text-zinc-500"> · {bpm} BPM</span> : null}{rehearsalProgressLabel ? <span className="ml-2 text-zinc-600">{rehearsalProgressLabel}</span> : null}</span></div> : null}
+              <section className={`border border-white/[0.07] bg-zinc-900/90 shadow-xl shadow-black/15 ${rehearsalMode ? "rounded-xl px-3 py-2.5 lg:rounded-2xl lg:p-4" : "rounded-2xl p-4 sm:p-5"}`}><AudioPlayer /></section>
             </div>
             <SongContentTabs audioUrl={audioUrl} lyrics={lyrics} organized={false} rehearsalMode={rehearsalMode} sheetUrl={sheetUrl} stems={[]} title={title} />
           </>

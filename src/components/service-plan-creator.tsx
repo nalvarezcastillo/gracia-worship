@@ -114,25 +114,25 @@ export function ServicePlanCreator({ services, wide = false }: { services: Servi
 
   return (
     <>
-      <button ref={triggerRef} type="button" onClick={openDialog} className={`inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-400 px-4 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 ${wide ? "w-full" : "w-full sm:w-auto"}`}>+ Crear servicio</button>
+      <button ref={triggerRef} type="button" onClick={openDialog} className={`inline-flex min-h-10 items-center justify-center rounded-xl bg-emerald-400 px-3 text-xs font-semibold text-zinc-950 transition-colors hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 sm:min-h-11 sm:px-4 sm:text-sm ${wide ? "w-auto sm:w-full" : "w-auto"}`}>+ Crear<span className="hidden sm:inline"> servicio</span></button>
       {isOpen ? (
         <div role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !isSaving) closeDialog(); }} className="fixed inset-0 z-[80] flex items-end justify-center overflow-y-auto bg-black/75 px-0 pt-12 backdrop-blur-sm sm:items-center sm:px-4 sm:py-8">
-          <section role="dialog" aria-modal="true" aria-labelledby={titleId} className="relative max-h-[calc(100dvh-3rem)] w-full overflow-y-auto rounded-t-3xl border border-white/10 bg-zinc-900 p-5 shadow-2xl shadow-black/60 sm:max-w-lg sm:rounded-3xl sm:p-7">
+          <section role="dialog" aria-modal="true" aria-labelledby={titleId} className="relative max-h-[calc(100dvh-3rem)] w-full overflow-y-auto rounded-t-3xl border border-white/10 bg-zinc-900 p-4 shadow-2xl shadow-black/60 sm:max-w-lg sm:rounded-3xl sm:p-7">
             <button type="button" onClick={closeDialog} disabled={isSaving} aria-label="Cerrar" className="absolute right-4 top-4 grid size-10 place-items-center rounded-xl text-xl text-zinc-500 hover:bg-white/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400">×</button>
             <p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Planificación</p>
-            <h2 id={titleId} className="mt-2 pr-12 text-2xl font-bold tracking-tight text-white">Crear servicio</h2>
+            <h2 id={titleId} className="mt-1.5 pr-12 text-xl font-bold tracking-tight text-white sm:mt-2 sm:text-2xl">Crear servicio</h2>
 
             {mode === "choose" ? (
-              <div className="mt-6">
+              <div className="mt-4 sm:mt-6">
                 <p className="text-sm font-medium text-zinc-300">¿Cómo deseas comenzar?</p>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="mt-2.5 grid gap-2.5 sm:mt-3 sm:grid-cols-2 sm:gap-3">
                   <button ref={initialChoiceRef} type="button" onClick={chooseBlank} className={choiceStyles}><span className="block font-semibold text-white">Crear vacío</span><span className="mt-1 block text-xs leading-5 text-zinc-500">Comienza con un orden y equipo vacíos.</span></button>
                   <button type="button" onClick={chooseDuplicate} disabled={!services.length} className={`${choiceStyles} disabled:cursor-not-allowed disabled:opacity-40`}><span className="block font-semibold text-white">Duplicar servicio existente</span><span className="mt-1 block text-xs leading-5 text-zinc-500">Usa otro servicio como punto de partida.</span></button>
                 </div>
                 {!services.length ? <p className="mt-3 text-xs text-zinc-500">Aún no hay servicios disponibles para duplicar.</p> : null}
               </div>
             ) : (
-              <form onSubmit={submit} className="mt-6 space-y-5">
+              <form onSubmit={submit} className="mt-4 space-y-4 sm:mt-6 sm:space-y-5">
                 {mode === "duplicate" ? (
                   <Field label="Servicio base">
                     <select value={sourceId} onChange={(event) => { const source = services.find((service) => service.id === Number(event.target.value)); if (source) applySourceDefaults(source); }} className={fieldStyles}>
@@ -166,10 +166,10 @@ export function ServicePlanCreator({ services, wide = false }: { services: Servi
 function Field({ children, label }: { children: React.ReactNode; label: string }) { return <label className="block text-sm font-medium text-zinc-300"><span className="mb-2 block">{label}</span>{children}</label>; }
 function Checkbox({ checked, help, label, onChange }: { checked: boolean; help: string; label: string; onChange: (checked: boolean) => void }) { return <label className="flex min-h-12 cursor-pointer items-start gap-3 rounded-xl px-1 py-2 focus-within:outline-2 focus-within:outline-emerald-400"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-0.5 size-5 accent-emerald-400" /><span><span className="block text-sm font-semibold text-zinc-200">{label}</span><span className="mt-1 block text-xs leading-5 text-zinc-500">{help}</span></span></label>; }
 
-const choiceStyles = "min-h-28 rounded-2xl border border-white/10 bg-white/[0.025] p-4 text-left transition-colors hover:border-emerald-400/25 hover:bg-emerald-400/[0.04] focus-visible:outline-2 focus-visible:outline-emerald-400";
-const fieldStyles = "min-h-12 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 text-base text-white outline-none transition-colors focus:border-emerald-400/50 focus:ring-2 focus:ring-emerald-400/15 [color-scheme:dark]";
-const secondaryStyles = "min-h-12 rounded-xl border border-white/10 px-5 text-sm font-semibold text-zinc-200 transition-colors hover:bg-white/[0.05] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-emerald-400";
-const primaryStyles = "min-h-12 rounded-xl bg-emerald-400 px-5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400";
+const choiceStyles = "min-h-20 rounded-xl border border-white/10 bg-white/[0.025] p-3 text-left transition-colors hover:border-emerald-400/25 hover:bg-emerald-400/[0.04] focus-visible:outline-2 focus-visible:outline-emerald-400 sm:min-h-28 sm:rounded-2xl sm:p-4";
+const fieldStyles = "min-h-11 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 text-base text-white outline-none transition-colors focus:border-emerald-400/50 focus:ring-2 focus:ring-emerald-400/15 sm:min-h-12 [color-scheme:dark]";
+const secondaryStyles = "min-h-11 rounded-xl border border-white/10 px-5 text-sm font-semibold text-zinc-200 transition-colors hover:bg-white/[0.05] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-emerald-400 sm:min-h-12";
+const primaryStyles = "min-h-11 rounded-xl bg-emerald-400 px-5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 sm:min-h-12";
 
 function isNormalizedTime(value: string) { return /^([01]\d|2[0-3]):[0-5]\d$/.test(value); }
 function addDays(value: string, days: number) { const [year, month, day] = value.split("-").map(Number); const date = new Date(year, month - 1, day); date.setDate(date.getDate() + days); return toDateInput(date); }

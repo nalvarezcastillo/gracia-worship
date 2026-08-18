@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { LockKeyhole } from "lucide-react";
+import Link from "next/link";
+import { LockKeyhole, Users } from "lucide-react";
 import { AppActionBar } from "@/components/app-action-bar";
 import { AppList, AppListRow } from "@/components/app-list";
 import { PrimaryButton } from "@/components/ui/action-button";
@@ -21,10 +22,11 @@ type Props = {
   initialUsages: ResourceUsage[];
   resourceCategories: ResourceCategory[];
   serviceId: number;
+  serviceName: string;
   teamMembers: TeamMember[];
 };
 
-export function ManageCurrentServiceTeam({ availableResources, initialAssignments, initialUsages, resourceCategories, serviceId, teamMembers }: Props) {
+export function ManageCurrentServiceTeam({ availableResources, initialAssignments, initialUsages, resourceCategories, serviceId, serviceName, teamMembers }: Props) {
   const [assignments, setAssignments] = useState(initialAssignments);
   const [usages, setUsages] = useState(initialUsages);
   const [editing, setEditing] = useState<CurrentServiceTeamMember | null>(null);
@@ -168,8 +170,14 @@ export function ManageCurrentServiceTeam({ availableResources, initialAssignment
   }
 
   return (
-    <div className="mt-6">
-      <PrimaryButton type="button" onClick={() => showForm()} className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100 md:min-h-12 md:rounded-full md:px-6 md:text-base">+ Agregar persona</PrimaryButton>
+    <div className="pb-[calc(6rem+env(safe-area-inset-bottom))] lg:mt-6 lg:pb-0">
+      <div className="lg:hidden">
+        <Link href={`/admin?service=${serviceId}`} className="inline-flex min-h-9 items-center text-sm font-medium text-zinc-500 transition-colors hover:text-white">‹ Administración</Link>
+        <div className="flex items-center justify-between gap-3"><h1 className="min-w-0 truncate text-[1.75rem] font-bold tracking-[-0.035em] text-white">Equipo del servicio</h1><button type="button" onClick={() => showForm()} className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400 px-3 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400">+ Agregar</button></div>
+        <p className="mt-1 flex min-w-0 items-center gap-2 text-sm text-zinc-500"><Users aria-hidden="true" className="size-4 shrink-0 text-emerald-400/70" /><span className="truncate">{assignments.length} {assignments.length === 1 ? "persona" : "personas"} · {serviceName}</span></p>
+        <nav aria-label="Secciones del servicio" className="-mx-4 mt-2.5 flex h-11 gap-0.5 overflow-x-auto border-y border-white/[0.07] px-4 text-[0.8125rem] font-semibold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"><Link href={`/service/${serviceId}`} className="flex min-h-11 shrink-0 items-center border-b-2 border-transparent px-2.5 text-zinc-400">Orden</Link><span aria-current="page" className="flex min-h-11 shrink-0 items-center border-b-2 border-emerald-400 px-2.5 text-emerald-300">Equipo</span><Link href={`/admin/resources?service=${serviceId}`} className="flex min-h-11 shrink-0 items-center border-b-2 border-transparent px-2.5 text-zinc-400">Recursos</Link><Link href={`/service/${serviceId}/rehearsal`} className="flex min-h-11 shrink-0 items-center border-b-2 border-transparent px-2.5 text-zinc-400">Ensayo</Link><Link href={`/service/${serviceId}/report`} className="flex min-h-11 shrink-0 items-center border-b-2 border-transparent px-2.5 text-zinc-400">Reporte</Link></nav>
+      </div>
+      <div className="hidden lg:block"><PrimaryButton type="button" onClick={() => showForm()} className="min-h-12 rounded-full px-6 text-base">+ Agregar persona</PrimaryButton></div>
       {open ? (
         <form onSubmit={save} className="mt-3 rounded-2xl border border-white/[0.07] bg-zinc-900/30 p-4 pb-32 md:mt-4 md:p-5">
           <div className="grid gap-3 md:gap-4 lg:grid-cols-2">
@@ -235,8 +243,20 @@ export function ManageCurrentServiceTeam({ availableResources, initialAssignment
           <div className="fixed inset-x-0 z-40 border-t border-white/[0.08] bg-zinc-950/95 px-4 py-2.5 shadow-[0_-10px_28px_rgba(0,0,0,0.35)] backdrop-blur-xl md:hidden" style={{ bottom: "calc(4.5rem + env(safe-area-inset-bottom))" }}><div className="mx-auto grid max-w-lg grid-cols-2 gap-3"><button type="button" onClick={() => setOpen(false)} className="min-h-12 rounded-2xl border border-white/10 bg-white/[0.04] px-4 font-semibold text-zinc-300">Cancelar</button><PrimaryButton type="submit" disabled={busy || !personName.trim() || !roleName.trim()} className="w-full">{busy ? "Guardando..." : "Guardar"}</PrimaryButton></div></div>
         </form>
       ) : null}
+      <div className="mt-3 divide-y divide-white/[0.07] border-y border-white/[0.07] lg:hidden">
+        {assignments.map((item, index) => {
+          const resources = uniqueValues([...item.resources.map((resource) => resource.name), item.microphone_name]);
+          return (
+            <div key={item.id} className="grid items-start gap-x-3 py-4" style={{ gridTemplateColumns: "42px minmax(0, 1fr) 44px" }}>
+              <div aria-hidden="true" className="self-start justify-self-start text-xs font-semibold tracking-[0.05em] text-emerald-300" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 38, height: 38, minWidth: 38, maxWidth: 38, minHeight: 38, maxHeight: 38, flexShrink: 0, borderRadius: 9999, backgroundColor: "rgba(16, 185, 129, 0.12)", border: "1px solid rgba(52, 211, 153, 0.24)" }}>{getInitials(item.person_name)}</div>
+              <div className="min-w-0 pt-0.5"><p className="truncate text-[0.9375rem] font-semibold leading-5 text-zinc-100">{item.person_name}</p><p className="mt-0.5 truncate text-[0.8125rem] leading-[1.125rem] text-zinc-400">{item.role_name}</p>{resources.length ? <p className="mt-0.5 line-clamp-2 text-xs leading-[1.125rem] text-zinc-400/75">{resources.join(" · ")}</p> : null}</div>
+              <details className="relative -mt-0.5 justify-self-end"><summary aria-label={`Acciones para ${item.person_name}`} className="grid size-11 cursor-pointer list-none place-items-center rounded-xl text-lg leading-none text-zinc-500 transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400 [&::-webkit-details-marker]:hidden">•••</summary><div className="absolute right-0 z-30 mt-1 min-w-44 overflow-hidden rounded-xl border border-white/10 bg-zinc-900 p-1 shadow-xl shadow-black/40"><button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); showForm(item); }} className={mobileMenuActionStyles}>Editar</button><button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); void move(index, -1); }} disabled={busy || index === 0} className={mobileMenuActionStyles}>Mover arriba</button><button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); void move(index, 1); }} disabled={busy || index === assignments.length - 1} className={mobileMenuActionStyles}>Mover abajo</button><button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); void remove(item.id); }} className={`${mobileMenuActionStyles} text-rose-300`}>Eliminar</button></div></details>
+            </div>
+          );
+        })}
+      </div>
       <div className="mt-6 hidden grid-cols-[minmax(160px,1fr)_minmax(120px,0.7fr)_minmax(180px,1.2fr)_auto] gap-4 border-y border-white/[0.07] px-3 py-2 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-zinc-600 lg:grid"><span>Persona</span><span>Función</span><span>Recursos</span><span className="text-right">Acciones</span></div>
-      <AppList className="mt-6 lg:mt-0 lg:border-t-0">{assignments.map((item, index) => <AppListRow key={item.id} className="lg:grid lg:min-h-14 lg:grid-cols-[minmax(160px,1fr)_minmax(120px,0.7fr)_minmax(180px,1.2fr)_auto] lg:gap-4 lg:px-3 lg:py-2"><div className="min-w-0 flex-1"><p className="truncate font-semibold text-white">{item.person_name}</p><p className="mt-1 text-sm text-zinc-400 lg:hidden">{[item.role_name, item.microphone_name].filter(Boolean).join(" • ")}</p>{item.resources.length ? <p className="mt-1 text-sm text-zinc-500 lg:hidden">{item.resources.map((resource) => resource.name).join(" • ")}</p> : null}</div><p className="hidden truncate text-sm text-zinc-400 lg:block">{item.role_name || "—"}</p><p className="hidden truncate text-sm text-zinc-500 lg:block" title={[...item.resources.map((resource) => resource.name), item.microphone_name].filter(Boolean).join(" · ")}>{[...item.resources.map((resource) => resource.name), item.microphone_name].filter(Boolean).join(" · ") || "—"}</p><div className="flex flex-wrap gap-1 lg:justify-end"><button type="button" onClick={() => void move(index, -1)} disabled={busy || index === 0} className={appRowActionStyles}>Subir</button><button type="button" onClick={() => void move(index, 1)} disabled={busy || index === assignments.length - 1} className={appRowActionStyles}>Bajar</button><button type="button" onClick={() => showForm(item)} className={appRowActionStyles}>Editar</button><button type="button" onClick={() => void remove(item.id)} className={`${appRowActionStyles} text-rose-300`}>Eliminar</button></div></AppListRow>)}</AppList>
+      <AppList className="mt-0 hidden border-t-0 lg:block">{assignments.map((item, index) => <AppListRow key={item.id} className="lg:grid lg:min-h-14 lg:grid-cols-[minmax(160px,1fr)_minmax(120px,0.7fr)_minmax(180px,1.2fr)_auto] lg:gap-4 lg:px-3 lg:py-2"><div className="min-w-0 flex-1"><p className="truncate font-semibold text-white">{item.person_name}</p></div><p className="hidden truncate text-sm text-zinc-400 lg:block">{item.role_name || "—"}</p><p className="hidden truncate text-sm text-zinc-500 lg:block" title={[...item.resources.map((resource) => resource.name), item.microphone_name].filter(Boolean).join(" · ")}>{[...item.resources.map((resource) => resource.name), item.microphone_name].filter(Boolean).join(" · ") || "—"}</p><div className="flex flex-wrap gap-1 lg:justify-end"><button type="button" onClick={() => void move(index, -1)} disabled={busy || index === 0} className={appRowActionStyles}>Subir</button><button type="button" onClick={() => void move(index, 1)} disabled={busy || index === assignments.length - 1} className={appRowActionStyles}>Bajar</button><button type="button" onClick={() => showForm(item)} className={appRowActionStyles}>Editar</button><button type="button" onClick={() => void remove(item.id)} className={`${appRowActionStyles} text-rose-300`}>Eliminar</button></div></AppListRow>)}</AppList>
       <p role="status" aria-live="polite" className="mt-4 min-h-5 text-sm text-rose-300">{message}</p>
     </div>
   );
@@ -279,3 +299,14 @@ function DesktopSelectionSidebar({ assignedCount, availableCount, categories, in
 function isMobileViewport() {
   return typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches;
 }
+
+function getInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return parts.slice(0, 2).map((part) => part.charAt(0)).join("").toLocaleUpperCase("es") || "—";
+}
+
+function uniqueValues(values: Array<string | null>) {
+  return values.flatMap((value) => value?.trim() ? [value.trim()] : []).filter((value, index, all) => all.indexOf(value) === index);
+}
+
+const mobileMenuActionStyles = "min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-zinc-200 transition-colors hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-2 focus-visible:outline-emerald-400";

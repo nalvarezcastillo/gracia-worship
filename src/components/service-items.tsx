@@ -7,7 +7,6 @@ import { DeletePlannedServiceButton } from "@/components/delete-planned-service-
 import { ServiceLifecycleActions } from "@/components/service-lifecycle-actions";
 import { AssignmentFields } from "@/components/assignment-fields";
 import { PrimaryButton, SecondaryButton } from "@/components/ui/action-button";
-import { SongMetadataLine } from "@/components/ui/song-tags";
 import { formatDuration, formatDurationInput, getSongDurationSeconds, hasSongDurationOverride, parsePlannedDurationInput } from "@/lib/duration";
 import type { ServiceItem, ServiceSong, WorshipSongEntry } from "@/lib/service";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -21,7 +20,7 @@ import { buildServiceSchedule } from "@/lib/service-schedule";
 
 type AddStep = "closed" | "type" | "text" | "song";
 
-export function ServiceItems({ initialItems, songs, isAdmin, authenticated, lifecycleStatus, hasCurrentActive, canDeleteService = false, loadError, serviceId, serviceName, serviceSchedule, serviceTime = null, showPreparedToast = false, teamMembers = [], serviceTeamAssignments = [] }: { initialItems: ServiceItem[]; songs: ServiceSong[]; isAdmin: boolean; authenticated: boolean; lifecycleStatus: ServiceStatus; hasCurrentActive: boolean; canDeleteService?: boolean; loadError?: string; serviceId: number; serviceName: string; serviceSchedule: string; serviceTime?: string | null; showPreparedToast?: boolean; teamMembers?: TeamMember[]; serviceTeamAssignments?: CurrentServiceTeamMember[] }) {
+export function ServiceItems({ initialItems, songs, isAdmin, authenticated, lifecycleStatus, hasCurrentActive, canDeleteService = false, loadError, mobileServiceSchedule, serviceId, serviceName, serviceSchedule, serviceTime = null, showPreparedToast = false, teamMembers = [], serviceTeamAssignments = [] }: { initialItems: ServiceItem[]; songs: ServiceSong[]; isAdmin: boolean; authenticated: boolean; lifecycleStatus: ServiceStatus; hasCurrentActive: boolean; canDeleteService?: boolean; loadError?: string; mobileServiceSchedule: string; serviceId: number; serviceName: string; serviceSchedule: string; serviceTime?: string | null; showPreparedToast?: boolean; teamMembers?: TeamMember[]; serviceTeamAssignments?: CurrentServiceTeamMember[] }) {
   const [items, setItems] = useState(initialItems);
   const savedItemsRef = useRef(initialItems);
   const [addStep, setAddStep] = useState<AddStep>("closed");
@@ -433,7 +432,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, authenticated, life
   }
 
   return (
-    <div className="space-y-6 lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-0 lg:space-y-0">
+    <div className="space-y-4 lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-0 lg:space-y-0">
       <aside className="hidden border-r border-white/[0.07] bg-zinc-950/35 p-6 lg:block">
         <p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Servicio</p>
         <h2 className="mt-4 text-lg font-semibold text-white">{serviceName}</h2>
@@ -443,14 +442,30 @@ export function ServiceItems({ initialItems, songs, isAdmin, authenticated, life
         <nav aria-label="Secciones del servicio" className="mt-7 space-y-1 text-sm font-medium"><a href="#orden" className="block rounded-lg bg-emerald-400/[0.09] px-3 py-2.5 text-emerald-300">Orden</a><Link href={`/service/${serviceId}/rehearsal`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Ensayo</Link><Link href={`/admin/service-team?service=${serviceId}`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Equipo</Link><Link href={`/admin/resources?service=${serviceId}`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Recursos</Link><Link href={`/service/${serviceId}/report`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Reporte</Link></nav>
         {serviceTeamAssignments.length ? <div className="mt-8 border-t border-white/[0.07] pt-6"><p className="text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-zinc-500">Equipo</p><div className="mt-3 max-h-80 space-y-2.5 overflow-y-auto pr-1">{serviceTeamAssignments.map((assignment) => <p key={assignment.id} className="text-sm text-zinc-300">{assignment.person_name}<span className="mt-0.5 block text-xs text-zinc-500">{[assignment.role_name, ...assignment.resources.map((resource) => resource.name), assignment.microphone_name].filter(Boolean).join(" · ")}</span></p>)}</div><Link href={`/admin/service-team?service=${serviceId}`} className="mt-3 block text-xs font-semibold text-zinc-500 transition-colors hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400">Ver equipo completo →</Link></div> : null}
       </aside>
-      <section id="orden" className="min-w-0 space-y-6 overflow-hidden lg:px-6 lg:py-7 xl:px-8">
-      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-b border-white/[0.08] pb-6">
-        <h1 className="col-start-1 row-start-1 min-w-0 text-[1.75rem] font-bold tracking-[-0.035em] text-white sm:text-[2rem]"><span className="lg:hidden">{serviceName}</span><span className="hidden lg:inline">Orden del servicio</span></h1>
-        {isAdmin ? <PrimaryButton type="button" onClick={() => setAddStep("type")} disabled={isSaving} className="col-start-2 row-start-1 min-h-11 rounded-xl px-4 text-sm shadow-none">+ Agregar elemento</PrimaryButton> : null}
-        <p className="col-start-1 row-start-2 min-w-0 text-sm text-zinc-400 sm:text-base">{serviceSchedule ? `${serviceSchedule} · ` : ""}<span className="text-zinc-500">{serviceStatusLabel(lifecycleStatus)}</span></p>
-        <p className="col-start-2 row-start-2 text-right text-sm text-zinc-500">{operationalEntries.length} {operationalEntries.length === 1 ? "elemento" : "elementos"}<span className="hidden lg:inline"> · {totalDuration ? formatLongDuration(totalDuration) : "sin duración"}</span></p>
-        {authenticated ? <div className="col-span-2 row-start-3 mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">{isAdmin ? <SecondaryButton href={`/admin?service=${serviceId}`} className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">Editar fecha</SecondaryButton> : null}<ServiceLifecycleActions hasCurrentActive={hasCurrentActive} serviceId={serviceId} status={lifecycleStatus} />{canDeleteService ? <DeletePlannedServiceButton serviceId={serviceId} serviceName={serviceName} /> : null}<SecondaryButton href="/archive" className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">Archivo</SecondaryButton></div> : null}
+      <section id="orden" className="min-w-0 space-y-3 overflow-hidden lg:space-y-6 lg:px-6 lg:py-7 xl:px-8">
+      <header className="border-b border-white/[0.08] pb-2.5 lg:pb-6">
+        <div className="lg:hidden">
+          <div className="flex min-w-0 items-center gap-2">
+            <h1 className="min-w-0 flex-1 truncate text-2xl font-bold leading-8 tracking-[-0.03em] text-white">{serviceName}</h1>
+            {authenticated ? <details className="relative shrink-0"><summary aria-label="Más acciones del servicio" className="grid size-10 cursor-pointer list-none place-items-center rounded-xl text-lg leading-none text-zinc-500 hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400 [&::-webkit-details-marker]:hidden">•••</summary><div className="absolute right-0 z-30 mt-1 min-w-52 overflow-hidden rounded-xl border border-white/10 bg-zinc-900 p-1 shadow-xl shadow-black/40">{isAdmin ? <Link href={`/admin?service=${serviceId}`} className="flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-zinc-200 hover:bg-white/[0.06]">Editar fecha</Link> : null}<ServiceLifecycleActions menuItem hasCurrentActive={hasCurrentActive} serviceId={serviceId} status={lifecycleStatus} />{canDeleteService ? <DeletePlannedServiceButton menuItem serviceId={serviceId} serviceName={serviceName} /> : null}<Link href="/archive" className="flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-zinc-200 hover:bg-white/[0.06]">Ver archivo</Link></div></details> : null}
+          </div>
+          <p className="mt-0.5 truncate text-[0.8125rem] leading-5 text-zinc-400">{mobileServiceSchedule || "Horario por confirmar"} <span className="text-zinc-600">·</span> {operationalEntries.length} {operationalEntries.length === 1 ? "elemento" : "elementos"}</p>
+          <div className="mt-1.5 flex min-h-10 items-center gap-1.5">
+            <span className="mr-auto w-fit rounded-full border border-emerald-400/20 bg-emerald-400/[0.07] px-2 py-0.5 text-[0.5625rem] font-bold uppercase tracking-[0.12em] text-emerald-300">{serviceStatusLabel(lifecycleStatus)}</span>
+            {lifecycleStatus === "active" ? <Link href="/live" className="inline-flex min-h-10 items-center justify-center rounded-xl border border-emerald-400/20 bg-white/[0.035] px-3 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-400/[0.08] focus-visible:outline-2 focus-visible:outline-emerald-400"><span aria-hidden="true" className="mr-1.5 text-[0.625rem]">●</span>En Vivo</Link> : null}
+            {isAdmin ? <button type="button" onClick={() => setAddStep("type")} disabled={isSaving} className="inline-flex min-h-10 items-center justify-center rounded-xl bg-emerald-400 px-3 text-xs font-semibold text-zinc-950 transition-colors hover:bg-emerald-300 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"><span aria-hidden="true" className="mr-1 text-base leading-none">+</span>Agregar</button> : null}
+          </div>
+        </div>
+        <div className="hidden grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 lg:grid">
+          <h1 className="col-start-1 row-start-1 min-w-0 text-[2rem] font-bold tracking-[-0.035em] text-white">Orden del servicio</h1>
+          {isAdmin ? <PrimaryButton type="button" onClick={() => setAddStep("type")} disabled={isSaving} className="col-start-2 row-start-1 min-h-11 rounded-xl px-4 text-sm shadow-none">+ Agregar elemento</PrimaryButton> : null}
+          <p className="col-start-1 row-start-2 min-w-0 text-base text-zinc-400">{serviceSchedule || "Horario por confirmar"}</p>
+          <p className="col-start-2 row-start-2 text-right text-sm text-zinc-500">{operationalEntries.length} {operationalEntries.length === 1 ? "elemento" : "elementos"} · {totalDuration ? formatLongDuration(totalDuration) : "sin duración"}</p>
+          {authenticated ? <div className="col-span-2 row-start-3 mt-2 flex flex-wrap justify-end gap-2">{isAdmin ? <SecondaryButton href={`/admin?service=${serviceId}`} className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">Editar fecha</SecondaryButton> : null}<ServiceLifecycleActions hasCurrentActive={hasCurrentActive} serviceId={serviceId} status={lifecycleStatus} />{canDeleteService ? <DeletePlannedServiceButton serviceId={serviceId} serviceName={serviceName} /> : null}<SecondaryButton href="/archive" className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">Archivo</SecondaryButton></div> : null}
+        </div>
       </header>
+
+      <nav aria-label="Secciones del servicio" className="-mx-4 flex h-11 gap-0.5 overflow-x-auto border-b border-white/[0.07] px-4 text-[0.8125rem] font-semibold [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden"><a href="#orden" aria-current="page" className="flex min-h-11 shrink-0 items-center border-b-2 border-emerald-400 px-2.5 text-emerald-300">Orden</a>{isAdmin ? <><Link href={`/admin/service-team?service=${serviceId}`} className="flex min-h-11 shrink-0 items-center border-b-2 border-transparent px-2.5 text-zinc-400">Equipo</Link><Link href={`/admin/resources?service=${serviceId}`} className="flex min-h-11 shrink-0 items-center border-b-2 border-transparent px-2.5 text-zinc-400">Recursos</Link></> : null}<Link href={`/service/${serviceId}/rehearsal`} className="flex min-h-11 shrink-0 items-center border-b-2 border-transparent px-2.5 text-zinc-400">Ensayo</Link><Link href={`/service/${serviceId}/report`} className="flex min-h-11 shrink-0 items-center border-b-2 border-transparent px-2.5 text-zinc-400">Reporte</Link></nav>
 
       {showSuccessToast ? <div role="status" aria-live="polite" className="fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-sm rounded-2xl border border-emerald-400/20 bg-zinc-900 px-4 py-3 text-center text-sm font-medium text-emerald-300 shadow-2xl">✅ Próximo servicio preparado correctamente.</div> : null}
 
@@ -468,34 +483,38 @@ export function ServiceItems({ initialItems, songs, isAdmin, authenticated, life
               onDragOver={isAdmin ? (event) => event.preventDefault() : undefined}
               onDrop={isAdmin ? () => reorderItems(item.id) : undefined}
               onClick={() => setSelectedRow({ itemId: item.id })}
-              className={`group px-1 py-3 transition-colors duration-200 sm:px-2 sm:py-4 lg:px-3 lg:py-0 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${selectedRow?.itemId === item.id && !selectedRow.songId ? "bg-emerald-400/[0.07]" : draggedId === item.id ? "bg-emerald-400/[0.055]" : "hover:bg-white/[0.018]"}`}
+              className={`group px-0 py-1.5 transition-colors duration-200 lg:px-3 lg:py-0 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${selectedRow?.itemId === item.id && !selectedRow.songId ? "bg-emerald-400/[0.07]" : draggedId === item.id ? "bg-emerald-400/[0.055]" : "hover:bg-white/[0.018]"}`}
             >
-              <div className={`flex items-start gap-2.5 lg:grid lg:grid-cols-[112px_76px_minmax(0,1fr)_minmax(110px,0.42fr)_auto_auto] lg:items-center lg:gap-x-3 ${item.type === "worship" ? "lg:min-h-9" : "lg:min-h-14"}`}>
-                <span className="hidden whitespace-nowrap text-sm tabular-nums text-zinc-400 lg:block">{item.type !== "worship" ? schedule.times.get(item.id) ?? "—" : ""}</span>
+              <div className={`grid grid-cols-[4rem_minmax(0,1fr)_auto] items-start gap-x-1.5 lg:grid-cols-[112px_76px_minmax(0,1fr)_minmax(110px,0.42fr)_auto_auto] lg:items-center lg:gap-x-3 ${item.type === "worship" ? "min-h-7 lg:min-h-9" : "min-h-[3.75rem] lg:min-h-14"}`}>
+                <MobileScheduleTime value={item.type !== "worship" ? schedule.times.get(item.id) ?? "—" : ""} hidden={item.type === "worship"} />
                 <span className="hidden text-sm tabular-nums text-zinc-500 lg:block">{formatItemDuration(item, songs)}</span>
-                <div className="min-w-0 flex-1">
-                  <h3 className={item.type === "worship" ? "text-xs font-semibold uppercase tracking-[0.16em] text-emerald-400/80" : "text-base font-semibold leading-6 text-zinc-100"}>{item.type === "song" && item.song_id ? <Link href={`/song/${item.song_id}?service=${serviceId}`} onClick={(event) => event.stopPropagation()} className="hover:text-emerald-300">{songs.find((song) => song.id === item.song_id)?.title ?? item.title}</Link> : item.title}</h3>
-                  {item.type === "text" && item.details ? <p className="mt-1 whitespace-pre-wrap text-sm font-normal leading-5 text-zinc-500 lg:mt-0.5 lg:truncate lg:whitespace-nowrap">{item.details}</p> : null}
+                <div className={`min-w-0 ${item.type === "worship" ? "col-span-2 col-start-1 lg:col-span-1 lg:col-start-3" : "col-start-2 lg:col-start-3"}`}>
+                  <h3 className={item.type === "worship" ? "py-1 text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-emerald-400/80 lg:py-0 lg:text-xs lg:tracking-[0.16em]" : "truncate text-[0.9375rem] font-semibold leading-5 text-zinc-100 lg:text-base lg:leading-6"}>{item.type === "song" && item.song_id ? <Link href={`/song/${item.song_id}?service=${serviceId}`} onClick={(event) => event.stopPropagation()} className="hover:text-emerald-300">{songs.find((song) => song.id === item.song_id)?.title ?? item.title}</Link> : item.title}</h3>
+                  {item.type === "text" ? <MobileTextItemMetadata details={item.details ?? ""} duration={item.planned_duration_seconds} /> : null}
+                  {item.type === "text" && item.details ? <p className="mt-0.5 hidden truncate whitespace-nowrap text-sm font-normal leading-5 text-zinc-500 lg:block">{item.details}</p> : null}
                   {item.type === "song" ? <DirectSongItemMetadata item={item} songs={songs} /> : null}
                   {item.type === "song" ? <span className="lg:hidden"><AssignedMicrophonesLine assignmentText={item.details ?? ""} assignments={serviceTeamAssignments} teamMembers={teamMembers} /></span> : null}
                   {item.type === "text" ? <span className="lg:hidden"><AssignedMicrophonesLine assignmentText={item.details ?? ""} assignments={serviceTeamAssignments} teamMembers={teamMembers} /></span> : null}
-                  {item.planned_duration_seconds ? <p className="mt-1 text-xs text-zinc-500 lg:hidden">{formatDuration(item.planned_duration_seconds)}</p> : null}
+                  {item.type !== "text" && item.type !== "song" && item.planned_duration_seconds ? <p className="mt-0.5 text-xs text-zinc-500 lg:hidden">{formatDuration(item.planned_duration_seconds)}</p> : null}
                 </div>
                 <DesktopAssignedMicrophones assignmentText={item.type === "worship" ? "" : item.details ?? ""} assignments={serviceTeamAssignments} teamMembers={teamMembers} showEmpty={item.type !== "worship"} />
+                <div className="col-start-3 row-start-1 flex items-center justify-end gap-0.5 lg:contents">
+                {item.type === "song" ? <MobileSongKey item={item} songs={songs} /> : null}
                 {isAdmin ? (
                   <details className="relative shrink-0">
-                    <summary aria-label={`Acciones para ${item.title}`} className="grid size-11 cursor-pointer list-none place-items-center rounded-xl text-xl leading-none text-zinc-500 transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400 [&::-webkit-details-marker]:hidden">⋮</summary>
+                    <summary aria-label={`Acciones para ${item.title}`} className="grid size-10 cursor-pointer list-none place-items-center rounded-xl text-xl leading-none text-zinc-500 transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400 lg:size-11 [&::-webkit-details-marker]:hidden">⋮</summary>
                     <div className="absolute right-0 z-20 mt-1 min-w-36 overflow-hidden rounded-xl border border-white/10 bg-zinc-900 p-1 shadow-xl shadow-black/40">
                       <button type="button" onClick={(event) => { event.stopPropagation(); event.currentTarget.closest("details")?.removeAttribute("open"); if (item.type === "text") setEditingText({ id: item.id, title: item.title, details: item.details ?? "", plannedDuration: formatDurationInput(item.planned_duration_seconds) }); else if (item.type === "song") openSongItemEditor(item); else setEditingWorship({ id: item.id, title: item.title, plannedDuration: formatDurationInput(item.planned_duration_seconds) }); }} disabled={isSaving} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-zinc-200 transition-colors hover:bg-white/[0.06] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-emerald-400">Editar</button>
                       <button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); setDeletingItem(item); }} disabled={isSaving} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-rose-300 transition-colors hover:bg-rose-400/[0.08] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-rose-400">Eliminar</button>
                     </div>
                   </details>
                 ) : null}
-                {isAdmin ? <GripIcon label={`Drag ${item.title} to reorder`} className="mt-3 size-3.5 shrink-0 text-zinc-600" /> : null}
+                {isAdmin ? <GripIcon label={`Drag ${item.title} to reorder`} className="hidden size-3.5 shrink-0 text-zinc-600 lg:block" /> : null}
+                </div>
               </div>
 
               {item.type === "worship" && (item.song_ids ?? []).length > 0 ? (
-                <ul className="mt-2 divide-y divide-white/[0.06] border-t border-white/[0.06] lg:mt-0">
+                <ul className="mt-1 divide-y divide-white/[0.06] border-t border-white/[0.06] lg:mt-0">
                   {(item.song_ids ?? []).map((entry) => {
                     const song = songs.find((candidate) => candidate.id === entry.songId);
                     if (!song) return null;
@@ -508,26 +527,23 @@ export function ServiceItems({ initialItems, songs, isAdmin, authenticated, life
                         onDragOver={isAdmin ? (event) => { event.stopPropagation(); event.preventDefault(); } : undefined}
                         onDrop={isAdmin ? (event) => { event.stopPropagation(); reorderBlockSongs(item.id, entry.songId); } : undefined}
                         onClick={(event) => { event.stopPropagation(); setSelectedRow({ itemId: item.id, songId: entry.songId }); }}
-                        className={`grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-1 rounded-xl px-2 py-3 transition-colors duration-200 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center md:rounded-none md:px-0 md:py-2 lg:grid-cols-[112px_76px_minmax(0,1fr)_minmax(110px,0.42fr)_auto_auto] lg:gap-x-3 lg:px-3 lg:py-1.5 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${selectedRow?.songId === entry.songId ? "bg-emerald-400/[0.07]" : draggedSong?.songId === entry.songId ? "bg-emerald-400/[0.04] text-emerald-300" : ""}`}
+                        className={`grid min-h-[3.75rem] grid-cols-[4rem_minmax(0,1fr)_auto] items-start gap-x-1.5 px-0 py-1.5 transition-colors duration-200 lg:min-h-14 lg:grid-cols-[112px_76px_minmax(0,1fr)_minmax(110px,0.42fr)_auto_auto] lg:items-center lg:gap-x-3 lg:px-3 lg:py-1.5 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${selectedRow?.songId === entry.songId ? "bg-emerald-400/[0.07]" : draggedSong?.songId === entry.songId ? "bg-emerald-400/[0.04] text-emerald-300" : ""}`}
                       >
-                        <span className="hidden whitespace-nowrap text-sm tabular-nums text-zinc-400 lg:block">{schedule.times.get(`${item.id}:${entry.songId}`) ?? "—"}</span>
+                        <MobileScheduleTime value={schedule.times.get(`${item.id}:${entry.songId}`) ?? "—"} />
                         <span className="hidden text-sm tabular-nums text-zinc-500 lg:block">{formatDuration(getSongDurationSeconds(entry, song.duration) ?? 0)}</span>
-                        <div className="min-w-0 md:col-start-1 md:row-start-1 lg:col-start-3">
-                          <Link href={`/song/${song.id}?service=${serviceId}`} onClick={(event) => event.stopPropagation()} className="line-clamp-2 text-base font-semibold leading-6 text-white transition-colors duration-200 hover:text-emerald-300 md:line-clamp-1 md:text-zinc-200">{song.title}</Link>
-                          <span className="lg:hidden"><SongMetadataLine songKey={song.key} bpm={song.bpm} timeSignature={song.time_signature} className="mt-1 text-[0.8125rem] font-normal" /></span>
-                          {entry.notes ? <p className="mt-1 whitespace-pre-line text-xs leading-5 text-zinc-500 sm:text-[0.8125rem] lg:hidden">{entry.notes}</p> : null}
+                        <div className="col-start-2 min-w-0 lg:col-start-3">
+                          <Link href={`/song/${song.id}?service=${serviceId}`} onClick={(event) => event.stopPropagation()} className="line-clamp-1 text-[0.9375rem] font-semibold leading-5 text-white transition-colors duration-200 hover:text-emerald-300 lg:text-base lg:leading-6 lg:text-zinc-200">{song.title}</Link>
+                          <MobileWorshipSongMetadata song={song} entry={entry} />
                           <span className="lg:hidden"><AssignedMicrophonesLine assignmentText={entry.notes} assignments={serviceTeamAssignments} teamMembers={teamMembers} /></span>
-                          <span className="lg:hidden"><SongDurationLine entry={entry} libraryDuration={song.duration} /></span>
                           <DesktopSongMetadata song={song} entry={entry} />
                         </div>
                         <DesktopAssignedMicrophones assignmentText={entry.notes} assignments={serviceTeamAssignments} teamMembers={teamMembers} showEmpty />
-                        <div className="col-span-2 row-start-2 mt-2 flex min-w-0 items-center justify-end gap-1 border-t border-white/[0.05] pt-2 md:col-span-1 md:col-start-2 md:row-start-1 md:mt-0 md:border-t-0 md:pt-0 lg:col-start-5">
-                          <div className="mr-auto md:mr-0"><ResourceIndicators song={song} /></div>
-                          {isAdmin ? <button type="button" aria-label={`Editar notas y duración de ${song.title}`} onClick={(event) => { event.stopPropagation(); setEditingSong({ blockId: item.id, songId: entry.songId, notes: entry.notes, plannedDuration: formatDurationInput(entry.plannedDurationSeconds) }); }} className="min-h-11 shrink-0 rounded-full px-2 text-xs font-medium text-zinc-600 transition-colors hover:bg-white/[0.04] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400 lg:hidden">Cambiar duración</button> : null}
-                          {isAdmin ? <details className="relative shrink-0 md:hidden lg:block"><summary aria-label={`Más acciones para ${song.title}`} onClick={(event) => event.stopPropagation()} className="grid size-11 cursor-pointer list-none place-items-center rounded-full text-xl leading-none text-zinc-500 transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400 [&::-webkit-details-marker]:hidden">⋯</summary><div className="absolute bottom-full right-0 z-20 mb-1 min-w-44 overflow-hidden rounded-xl border border-white/10 bg-zinc-900 p-1 shadow-xl shadow-black/40"><button type="button" onClick={(event) => { event.stopPropagation(); event.currentTarget.closest("details")?.removeAttribute("open"); setEditingSong({ blockId: item.id, songId: entry.songId, notes: entry.notes, plannedDuration: formatDurationInput(entry.plannedDurationSeconds) }); }} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-zinc-200 transition-colors hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-emerald-400">Editar notas y duración</button><button type="button" onClick={(event) => { event.stopPropagation(); event.currentTarget.closest("details")?.removeAttribute("open"); removeSongFromBlock(item.id, entry.songId); }} disabled={isSaving} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-rose-300 transition-colors hover:bg-rose-400/[0.08] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-rose-400">Eliminar canción</button></div></details> : null}
-                          {isAdmin ? <button type="button" aria-label={`Quitar canción ${song.title}`} onClick={(event) => { event.stopPropagation(); removeSongFromBlock(item.id, entry.songId); }} className="hidden size-11 shrink-0 place-items-center rounded-full text-lg text-zinc-600 transition-colors hover:bg-rose-400/10 hover:text-rose-300 focus-visible:outline-2 focus-visible:outline-rose-400 md:grid lg:hidden">×</button> : null}
+                        <div className="col-start-3 row-start-1 flex min-w-0 items-center justify-end gap-0.5 lg:col-start-5">
+                          <MobileKeyBadge songKey={song.key} />
+                          <div className="hidden lg:block"><ResourceIndicators song={song} /></div>
+                          {isAdmin ? <details className="relative shrink-0"><summary aria-label={`Más acciones para ${song.title}`} onClick={(event) => event.stopPropagation()} className="grid size-10 cursor-pointer list-none place-items-center rounded-full text-xl leading-none text-zinc-500 transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400 lg:size-11 [&::-webkit-details-marker]:hidden">⋯</summary><div className="absolute bottom-full right-0 z-20 mb-1 min-w-44 overflow-hidden rounded-xl border border-white/10 bg-zinc-900 p-1 shadow-xl shadow-black/40"><button type="button" onClick={(event) => { event.stopPropagation(); event.currentTarget.closest("details")?.removeAttribute("open"); setEditingSong({ blockId: item.id, songId: entry.songId, notes: entry.notes, plannedDuration: formatDurationInput(entry.plannedDurationSeconds) }); }} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-zinc-200 transition-colors hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-emerald-400">Editar notas y duración</button><button type="button" onClick={(event) => { event.stopPropagation(); event.currentTarget.closest("details")?.removeAttribute("open"); removeSongFromBlock(item.id, entry.songId); }} disabled={isSaving} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-rose-300 transition-colors hover:bg-rose-400/[0.08] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-rose-400">Eliminar canción</button></div></details> : null}
                         </div>
-                        {isAdmin ? <GripIcon label={`Drag ${song.title} to reorder`} className="col-start-2 row-start-1 mt-1 size-3.5 justify-self-end text-zinc-600 md:col-start-3 md:mt-0 lg:col-start-6" /> : null}
+                        {isAdmin ? <GripIcon label={`Drag ${song.title} to reorder`} className="hidden size-3.5 text-zinc-600 lg:col-start-6 lg:block" /> : null}
                       </li>
                     );
                   })}
@@ -549,7 +565,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, authenticated, life
 
       {isAdmin && hasUnsavedChanges ? <PrimaryButton type="button" onClick={saveOrder} disabled={isSaving} className="min-h-14 w-full">{isSaving ? "Guardando..." : "Guardar"}</PrimaryButton> : null}
       <p role="status" aria-live="polite" className={`min-h-6 text-center text-sm font-medium ${isError ? "text-rose-400" : "text-emerald-400"}`}>{message}</p>
-      <div className="border-t border-white/[0.07] pt-5 lg:mt-[-0.5rem] lg:flex lg:justify-end lg:gap-2 lg:pb-1">
+      <div className="hidden border-t border-white/[0.07] pt-5 lg:mt-[-0.5rem] lg:flex lg:justify-end lg:gap-2 lg:pb-1">
         <SecondaryButton href="/live" className="hidden lg:inline-flex lg:min-h-11 lg:rounded-xl lg:px-4 lg:text-sm lg:shadow-none lg:hover:translate-y-0">→ En Vivo</SecondaryButton>
         <PrimaryButton href={`/service/${serviceId}/rehearsal`} className="w-full lg:min-h-11 lg:w-auto lg:rounded-xl lg:px-4 lg:text-sm lg:shadow-none lg:hover:translate-y-0">▶ Comenzar ensayo</PrimaryButton>
       </div>
@@ -765,12 +781,6 @@ function PlannedDurationField({ onChange, value }: { onChange: (value: string) =
   );
 }
 
-function SongDurationLine({ entry, libraryDuration }: { entry: WorshipSongEntry; libraryDuration: string }) {
-  const duration = getSongDurationSeconds(entry, libraryDuration);
-  if (!duration) return null;
-  return <p className="mt-1 text-xs text-zinc-500">Duración: {formatDuration(duration)} · {hasSongDurationOverride(entry) ? "Personalizada" : "Biblioteca"}</p>;
-}
-
 function AssignedMicrophonesLine({ assignmentText, assignments, teamMembers }: { assignmentText: string; assignments: CurrentServiceTeamMember[]; teamMembers: TeamMember[] }) {
   const microphones = getServiceEntryMicrophones(assignments, assignmentText, teamMembers);
   return microphones.length ? <div className="mt-1"><AssignedMicrophoneItems microphones={microphones} /></div> : null;
@@ -802,7 +812,39 @@ function DirectSongItemMetadata({ item, songs }: { item: ServiceItem; songs: Ser
   const assignment = parseAssignmentText(item.details ?? "");
   const metadata = [song.key, song.bpm ? `${song.bpm} BPM` : null, song.time_signature, assignment.name, assignment.role].filter(Boolean);
   const duration = getSongDurationSeconds({ plannedDurationSeconds: item.planned_duration_seconds }, song.duration);
-  return <><p className="mt-0.5 truncate text-xs text-zinc-500" title={metadata.join(" · ")}>{metadata.join(" · ")}</p>{duration ? <p className="mt-1 text-xs text-zinc-500 lg:hidden">Duración: {formatDuration(duration)} · {item.planned_duration_seconds ? "Personalizada" : "Biblioteca"}</p> : null}</>;
+  const mobileMetadata = [song.artist, assignment.name, assignment.role, duration ? formatDuration(duration) : null].filter(Boolean);
+  return <><p className="mt-0.5 truncate text-xs leading-4 text-zinc-500 lg:hidden">{mobileMetadata.join(" · ")}</p><p className="mt-0.5 hidden truncate text-xs text-zinc-500 lg:block" title={metadata.join(" · ")}>{metadata.join(" · ")}</p></>;
+}
+
+function MobileSongKey({ item, songs }: { item: ServiceItem; songs: ServiceSong[] }) {
+  if (!item.song_id) return null;
+  const song = songs.find((candidate) => candidate.id === item.song_id);
+  return <MobileKeyBadge songKey={song?.key} />;
+}
+
+function MobileKeyBadge({ songKey }: { songKey?: string | null }) {
+  if (!songKey?.trim()) return null;
+  return <span className="grid min-h-8 min-w-8 place-items-center rounded-full border border-emerald-400/25 px-1.5 text-xs font-bold text-emerald-300 lg:hidden" title={`Tonalidad ${songKey}`}>{songKey}</span>;
+}
+
+function MobileWorshipSongMetadata({ song, entry }: { song: ServiceSong; entry: WorshipSongEntry }) {
+  const assignment = parseAssignmentText(entry.notes);
+  const duration = getSongDurationSeconds(entry, song.duration);
+  const metadata = [song.artist, assignment.name, assignment.role, duration ? formatDuration(duration) : null].filter(Boolean);
+  return metadata.length ? <p className="mt-0.5 truncate text-xs leading-4 text-zinc-500 lg:hidden">{metadata.join(" · ")}</p> : null;
+}
+
+function MobileTextItemMetadata({ details, duration }: { details: string; duration?: number | null }) {
+  const assignment = parseAssignmentText(details);
+  const metadata = [assignment.name, assignment.role, duration ? formatDuration(duration) : null].filter(Boolean);
+  return metadata.length ? <p className="mt-0.5 truncate text-xs leading-4 text-zinc-500 lg:hidden">{metadata.join(" · ")}</p> : null;
+}
+
+function MobileScheduleTime({ value, hidden = false }: { value: string; hidden?: boolean }) {
+  const match = value.match(/^(\d{1,2}:\d{2})(?::\d{2})?\s*([AP]M)?$/i);
+  const time = match?.[1] ?? value;
+  const period = match?.[2]?.toLocaleUpperCase();
+  return <span className={`${hidden ? "hidden lg:block" : ""} whitespace-nowrap pt-0.5 text-[0.8125rem] font-medium tabular-nums text-zinc-500 lg:pt-0 lg:text-sm lg:text-zinc-400`}><span className="lg:hidden">{time}{period ? <span className="ml-0.5 text-[0.5625rem] text-zinc-600">{period}</span> : null}</span><span className="hidden lg:inline">{value}</span></span>;
 }
 
 function isValidPlannedDuration(value: string) {

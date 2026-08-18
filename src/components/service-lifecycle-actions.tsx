@@ -9,7 +9,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type LifecycleAction = "activate" | "archive" | "restore";
 
-export function ServiceLifecycleActions({ hasCurrentActive, serviceId, status }: { hasCurrentActive: boolean; serviceId: number; status: ServiceStatus }) {
+export function ServiceLifecycleActions({ hasCurrentActive, menuItem = false, serviceId, status }: { hasCurrentActive: boolean; menuItem?: boolean; serviceId: number; status: ServiceStatus }) {
   const router = useRouter();
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
   const [action, setAction] = useState<LifecycleAction | null>(null);
@@ -51,7 +51,7 @@ export function ServiceLifecycleActions({ hasCurrentActive, serviceId, status }:
   const lifecycleAction: LifecycleAction = status === "planned" ? "activate" : status === "completed" ? "archive" : "restore";
   return (
     <>
-      <SecondaryButton type="button" onClick={() => { setError(""); setAction(lifecycleAction); }} className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">
+      <SecondaryButton type="button" onClick={() => { setError(""); setAction(lifecycleAction); }} className={menuItem ? "min-h-11 w-full justify-start rounded-lg border-0 bg-transparent px-3 text-sm shadow-none hover:translate-y-0 hover:bg-white/[0.06] hover:shadow-none active:scale-100" : "min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100"}>
         {actionLabel(lifecycleAction)}
       </SecondaryButton>
       {action ? (
