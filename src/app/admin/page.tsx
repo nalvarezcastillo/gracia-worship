@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
+import packageJson from "../../../package.json";
 import { AppMenuRow } from "@/components/app-menu-row";
 import { AppSectionCard } from "@/components/app-section-card";
 import { CurrentServiceSettings } from "@/components/current-service-settings";
@@ -32,7 +33,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     <main className="min-h-screen py-8 sm:py-12 lg:py-0">
       <MainContainer className="max-w-4xl lg:max-w-none lg:px-0">
         <div className="lg:grid lg:min-h-[calc(100vh-4rem)] lg:grid-cols-[220px_minmax(0,1fr)]">
-        <DesktopAdminSidebar />
+        <DesktopAdminSidebar version={packageJson.version} />
         <div className="min-w-0 lg:mx-auto lg:w-full lg:max-w-6xl lg:px-7 lg:py-6 xl:px-9">
         <PageHeader eyebrow="Panel" title="Administración" description="Gestiona la biblioteca y el servicio actual." />
 
