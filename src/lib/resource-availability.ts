@@ -4,12 +4,12 @@ export type ResourceAvailabilityStatus = "AVAILABLE" | "ASSIGNED_TO_CURRENT" | "
 
 export type ResourceAvailability = {
   assignedPersonName: string | null;
-  assignedServiceTeamId: string | null;
+  assignedAssignmentId: string | null;
   resource: ServiceResource;
   status: ResourceAvailabilityStatus;
 };
 
-export function buildResourceAvailabilityMap(resources: ServiceResource[], usages: ResourceUsage[], currentServiceTeamId: string | null) {
+export function buildResourceAvailabilityMap(resources: ServiceResource[], usages: ResourceUsage[], currentAssignmentId: string | null) {
   const usageByResourceId = new Map(usages.map((usage) => [usage.resource_id, usage]));
   return new Map(resources.map((resource) => {
     const usage = usageByResourceId.get(resource.id);
@@ -17,22 +17,22 @@ export function buildResourceAvailabilityMap(resources: ServiceResource[], usage
       ? "INACTIVE"
       : !usage
         ? "AVAILABLE"
-        : usage.service_team_id === currentServiceTeamId
+        : usage.assignment_id === currentAssignmentId
           ? "ASSIGNED_TO_CURRENT"
           : "ASSIGNED_TO_OTHER";
     return [resource.id, {
       assignedPersonName: usage?.person_name ?? null,
-      assignedServiceTeamId: usage?.service_team_id ?? null,
+      assignedAssignmentId: usage?.assignment_id ?? null,
       resource,
       status,
     }];
   }));
 }
 
-export function joinResourceUsages(links: Array<{ resource_id: string; service_team_id: string }>, team: Array<{ id: string; person_name: string }>): ResourceUsage[] {
+export function joinResourceUsages(links: Array<{ assignment_id: string; resource_id: string }>, team: Array<{ id: string; person_name: string }>): ResourceUsage[] {
   const namesByTeamId = new Map(team.map((member) => [member.id, member.person_name]));
   return links.flatMap((link) => {
-    const personName = namesByTeamId.get(link.service_team_id);
-    return personName ? [{ resource_id: link.resource_id, service_team_id: link.service_team_id, person_name: personName }] : [];
+    const personName = namesByTeamId.get(link.assignment_id);
+    return personName ? [{ assignment_id: link.assignment_id, resource_id: link.resource_id, person_name: personName }] : [];
   });
 }

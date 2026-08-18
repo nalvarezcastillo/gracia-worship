@@ -221,18 +221,19 @@ create table if not exists public.active_setlist (
   id smallint primary key default 1,
   service_name text not null default 'Saturday Service',
   service_date date null,
-  service_time text not null default 'Saturday • 7:00 PM',
+  service_time text not null default '19:00',
   song_ids uuid[] not null default '{}',
   leader_notes text null,
-  status text not null default 'archived' check (status in ('active', 'archived')),
+  status text not null default 'archived' check (status in ('active', 'planned', 'completed', 'archived')),
   updated_at timestamptz not null default now()
 );
 
 insert into public.active_setlist (id, service_name, service_time, status)
-values (1, 'Saturday Service', 'Saturday • 7:00 PM', 'active')
+values (1, 'Saturday Service', '19:00', 'active')
 on conflict (id) do nothing;
 
 create unique index if not exists active_setlist_one_active_idx on public.active_setlist(status) where status = 'active';
+create index if not exists active_setlist_hub_status_schedule_idx on public.active_setlist(status, service_date, service_time, id);
 
 alter table public.active_setlist enable row level security;
 
@@ -271,13 +272,30 @@ create table if not exists public.service_items (
   id uuid primary key default gen_random_uuid(),
   service_id smallint not null default 1 references public.active_setlist(id) on delete cascade,
   position integer not null,
-  type text not null check (type in ('text', 'worship')),
+  type text not null check (type in ('text', 'worship', 'song')),
   title text not null,
   details text null,
   planned_duration_seconds integer null check (planned_duration_seconds is null or planned_duration_seconds > 0),
   song_ids text[] null,
+  song_id uuid null references public.songs(id) on delete restrict,
   created_at timestamptz not null default now()
 );
+
+alter table public.service_items add column if not exists song_id uuid null;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conrelid = 'public.service_items'::regclass and conname = 'service_items_song_id_fkey') then
+    alter table public.service_items add constraint service_items_song_id_fkey foreign key (song_id) references public.songs(id) on delete restrict;
+  end if;
+end $$;
+alter table public.service_items drop constraint if exists service_items_type_check;
+alter table public.service_items add constraint service_items_type_check check (type in ('text', 'worship', 'song'));
+alter table public.service_items drop constraint if exists service_items_song_shape_check;
+alter table public.service_items add constraint service_items_song_shape_check check (
+  (type = 'song' and song_id is not null and song_ids is null)
+  or (type = 'worship' and song_id is null)
+  or (type = 'text' and song_id is null and song_ids is null)
+) not valid;
+create index if not exists service_items_song_id_idx on public.service_items(song_id) where song_id is not null;
 
 create index if not exists service_items_service_id_position_idx
 on public.service_items(service_id, position);
@@ -354,8 +372,8 @@ begin
   update public.active_setlist set status = 'archived', updated_at = now() where id = current_service.id;
   insert into public.active_setlist (id, service_name, service_date, service_time, song_ids, leader_notes, status, updated_at)
   values (new_id, current_service.service_name, next_date, current_service.service_time, current_service.song_ids, null, 'active', now());
-  insert into public.service_items (service_id, position, type, title, details, planned_duration_seconds, song_ids)
-  select new_id, position, type, title, details, planned_duration_seconds, song_ids from public.service_items where service_id = current_service.id order by position;
+  insert into public.service_items (service_id, position, type, title, details, planned_duration_seconds, song_ids, song_id)
+  select new_id, position, type, title, details, planned_duration_seconds, song_ids, song_id from public.service_items where service_id = current_service.id order by position;
   return new_id;
 end; $$;
 
@@ -407,7 +425,10 @@ returns table(item_id uuid, song_id uuid) language plpgsql stable security defin
 declare target_item public.service_items%rowtype; target_song_id uuid;
 begin
   for target_item in select * from public.service_items where service_id = p_service_id order by position, created_at, id loop
-    if target_item.type <> 'worship' then item_id := target_item.id; song_id := null; return next; return; end if;
+    if target_item.type = 'song' then
+      if target_item.song_id is not null then item_id := target_item.id; song_id := target_item.song_id; return next; return; end if;
+    elsif target_item.type <> 'worship' then item_id := target_item.id; song_id := null; return next; return;
+    end if;
     select candidate.song_id::uuid into target_song_id
     from unnest(coalesce(target_item.song_ids, array[]::text[])) with ordinality as songs(raw_entry, song_order)
     cross join lateral (select public.parse_service_song_entry(songs.raw_entry) as parsed_entry) as parsed
@@ -425,8 +446,12 @@ declare target_item public.service_items%rowtype;
 begin
   select * into target_item from public.service_items where id = new.current_item_id and service_id = new.service_id;
   if not found then raise exception 'The live item does not belong to the selected service'; end if;
-  if new.current_song_id is not null then
-    if target_item.type <> 'worship' or not exists (
+  if target_item.type = 'song' then
+    if new.current_song_id is null or new.current_song_id is distinct from target_item.song_id then
+      raise exception 'The live song does not match the selected song item';
+    end if;
+  elsif target_item.type = 'worship' then
+    if new.current_song_id is null or not exists (
       select 1
       from unnest(coalesce(target_item.song_ids, array[]::text[])) as songs(raw_entry)
       cross join lateral (select public.parse_service_song_entry(songs.raw_entry) as parsed_entry) as parsed
@@ -438,6 +463,8 @@ begin
           else null end
       ) = new.current_song_id::text
     ) then raise exception 'The live song does not belong to the selected worship block'; end if;
+  elsif new.current_song_id is not null then
+    raise exception 'A non-song service item cannot select a song';
   end if;
   if tg_op = 'INSERT' then
     new.started_at := now();
@@ -535,8 +562,19 @@ declare target_item public.service_items%rowtype; parsed_song_entry jsonb; raw_s
 begin
   select * into target_item from public.service_items where id = p_item_id and service_id = p_service_id;
   if not found then raise exception 'The item does not belong to the selected service'; end if;
-  if p_song_id is null then return target_item.planned_duration_seconds; end if;
-  if target_item.type <> 'worship' then raise exception 'A song can only be selected inside a worship block'; end if;
+  if target_item.type = 'song' then
+    if p_song_id is null or p_song_id is distinct from target_item.song_id then raise exception 'The run song does not match the selected song item'; end if;
+    if target_item.planned_duration_seconds is not null then return target_item.planned_duration_seconds; end if;
+    select duration into library_duration from public.songs where id = target_item.song_id;
+    if not found then raise exception 'Song not found'; end if;
+    if trim(library_duration) ~ '^[0-9]+:[0-5][0-9]$' then return split_part(trim(library_duration), ':', 1)::integer * 60 + split_part(trim(library_duration), ':', 2)::integer; end if;
+    return null;
+  end if;
+  if target_item.type <> 'worship' then
+    if p_song_id is not null then raise exception 'A non-song service item cannot select a song'; end if;
+    return target_item.planned_duration_seconds;
+  end if;
+  if p_song_id is null then raise exception 'A worship block requires a song'; end if;
   select parsed.parsed_entry into parsed_song_entry
   from unnest(coalesce(target_item.song_ids, array[]::text[])) as songs(raw_entry)
   cross join lateral (select public.parse_service_song_entry(songs.raw_entry) as parsed_entry) as parsed
@@ -714,3 +752,111 @@ using (true);
 revoke insert, update, delete on public.microphone_assignments from anon;
 grant select on public.microphone_assignments to anon, authenticated;
 grant insert, update, delete on public.microphone_assignments to authenticated;
+
+-- Service-scoped team foundation. The legacy current_service_team tables remain
+-- available during the phased application transition.
+create table if not exists public.service_team_assignments (
+  id uuid primary key default gen_random_uuid(),
+  service_id smallint not null references public.active_setlist(id) on delete cascade,
+  team_member_id uuid null references public.team_members(id) on delete set null,
+  person_name text not null check (char_length(trim(person_name)) > 0),
+  role_name text not null check (char_length(trim(role_name)) > 0),
+  microphone_name text null,
+  sort_order integer not null default 0 check (sort_order >= 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint service_team_assignments_service_id_id_key unique (service_id, id)
+);
+
+create index if not exists service_team_assignments_service_sort_created_idx
+on public.service_team_assignments(service_id, sort_order, created_at);
+create index if not exists service_team_assignments_service_member_idx
+on public.service_team_assignments(service_id, team_member_id)
+where team_member_id is not null;
+
+create table if not exists public.service_team_assignment_resources (
+  id uuid primary key default gen_random_uuid(),
+  service_id smallint not null,
+  assignment_id uuid not null,
+  resource_id uuid not null references public.resources(id) on delete restrict,
+  created_at timestamptz not null default now(),
+  constraint service_team_assignment_resources_assignment_fkey
+    foreign key (service_id, assignment_id)
+    references public.service_team_assignments(service_id, id) on delete cascade,
+  constraint service_team_assignment_resources_assignment_resource_key
+    unique (assignment_id, resource_id),
+  constraint service_team_assignment_resources_service_resource_key
+    unique (service_id, resource_id)
+);
+
+create index if not exists service_team_assignment_resources_service_assignment_idx
+on public.service_team_assignment_resources(service_id, assignment_id);
+
+alter table public.service_team_assignments enable row level security;
+drop policy if exists "Public can read service team assignments" on public.service_team_assignments;
+create policy "Public can read service team assignments" on public.service_team_assignments
+for select to anon, authenticated using (true);
+drop policy if exists "Authenticated can insert service team assignments" on public.service_team_assignments;
+create policy "Authenticated can insert service team assignments" on public.service_team_assignments
+for insert to authenticated with check (true);
+drop policy if exists "Authenticated can update service team assignments" on public.service_team_assignments;
+create policy "Authenticated can update service team assignments" on public.service_team_assignments
+for update to authenticated using (true) with check (true);
+drop policy if exists "Authenticated can delete service team assignments" on public.service_team_assignments;
+create policy "Authenticated can delete service team assignments" on public.service_team_assignments
+for delete to authenticated using (true);
+revoke all on public.service_team_assignments from anon, authenticated;
+grant select on public.service_team_assignments to anon, authenticated;
+grant insert, update, delete on public.service_team_assignments to authenticated;
+
+alter table public.service_team_assignment_resources enable row level security;
+drop policy if exists "Public can read service team assignment resources" on public.service_team_assignment_resources;
+create policy "Public can read service team assignment resources" on public.service_team_assignment_resources
+for select to anon, authenticated using (true);
+drop policy if exists "Authenticated can insert service team assignment resources" on public.service_team_assignment_resources;
+create policy "Authenticated can insert service team assignment resources" on public.service_team_assignment_resources
+for insert to authenticated with check (true);
+drop policy if exists "Authenticated can update service team assignment resources" on public.service_team_assignment_resources;
+create policy "Authenticated can update service team assignment resources" on public.service_team_assignment_resources
+for update to authenticated using (true) with check (true);
+drop policy if exists "Authenticated can delete service team assignment resources" on public.service_team_assignment_resources;
+create policy "Authenticated can delete service team assignment resources" on public.service_team_assignment_resources
+for delete to authenticated using (true);
+revoke all on public.service_team_assignment_resources from anon, authenticated;
+grant select on public.service_team_assignment_resources to anon, authenticated;
+grant insert, update, delete on public.service_team_assignment_resources to authenticated;
+
+create or replace function public.set_service_team_assignment_resources(
+  p_assignment_id uuid,
+  p_resource_ids uuid[]
+)
+returns void language plpgsql security definer set search_path = public as $$
+declare target_service_id smallint;
+begin
+  if auth.uid() is null then raise exception 'Authentication required'; end if;
+  select assignment.service_id into target_service_id
+  from public.service_team_assignments assignment
+  where assignment.id = p_assignment_id for update;
+  if not found then raise exception 'Service team assignment not found'; end if;
+
+  if cardinality(coalesce(p_resource_ids, '{}'::uuid[])) <> (
+    select count(distinct requested.resource_id)
+    from unnest(coalesce(p_resource_ids, '{}'::uuid[])) requested(resource_id)
+  ) then raise exception 'Duplicate resource IDs are not allowed'; end if;
+
+  if exists (
+    select 1 from unnest(coalesce(p_resource_ids, '{}'::uuid[])) requested(resource_id)
+    left join public.resources resource on resource.id = requested.resource_id
+    where resource.id is null or resource.active is not true
+  ) then raise exception 'Every resource must exist and be active'; end if;
+
+  delete from public.service_team_assignment_resources where assignment_id = p_assignment_id;
+  insert into public.service_team_assignment_resources(service_id, assignment_id, resource_id)
+  select target_service_id, p_assignment_id, requested.resource_id
+  from unnest(coalesce(p_resource_ids, '{}'::uuid[])) requested(resource_id);
+end; $$;
+
+revoke all on function public.set_service_team_assignment_resources(uuid, uuid[])
+from public, anon, authenticated;
+grant execute on function public.set_service_team_assignment_resources(uuid, uuid[])
+to authenticated;

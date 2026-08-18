@@ -18,7 +18,7 @@ type CountdownState =
   | { accessibleLabel: string; kind: "today" }
   | { accessibleLabel: string; kind: "expired" };
 
-export function ServiceCountdownCard({ serviceDate, serviceName, serviceSchedule, serviceTime }: ServiceCountdownCardProps) {
+export function ServiceCountdownCard({ serviceDate, serviceName, serviceSchedule, serviceTime, inline = false }: ServiceCountdownCardProps & { inline?: boolean }) {
   const [now, setNow] = useState(() => Date.now());
   const serviceAt = useMemo(() => parseServiceDateTime(serviceDate, serviceTime), [serviceDate, serviceTime]);
 
@@ -31,6 +31,10 @@ export function ServiceCountdownCard({ serviceDate, serviceName, serviceSchedule
   const countdown = getCountdownState(serviceAt, new Date(now));
   if (countdown.kind === "expired") return null;
   const [serviceDateLabel, serviceTimeLabel] = serviceSchedule.split(" • ");
+
+  if (inline) {
+    return <div className="min-w-[16rem] text-right"><p className="sr-only" aria-live="polite">{countdown.accessibleLabel}</p><CountdownDisplay countdown={countdown} /></div>;
+  }
 
   return (
     <AppSectionCard eyebrow="Cuenta regresiva" title="Próximo servicio">

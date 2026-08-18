@@ -71,3 +71,52 @@ export async function getCurrentServiceTeam() {
     })) as CurrentServiceTeamMember[];
   } catch { return []; }
 }
+
+/** Service-explicit reader. An empty scoped team is authoritative. */
+export async function getServiceTeam(serviceId: number): Promise<CurrentServiceTeamMember[]> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("service_team_assignments")
+      .select("id, team_member_id, person_name, role_name, microphone_name, sort_order")
+      .eq("service_id", serviceId)
+      .order("sort_order")
+      .order("created_at");
+
+    if (error) return [];
+    if (!data?.length) return [];
+
+    const assignmentIds = data.map((assignment) => assignment.id);
+    const { data: links, error: linksError } = await supabase
+      .from("service_team_assignment_resources")
+      .select("assignment_id, resource_id")
+      .eq("service_id", serviceId)
+      .in("assignment_id", assignmentIds);
+
+    if (linksError || !links?.length) {
+      return data.map((assignment) => ({ ...assignment, resources: [] })) as CurrentServiceTeamMember[];
+    }
+
+    const resourceIds = [...new Set(links.map((link) => link.resource_id))];
+    const [{ data: resources }, { data: categories }] = await Promise.all([
+      supabase.from("resources").select("id, name, category_id").in("id", resourceIds),
+      supabase.from("resource_categories").select("id, sort_order"),
+    ]);
+    const categoryOrder = new Map((categories ?? []).map((category) => [category.id, category.sort_order]));
+    const resourcesById = new Map((resources ?? []).map((resource) => [resource.id, {
+      categorySortOrder: categoryOrder.get(resource.category_id) ?? Number.MAX_SAFE_INTEGER,
+      id: resource.id,
+      name: resource.name,
+    }]));
+
+    return data.map((assignment) => ({
+      ...assignment,
+      resources: links.filter((link) => link.assignment_id === assignment.id).flatMap((link) => {
+        const resource = resourcesById.get(link.resource_id);
+        return resource ? [resource] : [];
+      }),
+    })) as CurrentServiceTeamMember[];
+  } catch {
+    return [];
+  }
+}

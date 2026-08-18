@@ -20,10 +20,11 @@ type Props = {
   initialAssignments: CurrentServiceTeamMember[];
   initialUsages: ResourceUsage[];
   resourceCategories: ResourceCategory[];
+  serviceId: number;
   teamMembers: TeamMember[];
 };
 
-export function ManageCurrentServiceTeam({ availableResources, initialAssignments, initialUsages, resourceCategories, teamMembers }: Props) {
+export function ManageCurrentServiceTeam({ availableResources, initialAssignments, initialUsages, resourceCategories, serviceId, teamMembers }: Props) {
   const [assignments, setAssignments] = useState(initialAssignments);
   const [usages, setUsages] = useState(initialUsages);
   const [editing, setEditing] = useState<CurrentServiceTeamMember | null>(null);
@@ -62,7 +63,7 @@ export function ManageCurrentServiceTeam({ availableResources, initialAssignment
     const knownRole = roles.includes(item?.role_name ?? "");
     setRoleName(item?.role_name ?? "");
     setCustomRole(Boolean(item && !knownRole));
-    setSelectedResourceIds(item ? usages.filter((usage) => usage.service_team_id === item.id).map((usage) => usage.resource_id) : []);
+    setSelectedResourceIds(item ? usages.filter((usage) => usage.assignment_id === item.id).map((usage) => usage.resource_id) : []);
     setResourceQuery("");
     const firstSelectedCategory = availableResources.find((resource) => item?.resources.some((selected) => selected.id === resource.id))?.category_id;
     setOpenCategoryId(isMobileViewport() ? "" : firstSelectedCategory ?? resourcesByCategory[0]?.category.id ?? "");
@@ -85,8 +86,8 @@ export function ManageCurrentServiceTeam({ availableResources, initialAssignment
   async function refreshUsages() {
     const supabase = createSupabaseBrowserClient();
     const [{ data: links, error: linksError }, { data: team, error: teamError }] = await Promise.all([
-      supabase.from("current_service_team_resources").select("resource_id, service_team_id"),
-      supabase.from("current_service_team").select("id, person_name"),
+      supabase.from("service_team_assignment_resources").select("resource_id, assignment_id").eq("service_id", serviceId),
+      supabase.from("service_team_assignments").select("id, person_name").eq("service_id", serviceId),
     ]);
     if (linksError || teamError) return false;
     setUsages(joinResourceUsages(links ?? [], team ?? []));
@@ -104,10 +105,10 @@ export function ManageCurrentServiceTeam({ availableResources, initialAssignment
 
     setBusy(true);
     const supabase = createSupabaseBrowserClient();
-    const values = { team_member_id: memberId && memberId !== "__other" ? memberId : null, person_name: personName.trim(), role_name: roleName.trim(), microphone_name: editing?.microphone_name ?? null };
+    const values = { team_member_id: memberId && memberId !== "__other" ? memberId : null, person_name: personName.trim(), role_name: roleName.trim(), microphone_name: editing?.microphone_name ?? null, updated_at: new Date().toISOString() };
     const result = editing
-      ? await supabase.from("current_service_team").update(values).eq("id", editing.id).select("id, team_member_id, person_name, role_name, microphone_name, sort_order").single()
-      : await supabase.from("current_service_team").insert({ ...values, sort_order: assignments.length }).select("id, team_member_id, person_name, role_name, microphone_name, sort_order").single();
+      ? await supabase.from("service_team_assignments").update(values).eq("id", editing.id).eq("service_id", serviceId).select("id, team_member_id, person_name, role_name, microphone_name, sort_order").single()
+      : await supabase.from("service_team_assignments").insert({ ...values, service_id: serviceId, sort_order: assignments.length }).select("id, team_member_id, person_name, role_name, microphone_name, sort_order").single();
 
     if (result.error) {
       setMessage(result.error.message);
@@ -116,9 +117,9 @@ export function ManageCurrentServiceTeam({ availableResources, initialAssignment
     }
 
     const savedBase = result.data;
-    const { error: resourcesError } = await supabase.rpc("set_current_service_team_resources", { target_service_team_id: savedBase.id, target_resource_ids: selectedResourceIds });
+    const { error: resourcesError } = await supabase.rpc("set_service_team_assignment_resources", { p_assignment_id: savedBase.id, p_resource_ids: selectedResourceIds });
     if (resourcesError) {
-      if (!editing) await supabase.from("current_service_team").delete().eq("id", savedBase.id);
+      if (!editing) await supabase.from("service_team_assignments").delete().eq("id", savedBase.id).eq("service_id", serviceId);
       if (resourcesError.code === "23505") {
         setMessage("Este recurso acaba de ser asignado a otra persona. Actualiza la disponibilidad e inténtalo nuevamente.");
         await refreshUsages();
@@ -142,7 +143,7 @@ export function ManageCurrentServiceTeam({ availableResources, initialAssignment
   async function remove(id: string, closeForm = false) {
     if (!window.confirm("¿Eliminar esta asignación?")) return;
     const supabase = createSupabaseBrowserClient();
-    const { error } = await supabase.from("current_service_team").delete().eq("id", id);
+    const { error } = await supabase.from("service_team_assignments").delete().eq("id", id).eq("service_id", serviceId);
     if (!error) {
       setAssignments((current) => current.filter((item) => item.id !== id));
       await refreshUsages();
@@ -159,7 +160,8 @@ export function ManageCurrentServiceTeam({ availableResources, initialAssignment
     [next[index], next[otherIndex]] = [next[otherIndex], next[index]];
     const normalized = next.map((item, position) => ({ ...item, sort_order: position }));
     const supabase = createSupabaseBrowserClient();
-    const results = await Promise.all(normalized.map((item) => supabase.from("current_service_team").update({ sort_order: item.sort_order }).eq("id", item.id)));
+    const updatedAt = new Date().toISOString();
+    const results = await Promise.all(normalized.map((item) => supabase.from("service_team_assignments").update({ sort_order: item.sort_order, updated_at: updatedAt }).eq("id", item.id).eq("service_id", serviceId)));
     if (results.some((result) => result.error)) setMessage("No fue posible cambiar el orden.");
     else setAssignments(normalized);
     setBusy(false);
@@ -233,7 +235,8 @@ export function ManageCurrentServiceTeam({ availableResources, initialAssignment
           <div className="fixed inset-x-0 z-40 border-t border-white/[0.08] bg-zinc-950/95 px-4 py-2.5 shadow-[0_-10px_28px_rgba(0,0,0,0.35)] backdrop-blur-xl md:hidden" style={{ bottom: "calc(4.5rem + env(safe-area-inset-bottom))" }}><div className="mx-auto grid max-w-lg grid-cols-2 gap-3"><button type="button" onClick={() => setOpen(false)} className="min-h-12 rounded-2xl border border-white/10 bg-white/[0.04] px-4 font-semibold text-zinc-300">Cancelar</button><PrimaryButton type="submit" disabled={busy || !personName.trim() || !roleName.trim()} className="w-full">{busy ? "Guardando..." : "Guardar"}</PrimaryButton></div></div>
         </form>
       ) : null}
-      <AppList className="mt-6">{assignments.map((item, index) => <AppListRow key={item.id}><div className="min-w-0 flex-1"><p className="font-semibold text-white">{item.person_name}</p><p className="mt-1 text-sm text-zinc-400">{[item.role_name, item.microphone_name].filter(Boolean).join(" • ")}</p>{item.resources.length ? <p className="mt-1 text-sm text-zinc-500">{item.resources.map((resource) => resource.name).join(" • ")}</p> : null}</div><div className="flex flex-wrap gap-1"><button type="button" onClick={() => void move(index, -1)} disabled={busy || index === 0} className={appRowActionStyles}>Subir</button><button type="button" onClick={() => void move(index, 1)} disabled={busy || index === assignments.length - 1} className={appRowActionStyles}>Bajar</button><button type="button" onClick={() => showForm(item)} className={appRowActionStyles}>Editar</button><button type="button" onClick={() => void remove(item.id)} className={`${appRowActionStyles} text-rose-300`}>Eliminar</button></div></AppListRow>)}</AppList>
+      <div className="mt-6 hidden grid-cols-[minmax(160px,1fr)_minmax(120px,0.7fr)_minmax(180px,1.2fr)_auto] gap-4 border-y border-white/[0.07] px-3 py-2 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-zinc-600 lg:grid"><span>Persona</span><span>Función</span><span>Recursos</span><span className="text-right">Acciones</span></div>
+      <AppList className="mt-6 lg:mt-0 lg:border-t-0">{assignments.map((item, index) => <AppListRow key={item.id} className="lg:grid lg:min-h-14 lg:grid-cols-[minmax(160px,1fr)_minmax(120px,0.7fr)_minmax(180px,1.2fr)_auto] lg:gap-4 lg:px-3 lg:py-2"><div className="min-w-0 flex-1"><p className="truncate font-semibold text-white">{item.person_name}</p><p className="mt-1 text-sm text-zinc-400 lg:hidden">{[item.role_name, item.microphone_name].filter(Boolean).join(" • ")}</p>{item.resources.length ? <p className="mt-1 text-sm text-zinc-500 lg:hidden">{item.resources.map((resource) => resource.name).join(" • ")}</p> : null}</div><p className="hidden truncate text-sm text-zinc-400 lg:block">{item.role_name || "—"}</p><p className="hidden truncate text-sm text-zinc-500 lg:block" title={[...item.resources.map((resource) => resource.name), item.microphone_name].filter(Boolean).join(" · ")}>{[...item.resources.map((resource) => resource.name), item.microphone_name].filter(Boolean).join(" · ") || "—"}</p><div className="flex flex-wrap gap-1 lg:justify-end"><button type="button" onClick={() => void move(index, -1)} disabled={busy || index === 0} className={appRowActionStyles}>Subir</button><button type="button" onClick={() => void move(index, 1)} disabled={busy || index === assignments.length - 1} className={appRowActionStyles}>Bajar</button><button type="button" onClick={() => showForm(item)} className={appRowActionStyles}>Editar</button><button type="button" onClick={() => void remove(item.id)} className={`${appRowActionStyles} text-rose-300`}>Eliminar</button></div></AppListRow>)}</AppList>
       <p role="status" aria-live="polite" className="mt-4 min-h-5 text-sm text-rose-300">{message}</p>
     </div>
   );

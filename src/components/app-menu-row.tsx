@@ -7,7 +7,7 @@ type AppMenuRowProps = {
   leadingSymbol?: string;
 };
 
-const rowStyles = "flex min-h-12 w-full items-center px-4 py-3 text-left text-base font-semibold text-white transition-colors duration-200 hover:bg-white/[0.045] hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-emerald-400 active:bg-white/[0.07]";
+const rowStyles = "flex min-h-12 w-full items-center px-4 py-3 text-left text-base font-semibold text-white transition-colors duration-200 hover:bg-white/[0.045] hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-emerald-400 active:bg-white/[0.07] lg:min-h-11 lg:py-2 lg:text-sm";
 
 export function AppMenuRow({ disabled = false, href, label, leadingSymbol }: AppMenuRowProps) {
   if (disabled) {

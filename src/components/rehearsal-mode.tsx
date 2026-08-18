@@ -6,6 +6,7 @@ import { SongDetailContent } from "@/components/song-detail-content";
 import type { PublicSongKey } from "@/components/song-key-selector";
 import type { ActiveSetlistRow } from "@/lib/database.types";
 import type { ServiceItem, WorshipSongEntry } from "@/lib/service";
+import { buildOperationalServiceEntries } from "@/lib/service-entries";
 
 type RehearsalService = Pick<ActiveSetlistRow, "service_name" | "service_date" | "service_time">;
 
@@ -14,6 +15,7 @@ export type RehearsalSong = {
   title: string;
   key: string;
   bpm: number;
+  duration: string;
   time_signature: string | null;
   audio_url: string;
   sheet_url: string;
@@ -25,13 +27,17 @@ type RehearsalModeProps = {
   items: ServiceItem[];
   loadError?: string;
   service: RehearsalService | null;
+  serviceId: number;
   songs: RehearsalSong[];
 };
 
-export function RehearsalMode({ items, loadError, service, songs }: RehearsalModeProps) {
+export function RehearsalMode({ items, loadError, service, serviceId, songs }: RehearsalModeProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedSongIndex, setSelectedSongIndex] = useState<number | null>(null);
   const currentItem = items[currentIndex];
+  const directSongEntry = currentItem?.type === "song"
+    ? buildOperationalServiceEntries([currentItem], songs).find((entry) => entry.kind === "song")
+    : null;
   const blockSongs = currentItem?.type === "worship"
     ? (currentItem.song_ids ?? []).flatMap((entry) => {
         const song = songs.find((candidate) => candidate.id === entry.songId);
@@ -53,10 +59,11 @@ export function RehearsalMode({ items, loadError, service, songs }: RehearsalMod
   return (
     <div className="flex min-h-[calc(100dvh-3rem)] flex-col pb-24 sm:min-h-[calc(100dvh-5rem)]">
       <header className="border-b border-white/[0.07] pb-4">
+        <p className="mb-2 hidden text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400 lg:block">Ensayo</p>
         <h1 className="text-xl font-bold tracking-[-0.025em] text-white sm:text-2xl">
           {service ? localizeDefaultServiceName(service.service_name) : "Servicio actual"}
         </h1>
-        {currentItem ? <div className="mt-3 flex items-baseline justify-between gap-4"><p className="min-w-0 truncate text-2xl font-bold text-white sm:text-3xl">{selectedBlockSong?.song.title ?? currentItem.title}</p><p className="shrink-0 text-sm font-semibold tabular-nums text-zinc-500">{progressCurrent} / {progressTotal}</p></div> : null}
+        {currentItem ? <div className="mt-3 flex items-baseline justify-between gap-4"><p className="min-w-0 truncate text-2xl font-bold text-white sm:text-3xl">{directSongEntry?.kind === "song" ? directSongEntry.song.title : selectedBlockSong?.song.title ?? currentItem.title}</p><p className="shrink-0 text-sm font-semibold tabular-nums text-zinc-500">{progressCurrent} / {progressTotal}</p></div> : null}
         <div className="mt-3 h-1 overflow-hidden rounded-full bg-zinc-800" aria-hidden="true"><div className="h-full bg-emerald-400 transition-[width] duration-200" style={{ width: `${progressPercent}%` }} /></div>
       </header>
 
@@ -66,7 +73,25 @@ export function RehearsalMode({ items, loadError, service, songs }: RehearsalMod
         </p>
       ) : currentItem ? (
         <section className="flex min-h-0 flex-1 flex-col pt-4" aria-live="polite" aria-atomic="true">
-          {selectedBlockSong ? (
+          {directSongEntry?.kind === "song" ? (
+            <RehearsalSongView
+              blockId={currentItem.id}
+              blockSong={{
+                entry: directSongEntry.legacyEntry ?? {
+                  notes: directSongEntry.assignmentText ?? "",
+                  plannedDurationSeconds: currentItem.planned_duration_seconds,
+                  songId: directSongEntry.song.id,
+                },
+                song: directSongEntry.song,
+              }}
+              canContinueService={!isLast}
+              hasNextSong={false}
+              hasPreviousSong={false}
+              onContinueService={() => moveToServiceItem(currentIndex + 1)}
+              onNextSong={() => undefined}
+              onPreviousSong={() => undefined}
+            />
+          ) : selectedBlockSong ? (
             <RehearsalSongView
               blockId={currentItem.id}
               blockSong={selectedBlockSong}
@@ -123,8 +148,8 @@ export function RehearsalMode({ items, loadError, service, songs }: RehearsalMod
           No hay elementos en el servicio actual.
         </div>
       )}
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.07] bg-zinc-950/90 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl">
-        <Link href="/service" className="mx-auto flex min-h-12 max-w-4xl items-center justify-center rounded-2xl border border-white/10 bg-zinc-900 px-4 font-semibold text-zinc-100 transition-colors hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400">Finalizar ensayo</Link>
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.07] bg-zinc-950/90 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl lg:left-auto lg:right-8 lg:bottom-6 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
+        <Link href={`/service/${serviceId}`} className="mx-auto flex min-h-12 max-w-4xl items-center justify-center rounded-2xl border border-white/10 bg-zinc-900 px-4 font-semibold text-zinc-100 transition-colors hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 lg:min-h-11 lg:rounded-xl lg:px-5 lg:text-sm lg:shadow-xl lg:shadow-black/30">Finalizar ensayo</Link>
       </div>
     </div>
   );

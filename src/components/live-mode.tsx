@@ -10,6 +10,7 @@ import type { ActiveSetlistRow } from "@/lib/database.types";
 import { parseAssignmentText } from "@/lib/assignment-text";
 import { formatDuration, getActualRunSeconds, getServiceItemDurationSeconds, getSongDurationSeconds } from "@/lib/duration";
 import type { ServiceItem, WorshipSongEntry } from "@/lib/service";
+import { buildOperationalServiceEntries } from "@/lib/service-entries";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type LiveService = Pick<ActiveSetlistRow, "service_name" | "service_date" | "service_time">;
@@ -439,16 +440,20 @@ function RunSheet({ canControl, currentIndex, entries, onSelect }: { canControl:
 }
 
 function buildLiveEntries(items: ServiceItem[], songs: LiveSong[]) {
-  const songById = new Map(songs.map((song) => [song.id, song]));
-  return items.flatMap<LiveEntry>((item) => {
-    const itemEntry: LiveEntry = { id: `item:${item.id}`, item, kind: "item", title: item.title };
-    if (item.type !== "worship") return [itemEntry];
-    const songEntries = (item.song_ids ?? []).flatMap<LiveEntry>((entry) => {
-      const song = songById.get(entry.songId);
-      return song ? [{ entry, id: `song:${item.id}:${song.id}`, item, kind: "song", song, title: song.title }] : [];
-    });
-    return songEntries;
-  });
+  return buildOperationalServiceEntries(items, songs).map<LiveEntry>((entry) => entry.kind === "moment"
+    ? { id: entry.id, item: entry.item, kind: "item", title: entry.title }
+    : {
+        entry: entry.legacyEntry ?? {
+          notes: entry.assignmentText ?? "",
+          plannedDurationSeconds: entry.item.planned_duration_seconds,
+          songId: entry.song.id,
+        },
+        id: entry.id,
+        item: entry.item,
+        kind: "song",
+        song: entry.song,
+        title: entry.title,
+      });
 }
 
 function resolveStateIndex(entries: LiveEntry[], state: LiveServiceState | null) {

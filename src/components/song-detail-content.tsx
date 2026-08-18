@@ -21,6 +21,7 @@ type SongDetailContentProps = {
   legacySheetUrl: string;
   lyrics: string;
   songId: string;
+  serviceId?: number;
   initialKeyName?: string;
   headerNavigation?: React.ReactNode;
   rehearsalMode?: boolean;
@@ -39,6 +40,7 @@ export function SongDetailContent({
   legacySheetUrl,
   lyrics,
   songId,
+  serviceId,
   initialKeyName,
   headerNavigation,
   rehearsalMode = false,
@@ -153,7 +155,7 @@ export function SongDetailContent({
               Editar
             </SecondaryButton>
           ) : null}
-          {canAddToService ? <AddSongToServiceButton songId={songId} /> : null}
+          {canAddToService ? <AddSongToServiceButton serviceId={serviceId} songId={songId} songTitle={title} /> : null}
         </div>
       ) : null}
 

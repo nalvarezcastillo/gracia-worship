@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { Mic } from "lucide-react";
 import { PrepareNextServiceButton } from "@/components/prepare-next-service-button";
 import { AssignmentFields } from "@/components/assignment-fields";
 import { PrimaryButton, SecondaryButton } from "@/components/ui/action-button";
@@ -11,11 +12,14 @@ import type { ServiceItem, ServiceSong, WorshipSongEntry } from "@/lib/service";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { TeamMember } from "@/lib/team";
 import type { CurrentServiceTeamMember } from "@/lib/current-service-team";
-import { getServiceAssignmentResources } from "@/lib/service-team-resources";
+import { getServiceEntryMicrophones } from "@/lib/service-team-resources";
+import { buildOperationalServiceEntries } from "@/lib/service-entries";
+import { parseAssignmentText } from "@/lib/assignment-text";
+import { buildServiceSchedule } from "@/lib/service-schedule";
 
-type AddStep = "closed" | "type" | "text";
+type AddStep = "closed" | "type" | "text" | "song";
 
-export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceId, serviceName, serviceSchedule, showPreparedToast = false, teamMembers = [], serviceTeamAssignments = [] }: { initialItems: ServiceItem[]; songs: ServiceSong[]; isAdmin: boolean; loadError?: string; serviceId: number; serviceName: string; serviceSchedule: string; showPreparedToast?: boolean; teamMembers?: TeamMember[]; serviceTeamAssignments?: CurrentServiceTeamMember[] }) {
+export function ServiceItems({ initialItems, songs, isAdmin, canPrepareNext = false, loadError, serviceId, serviceName, serviceSchedule, serviceTime = null, showPreparedToast = false, teamMembers = [], serviceTeamAssignments = [] }: { initialItems: ServiceItem[]; songs: ServiceSong[]; isAdmin: boolean; canPrepareNext?: boolean; loadError?: string; serviceId: number; serviceName: string; serviceSchedule: string; serviceTime?: string | null; showPreparedToast?: boolean; teamMembers?: TeamMember[]; serviceTeamAssignments?: CurrentServiceTeamMember[] }) {
   const [items, setItems] = useState(initialItems);
   const savedItemsRef = useRef(initialItems);
   const [addStep, setAddStep] = useState<AddStep>("closed");
@@ -30,13 +34,23 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceI
   const [selectedSongId, setSelectedSongId] = useState("");
   const [songNotes, setSongNotes] = useState("");
   const [songPlannedDuration, setSongPlannedDuration] = useState("");
+  const [songSearch, setSongSearch] = useState("");
   const [editingSong, setEditingSong] = useState<{ blockId: string; songId: string; notes: string; plannedDuration: string } | null>(null);
+  const [editingSongItem, setEditingSongItem] = useState<{ id: string; details: string; plannedDuration: string } | null>(null);
   const [deletingItem, setDeletingItem] = useState<ServiceItem | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState(loadError ? `Unable to load service: ${loadError}` : "");
   const [isError, setIsError] = useState(Boolean(loadError));
   const [showSuccessToast, setShowSuccessToast] = useState(showPreparedToast);
+  const [selectedRow, setSelectedRow] = useState<{ itemId: string; songId?: string } | null>(null);
   const hasUnsavedChanges = serializeService(items) !== serializeService(savedItemsRef.current);
+  const operationalEntries = buildOperationalServiceEntries(items, songs);
+  const schedule = buildServiceSchedule(items, songs, serviceTime);
+  const totalDuration = schedule.totalSeconds;
+  const selectedItem = selectedRow ? items.find((item) => item.id === selectedRow.itemId) : null;
+  const selectedEntry = selectedItem && selectedRow?.songId ? selectedItem.song_ids?.find((entry) => entry.songId === selectedRow.songId) : null;
+  const selectedDetailSongId = selectedRow?.songId ?? (selectedItem?.type === "song" ? selectedItem.song_id : null);
+  const selectedSong = selectedDetailSongId ? songs.find((song) => song.id === selectedDetailSongId) : null;
 
   useEffect(() => {
     if (!showSuccessToast) return;
@@ -69,14 +83,15 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceI
         .from("service_items")
         .insert({
           service_id: serviceId,
-          position: items.length + 1,
+          position: items.reduce((maximum, item) => Math.max(maximum, item.position), 0) + 1,
           type,
           title: nextTitle,
           details: type === "text" ? details?.trim() || null : null,
           planned_duration_seconds: parsePlannedDurationInput(plannedDuration ?? ""),
           song_ids: type === "worship" ? [] : null,
+          song_id: null,
         })
-        .select("id, position, type, title, details, planned_duration_seconds, song_ids, created_at")
+        .select("id, position, type, title, details, planned_duration_seconds, song_ids, song_id, created_at")
         .single();
 
       if (error) throw error;
@@ -96,6 +111,68 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceI
     }
   }
 
+  async function addSongItem() {
+    const song = songs.find((candidate) => candidate.id === selectedSongId);
+    if (!song) return;
+    if (!isValidPlannedDuration(songPlannedDuration)) {
+      setIsError(true); setMessage("Usa una duración MM:SS mayor que 00:00."); return;
+    }
+    setIsSaving(true); setIsError(false); setMessage("Agregando canción...");
+    try {
+      const supabase = await requireSession();
+      const nextPosition = items.reduce((maximum, item) => Math.max(maximum, item.position), 0) + 1;
+      const { data, error } = await supabase.from("service_items").insert({
+        service_id: serviceId,
+        position: nextPosition,
+        type: "song",
+        song_id: song.id,
+        title: song.title,
+        details: songNotes.trim() || null,
+        planned_duration_seconds: parsePlannedDurationInput(songPlannedDuration),
+        song_ids: null,
+      }).select("id, position, type, title, details, planned_duration_seconds, song_ids, song_id, created_at").single();
+      if (error) throw error;
+      const created = data as ServiceItem;
+      savedItemsRef.current = [...savedItemsRef.current, created];
+      setItems((current) => [...current, created]);
+      closeSongItemComposer();
+      setMessage("Canción agregada correctamente.");
+    } catch (error) {
+      console.error("Unable to add song service item:", error);
+      setIsError(true); setMessage(error instanceof Error ? error.message : "No se pudo agregar la canción.");
+    } finally { setIsSaving(false); }
+  }
+
+  async function updateSongItem() {
+    if (!editingSongItem || !isValidPlannedDuration(editingSongItem.plannedDuration)) {
+      setIsError(true); setMessage("Usa una duración MM:SS mayor que 00:00."); return;
+    }
+    setIsSaving(true); setIsError(false); setMessage("Guardando canción...");
+    try {
+      const supabase = await requireSession();
+      const details = editingSongItem.details.trim() || null;
+      const plannedDuration = parsePlannedDurationInput(editingSongItem.plannedDuration);
+      const { error } = await supabase.from("service_items").update({ details, planned_duration_seconds: plannedDuration }).eq("id", editingSongItem.id).eq("service_id", serviceId).eq("type", "song");
+      if (error) throw error;
+      const update = (item: ServiceItem) => item.id === editingSongItem.id ? { ...item, details, planned_duration_seconds: plannedDuration } : item;
+      savedItemsRef.current = savedItemsRef.current.map(update);
+      setItems((current) => current.map(update));
+      setEditingSongItem(null);
+      setMessage("Canción actualizada correctamente.");
+    } catch (error) {
+      console.error("Unable to update song service item:", error);
+      setIsError(true); setMessage(error instanceof Error ? error.message : "No se pudo actualizar la canción.");
+    } finally { setIsSaving(false); }
+  }
+
+  function closeSongItemComposer() {
+    setAddStep("closed"); setSelectedSongId(""); setSongNotes(""); setSongPlannedDuration(""); setSongSearch("");
+  }
+
+  function openSongItemEditor(item: ServiceItem) {
+    setEditingSongItem({ id: item.id, details: item.details ?? "", plannedDuration: formatDurationInput(item.planned_duration_seconds) });
+  }
+
   async function updateTextItem() {
     if (!editingText?.title.trim()) return;
     if (!isValidPlannedDuration(editingText.plannedDuration)) {
@@ -113,7 +190,8 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceI
       const { error } = await supabase
         .from("service_items")
         .update({ title, details, planned_duration_seconds: plannedDuration })
-        .eq("id", editingText.id);
+        .eq("id", editingText.id)
+        .eq("service_id", serviceId);
 
       if (error) throw error;
       savedItemsRef.current = savedItemsRef.current.map((item) => item.id === editingText.id ? { ...item, title, details, planned_duration_seconds: plannedDuration } : item);
@@ -146,6 +224,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceI
         .from("service_items")
         .update({ title, planned_duration_seconds: plannedDuration })
         .eq("id", editingWorship.id)
+        .eq("service_id", serviceId)
         .eq("type", "worship");
 
       if (error) throw error;
@@ -250,7 +329,8 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceI
         items.map((item, index) => supabase
           .from("service_items")
           .update({ position: index + 1, song_ids: item.song_ids })
-          .eq("id", item.id)),
+          .eq("id", item.id)
+          .eq("service_id", serviceId)),
       );
       const failed = results.find((result) => result.error);
       if (failed?.error) throw failed.error;
@@ -317,6 +397,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceI
         .from("service_items")
         .delete()
         .eq("id", itemToDelete.id)
+        .eq("service_id", serviceId)
         .select("id")
         .single();
 
@@ -328,7 +409,8 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceI
         remainingItems.map((item, index) => supabase
           .from("service_items")
           .update({ position: index + 1 })
-          .eq("id", item.id)),
+          .eq("id", item.id)
+          .eq("service_id", serviceId)),
       );
       const failedPositionUpdate = positionResults.find((result) => result.error);
       if (failedPositionUpdate?.error) throw failedPositionUpdate.error;
@@ -349,19 +431,31 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceI
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-0 lg:space-y-0">
+      <aside className="hidden border-r border-white/[0.07] bg-zinc-950/35 p-6 lg:block">
+        <p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Servicio</p>
+        <h2 className="mt-4 text-lg font-semibold text-white">{serviceName}</h2>
+        <p className="mt-1 text-sm leading-6 text-zinc-400">{serviceSchedule || "Horario por confirmar"}</p>
+        <div className="mt-6 rounded-xl border border-white/[0.07] bg-white/[0.025] p-4"><p className="text-xs text-zinc-500">Duración planeada</p><p className="mt-1 text-xl font-semibold tabular-nums text-white">{totalDuration ? formatLongDuration(totalDuration) : "—"}</p></div>
+        <nav aria-label="Secciones del servicio" className="mt-7 space-y-1 text-sm font-medium"><a href="#orden" className="block rounded-lg bg-emerald-400/[0.09] px-3 py-2.5 text-emerald-300">Orden</a><Link href={`/service/${serviceId}/rehearsal`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Ensayo</Link><Link href={`/admin/service-team?service=${serviceId}`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Equipo</Link><Link href={`/admin/resources?service=${serviceId}`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Recursos</Link><Link href={`/service/${serviceId}/report`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Reporte</Link></nav>
+        {serviceTeamAssignments.length ? <div className="mt-8 border-t border-white/[0.07] pt-6"><p className="text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-zinc-500">Equipo</p><div className="mt-3 max-h-80 space-y-2.5 overflow-y-auto pr-1">{serviceTeamAssignments.map((assignment) => <p key={assignment.id} className="text-sm text-zinc-300">{assignment.person_name}<span className="mt-0.5 block text-xs text-zinc-500">{[assignment.role_name, ...assignment.resources.map((resource) => resource.name), assignment.microphone_name].filter(Boolean).join(" · ")}</span></p>)}</div><Link href={`/admin/service-team?service=${serviceId}`} className="mt-3 block text-xs font-semibold text-zinc-500 transition-colors hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400">Ver equipo completo →</Link></div> : null}
+      </aside>
+      <section id="orden" className="min-w-0 space-y-6 overflow-hidden lg:px-6 lg:py-7 xl:px-8">
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-b border-white/[0.08] pb-6">
-        <h1 className="col-start-1 row-start-1 min-w-0 text-[1.75rem] font-bold tracking-[-0.035em] text-white sm:text-[2rem]">{serviceName}</h1>
+        <h1 className="col-start-1 row-start-1 min-w-0 text-[1.75rem] font-bold tracking-[-0.035em] text-white sm:text-[2rem]"><span className="lg:hidden">{serviceName}</span><span className="hidden lg:inline">Orden del servicio</span></h1>
         {isAdmin ? <PrimaryButton type="button" onClick={() => setAddStep("type")} disabled={isSaving} className="col-start-2 row-start-1 min-h-11 rounded-xl px-4 text-sm shadow-none">+ Agregar elemento</PrimaryButton> : null}
         {serviceSchedule ? <p className="col-start-1 row-start-2 min-w-0 text-sm text-zinc-400 sm:text-base">{serviceSchedule}</p> : <span />}
-        <p className="col-start-2 row-start-2 text-right text-sm text-zinc-500">{items.length} {items.length === 1 ? "elemento" : "elementos"}</p>
-        {isAdmin ? <div className="col-span-2 row-start-3 mt-2 flex flex-col gap-2 sm:flex-row sm:justify-end"><SecondaryButton href={`/admin?service=${serviceId}`} className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">Editar fecha</SecondaryButton><PrepareNextServiceButton /><SecondaryButton href="/archive" className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">Archivo</SecondaryButton></div> : null}
+        <p className="col-start-2 row-start-2 text-right text-sm text-zinc-500">{operationalEntries.length} {operationalEntries.length === 1 ? "elemento" : "elementos"}<span className="hidden lg:inline"> · {totalDuration ? formatLongDuration(totalDuration) : "sin duración"}</span></p>
+        {isAdmin ? <div className="col-span-2 row-start-3 mt-2 flex flex-col gap-2 sm:flex-row sm:justify-end"><SecondaryButton href={`/admin?service=${serviceId}`} className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">Editar fecha</SecondaryButton>{canPrepareNext ? <PrepareNextServiceButton /> : null}<SecondaryButton href="/archive" className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">Archivo</SecondaryButton></div> : null}
       </header>
 
       {showSuccessToast ? <div role="status" aria-live="polite" className="fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-sm rounded-2xl border border-emerald-400/20 bg-zinc-900 px-4 py-3 text-center text-sm font-medium text-emerald-300 shadow-2xl">✅ Próximo servicio preparado correctamente.</div> : null}
 
       {items.length ? (
         <div className="divide-y divide-white/[0.07] border-y border-white/[0.07]">
+          <div className="hidden grid-cols-[112px_76px_minmax(0,1fr)_minmax(110px,0.42fr)_auto_auto] items-center gap-x-3 border-b border-white/[0.07] px-3 py-2 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-zinc-600 lg:grid">
+            <span>Hora</span><span>Duración</span><span>Contenido</span><span>Micrófono</span><span className="col-span-2 text-right">Acciones</span>
+          </div>
           {items.map((item) => (
             <article
               key={item.id}
@@ -370,20 +464,26 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceI
               onDragEnd={isAdmin ? () => setDraggedId(null) : undefined}
               onDragOver={isAdmin ? (event) => event.preventDefault() : undefined}
               onDrop={isAdmin ? () => reorderItems(item.id) : undefined}
-              className={`group px-1 py-3 transition-colors duration-200 sm:px-2 sm:py-4 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${draggedId === item.id ? "bg-emerald-400/[0.055]" : "hover:bg-white/[0.018]"}`}
+              onClick={() => setSelectedRow({ itemId: item.id })}
+              className={`group px-1 py-3 transition-colors duration-200 sm:px-2 sm:py-4 lg:px-3 lg:py-0 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${selectedRow?.itemId === item.id && !selectedRow.songId ? "bg-emerald-400/[0.07]" : draggedId === item.id ? "bg-emerald-400/[0.055]" : "hover:bg-white/[0.018]"}`}
             >
-              <div className="flex items-start gap-2.5">
+              <div className={`flex items-start gap-2.5 lg:grid lg:grid-cols-[112px_76px_minmax(0,1fr)_minmax(110px,0.42fr)_auto_auto] lg:items-center lg:gap-x-3 ${item.type === "worship" ? "lg:min-h-9" : "lg:min-h-14"}`}>
+                <span className="hidden whitespace-nowrap text-sm tabular-nums text-zinc-400 lg:block">{item.type !== "worship" ? schedule.times.get(item.id) ?? "—" : ""}</span>
+                <span className="hidden text-sm tabular-nums text-zinc-500 lg:block">{formatItemDuration(item, songs)}</span>
                 <div className="min-w-0 flex-1">
-                  <h3 className={item.type === "worship" ? "text-xs font-semibold uppercase tracking-[0.16em] text-emerald-400/80" : "text-base font-semibold leading-6 text-zinc-100"}>{item.title}</h3>
-                  {item.type === "text" && item.details ? <p className="mt-1 whitespace-pre-wrap text-sm font-normal leading-5 text-zinc-500">{item.details}</p> : null}
-                  {item.type === "text" ? <AssignedResourcesLine assignmentText={item.details ?? ""} assignments={serviceTeamAssignments} teamMembers={teamMembers} /> : null}
-                  {item.planned_duration_seconds ? <p className="mt-1 text-xs text-zinc-500">{formatDuration(item.planned_duration_seconds)}</p> : null}
+                  <h3 className={item.type === "worship" ? "text-xs font-semibold uppercase tracking-[0.16em] text-emerald-400/80" : "text-base font-semibold leading-6 text-zinc-100"}>{item.type === "song" && item.song_id ? <Link href={`/song/${item.song_id}?service=${serviceId}`} onClick={(event) => event.stopPropagation()} className="hover:text-emerald-300">{songs.find((song) => song.id === item.song_id)?.title ?? item.title}</Link> : item.title}</h3>
+                  {item.type === "text" && item.details ? <p className="mt-1 whitespace-pre-wrap text-sm font-normal leading-5 text-zinc-500 lg:mt-0.5 lg:truncate lg:whitespace-nowrap">{item.details}</p> : null}
+                  {item.type === "song" ? <DirectSongItemMetadata item={item} songs={songs} /> : null}
+                  {item.type === "song" ? <span className="lg:hidden"><AssignedMicrophonesLine assignmentText={item.details ?? ""} assignments={serviceTeamAssignments} teamMembers={teamMembers} /></span> : null}
+                  {item.type === "text" ? <span className="lg:hidden"><AssignedMicrophonesLine assignmentText={item.details ?? ""} assignments={serviceTeamAssignments} teamMembers={teamMembers} /></span> : null}
+                  {item.planned_duration_seconds ? <p className="mt-1 text-xs text-zinc-500 lg:hidden">{formatDuration(item.planned_duration_seconds)}</p> : null}
                 </div>
+                <DesktopAssignedMicrophones assignmentText={item.type === "worship" ? "" : item.details ?? ""} assignments={serviceTeamAssignments} teamMembers={teamMembers} showEmpty={item.type !== "worship"} />
                 {isAdmin ? (
                   <details className="relative shrink-0">
                     <summary aria-label={`Acciones para ${item.title}`} className="grid size-11 cursor-pointer list-none place-items-center rounded-xl text-xl leading-none text-zinc-500 transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400 [&::-webkit-details-marker]:hidden">⋮</summary>
                     <div className="absolute right-0 z-20 mt-1 min-w-36 overflow-hidden rounded-xl border border-white/10 bg-zinc-900 p-1 shadow-xl shadow-black/40">
-                      <button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); if (item.type === "text") setEditingText({ id: item.id, title: item.title, details: item.details ?? "", plannedDuration: formatDurationInput(item.planned_duration_seconds) }); else setEditingWorship({ id: item.id, title: item.title, plannedDuration: formatDurationInput(item.planned_duration_seconds) }); }} disabled={isSaving} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-zinc-200 transition-colors hover:bg-white/[0.06] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-emerald-400">Editar</button>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); event.currentTarget.closest("details")?.removeAttribute("open"); if (item.type === "text") setEditingText({ id: item.id, title: item.title, details: item.details ?? "", plannedDuration: formatDurationInput(item.planned_duration_seconds) }); else if (item.type === "song") openSongItemEditor(item); else setEditingWorship({ id: item.id, title: item.title, plannedDuration: formatDurationInput(item.planned_duration_seconds) }); }} disabled={isSaving} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-zinc-200 transition-colors hover:bg-white/[0.06] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-emerald-400">Editar</button>
                       <button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); setDeletingItem(item); }} disabled={isSaving} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-rose-300 transition-colors hover:bg-rose-400/[0.08] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-rose-400">Eliminar</button>
                     </div>
                   </details>
@@ -392,7 +492,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceI
               </div>
 
               {item.type === "worship" && (item.song_ids ?? []).length > 0 ? (
-                <ul className="mt-2 divide-y divide-white/[0.06] border-t border-white/[0.06]">
+                <ul className="mt-2 divide-y divide-white/[0.06] border-t border-white/[0.06] lg:mt-0">
                   {(item.song_ids ?? []).map((entry) => {
                     const song = songs.find((candidate) => candidate.id === entry.songId);
                     if (!song) return null;
@@ -404,22 +504,27 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceI
                         onDragEnd={isAdmin ? (event) => { event.stopPropagation(); setDraggedSong(null); } : undefined}
                         onDragOver={isAdmin ? (event) => { event.stopPropagation(); event.preventDefault(); } : undefined}
                         onDrop={isAdmin ? (event) => { event.stopPropagation(); reorderBlockSongs(item.id, entry.songId); } : undefined}
-                        className={`grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-1 rounded-xl px-2 py-3 transition-colors duration-200 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center md:rounded-none md:px-0 md:py-2 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${draggedSong?.songId === entry.songId ? "bg-emerald-400/[0.04] text-emerald-300" : ""}`}
+                        onClick={(event) => { event.stopPropagation(); setSelectedRow({ itemId: item.id, songId: entry.songId }); }}
+                        className={`grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-1 rounded-xl px-2 py-3 transition-colors duration-200 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center md:rounded-none md:px-0 md:py-2 lg:grid-cols-[112px_76px_minmax(0,1fr)_minmax(110px,0.42fr)_auto_auto] lg:gap-x-3 lg:px-3 lg:py-1.5 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${selectedRow?.songId === entry.songId ? "bg-emerald-400/[0.07]" : draggedSong?.songId === entry.songId ? "bg-emerald-400/[0.04] text-emerald-300" : ""}`}
                       >
-                        <div className="min-w-0 md:col-start-1 md:row-start-1">
-                          <Link href={`/song/${song.id}`} onClick={(event) => event.stopPropagation()} className="line-clamp-2 text-base font-semibold leading-6 text-white transition-colors duration-200 hover:text-emerald-300 md:line-clamp-1 md:text-zinc-200">{song.title}</Link>
-                          <SongMetadataLine songKey={song.key} bpm={song.bpm} timeSignature={song.time_signature} className="mt-1 text-[0.8125rem] font-normal" />
-                          {entry.notes ? <p className="mt-1 whitespace-pre-line text-xs leading-5 text-zinc-500 sm:text-[0.8125rem]">{entry.notes}</p> : null}
-                          <AssignedResourcesLine assignmentText={entry.notes} assignments={serviceTeamAssignments} teamMembers={teamMembers} />
-                          <SongDurationLine entry={entry} libraryDuration={song.duration} />
+                        <span className="hidden whitespace-nowrap text-sm tabular-nums text-zinc-400 lg:block">{schedule.times.get(`${item.id}:${entry.songId}`) ?? "—"}</span>
+                        <span className="hidden text-sm tabular-nums text-zinc-500 lg:block">{formatDuration(getSongDurationSeconds(entry, song.duration) ?? 0)}</span>
+                        <div className="min-w-0 md:col-start-1 md:row-start-1 lg:col-start-3">
+                          <Link href={`/song/${song.id}?service=${serviceId}`} onClick={(event) => event.stopPropagation()} className="line-clamp-2 text-base font-semibold leading-6 text-white transition-colors duration-200 hover:text-emerald-300 md:line-clamp-1 md:text-zinc-200">{song.title}</Link>
+                          <span className="lg:hidden"><SongMetadataLine songKey={song.key} bpm={song.bpm} timeSignature={song.time_signature} className="mt-1 text-[0.8125rem] font-normal" /></span>
+                          {entry.notes ? <p className="mt-1 whitespace-pre-line text-xs leading-5 text-zinc-500 sm:text-[0.8125rem] lg:hidden">{entry.notes}</p> : null}
+                          <span className="lg:hidden"><AssignedMicrophonesLine assignmentText={entry.notes} assignments={serviceTeamAssignments} teamMembers={teamMembers} /></span>
+                          <span className="lg:hidden"><SongDurationLine entry={entry} libraryDuration={song.duration} /></span>
+                          <DesktopSongMetadata song={song} entry={entry} />
                         </div>
-                        <div className="col-span-2 row-start-2 mt-2 flex min-w-0 items-center justify-end gap-1 border-t border-white/[0.05] pt-2 md:col-span-1 md:col-start-2 md:row-start-1 md:mt-0 md:border-t-0 md:pt-0">
+                        <DesktopAssignedMicrophones assignmentText={entry.notes} assignments={serviceTeamAssignments} teamMembers={teamMembers} showEmpty />
+                        <div className="col-span-2 row-start-2 mt-2 flex min-w-0 items-center justify-end gap-1 border-t border-white/[0.05] pt-2 md:col-span-1 md:col-start-2 md:row-start-1 md:mt-0 md:border-t-0 md:pt-0 lg:col-start-5">
                           <div className="mr-auto md:mr-0"><ResourceIndicators song={song} /></div>
-                          {isAdmin ? <button type="button" aria-label={`Editar notas y duración de ${song.title}`} onClick={(event) => { event.stopPropagation(); setEditingSong({ blockId: item.id, songId: entry.songId, notes: entry.notes, plannedDuration: formatDurationInput(entry.plannedDurationSeconds) }); }} className="min-h-11 shrink-0 rounded-full px-2 text-xs font-medium text-zinc-600 transition-colors hover:bg-white/[0.04] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400">Cambiar duración</button> : null}
-                          {isAdmin ? <details className="relative shrink-0 md:hidden"><summary aria-label={`Más acciones para ${song.title}`} onClick={(event) => event.stopPropagation()} className="grid size-11 cursor-pointer list-none place-items-center rounded-full text-xl leading-none text-zinc-500 transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400 [&::-webkit-details-marker]:hidden">⋯</summary><div className="absolute bottom-full right-0 z-20 mb-1 min-w-44 overflow-hidden rounded-xl border border-white/10 bg-zinc-900 p-1 shadow-xl shadow-black/40"><button type="button" onClick={(event) => { event.stopPropagation(); event.currentTarget.closest("details")?.removeAttribute("open"); removeSongFromBlock(item.id, entry.songId); }} disabled={isSaving} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-rose-300 transition-colors hover:bg-rose-400/[0.08] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-rose-400">Eliminar canción</button></div></details> : null}
-                          {isAdmin ? <button type="button" aria-label={`Quitar canción ${song.title}`} onClick={(event) => { event.stopPropagation(); removeSongFromBlock(item.id, entry.songId); }} className="hidden size-11 shrink-0 place-items-center rounded-full text-lg text-zinc-600 transition-colors hover:bg-rose-400/10 hover:text-rose-300 focus-visible:outline-2 focus-visible:outline-rose-400 md:grid">×</button> : null}
+                          {isAdmin ? <button type="button" aria-label={`Editar notas y duración de ${song.title}`} onClick={(event) => { event.stopPropagation(); setEditingSong({ blockId: item.id, songId: entry.songId, notes: entry.notes, plannedDuration: formatDurationInput(entry.plannedDurationSeconds) }); }} className="min-h-11 shrink-0 rounded-full px-2 text-xs font-medium text-zinc-600 transition-colors hover:bg-white/[0.04] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400 lg:hidden">Cambiar duración</button> : null}
+                          {isAdmin ? <details className="relative shrink-0 md:hidden lg:block"><summary aria-label={`Más acciones para ${song.title}`} onClick={(event) => event.stopPropagation()} className="grid size-11 cursor-pointer list-none place-items-center rounded-full text-xl leading-none text-zinc-500 transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400 [&::-webkit-details-marker]:hidden">⋯</summary><div className="absolute bottom-full right-0 z-20 mb-1 min-w-44 overflow-hidden rounded-xl border border-white/10 bg-zinc-900 p-1 shadow-xl shadow-black/40"><button type="button" onClick={(event) => { event.stopPropagation(); event.currentTarget.closest("details")?.removeAttribute("open"); setEditingSong({ blockId: item.id, songId: entry.songId, notes: entry.notes, plannedDuration: formatDurationInput(entry.plannedDurationSeconds) }); }} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-zinc-200 transition-colors hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-emerald-400">Editar notas y duración</button><button type="button" onClick={(event) => { event.stopPropagation(); event.currentTarget.closest("details")?.removeAttribute("open"); removeSongFromBlock(item.id, entry.songId); }} disabled={isSaving} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-rose-300 transition-colors hover:bg-rose-400/[0.08] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-rose-400">Eliminar canción</button></div></details> : null}
+                          {isAdmin ? <button type="button" aria-label={`Quitar canción ${song.title}`} onClick={(event) => { event.stopPropagation(); removeSongFromBlock(item.id, entry.songId); }} className="hidden size-11 shrink-0 place-items-center rounded-full text-lg text-zinc-600 transition-colors hover:bg-rose-400/10 hover:text-rose-300 focus-visible:outline-2 focus-visible:outline-rose-400 md:grid lg:hidden">×</button> : null}
                         </div>
-                        {isAdmin ? <GripIcon label={`Drag ${song.title} to reorder`} className="col-start-2 row-start-1 mt-1 size-3.5 justify-self-end text-zinc-600 md:col-start-3 md:mt-0" /> : null}
+                        {isAdmin ? <GripIcon label={`Drag ${song.title} to reorder`} className="col-start-2 row-start-1 mt-1 size-3.5 justify-self-end text-zinc-600 md:col-start-3 md:mt-0 lg:col-start-6" /> : null}
                       </li>
                     );
                   })}
@@ -427,7 +532,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceI
               ) : null}
 
               {isAdmin && item.type === "worship" ? (
-                <button type="button" aria-label={`Agregar canción a ${item.title}`} onClick={() => setSongSelectorBlockId(item.id)} className="mt-3 min-h-11 rounded-xl px-3 text-sm font-medium text-emerald-400/80 transition-colors hover:bg-emerald-400/[0.06] hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-emerald-400 md:mt-1">+ Agregar canción</button>
+                <button type="button" aria-label={`Agregar canción a ${item.title}`} onClick={() => setSongSelectorBlockId(item.id)} className="mt-3 min-h-11 rounded-xl px-3 text-sm font-medium text-emerald-400/80 transition-colors hover:bg-emerald-400/[0.06] hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-emerald-400 md:mt-1 lg:ml-[188px] lg:min-h-8 lg:py-1 lg:text-xs">+ Agregar canción</button>
               ) : null}
             </article>
           ))}
@@ -441,6 +546,28 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceI
 
       {isAdmin && hasUnsavedChanges ? <PrimaryButton type="button" onClick={saveOrder} disabled={isSaving} className="min-h-14 w-full">{isSaving ? "Guardando..." : "Guardar"}</PrimaryButton> : null}
       <p role="status" aria-live="polite" className={`min-h-6 text-center text-sm font-medium ${isError ? "text-rose-400" : "text-emerald-400"}`}>{message}</p>
+      <div className="border-t border-white/[0.07] pt-5 lg:mt-[-0.5rem] lg:flex lg:justify-end lg:gap-2 lg:pb-1">
+        <SecondaryButton href="/live" className="hidden lg:inline-flex lg:min-h-11 lg:rounded-xl lg:px-4 lg:text-sm lg:shadow-none lg:hover:translate-y-0">→ En Vivo</SecondaryButton>
+        <PrimaryButton href={`/service/${serviceId}/rehearsal`} className="w-full lg:min-h-11 lg:w-auto lg:rounded-xl lg:px-4 lg:text-sm lg:shadow-none lg:hover:translate-y-0">▶ Comenzar ensayo</PrimaryButton>
+      </div>
+      </section>
+
+      {selectedItem ? <aside aria-label="Detalle del elemento" className="fixed bottom-0 right-0 top-16 z-50 hidden w-[360px] overflow-y-auto border-l border-white/[0.09] bg-zinc-950/95 p-6 shadow-[-20px_0_50px_rgba(0,0,0,0.38)] backdrop-blur-xl lg:block">
+          <button type="button" onClick={() => setSelectedRow(null)} aria-label="Cerrar detalle" className="absolute right-4 top-4 grid size-9 place-items-center rounded-lg text-xl text-zinc-500 hover:bg-white/[0.06] hover:text-white">×</button>
+          <p className="text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-emerald-400">Detalle del elemento</p>
+          <h2 className="mt-4 pr-8 text-xl font-semibold text-white">{selectedSong?.title ?? selectedItem.title}</h2>
+          <dl className="mt-6 space-y-5 text-sm">
+            <Detail label="Tipo" value={selectedSong ? "Canción" : selectedItem.type === "worship" ? "Bloque de alabanza" : "Elemento"} />
+            {selectedSong?.key ? <Detail label="Tonalidad" value={selectedSong.key} /> : null}
+            {selectedSong?.bpm ? <Detail label="BPM" value={String(selectedSong.bpm)} /> : null}
+            {selectedSong?.time_signature ? <Detail label="Compás" value={selectedSong.time_signature} /> : null}
+            <Detail label="Duración" value={selectedSong ? formatDuration(selectedEntry ? getSongDurationSeconds(selectedEntry, selectedSong.duration) ?? 0 : getSongDurationSeconds({ plannedDurationSeconds: selectedItem.planned_duration_seconds }, selectedSong.duration) ?? 0) : selectedItem.planned_duration_seconds ? formatDuration(selectedItem.planned_duration_seconds) : "—"} />
+            {selectedSong ? <Detail label="Origen de duración" value={selectedEntry ? hasSongDurationOverride(selectedEntry) ? "Personalizada" : "Biblioteca" : selectedItem.planned_duration_seconds ? "Personalizada" : "Biblioteca"} /> : null}
+            {(selectedEntry?.notes || selectedItem.details) ? <Detail label="Notas / responsable" value={selectedEntry?.notes || selectedItem.details || "—"} /> : null}
+            {(selectedEntry?.notes || selectedItem.details) ? <Detail label="Micrófono" value={getServiceEntryMicrophones(serviceTeamAssignments, selectedEntry?.notes || selectedItem.details || "", teamMembers).join(" · ") || "—"} /> : null}
+          </dl>
+          {isAdmin ? <div className="mt-8 space-y-2"><button type="button" onClick={() => selectedItem.type === "song" ? openSongItemEditor(selectedItem) : selectedSong && selectedEntry ? setEditingSong({ blockId: selectedItem.id, songId: selectedSong.id, notes: selectedEntry.notes, plannedDuration: formatDurationInput(selectedEntry.plannedDurationSeconds) }) : selectedItem.type === "text" ? setEditingText({ id: selectedItem.id, title: selectedItem.title, details: selectedItem.details ?? "", plannedDuration: formatDurationInput(selectedItem.planned_duration_seconds) }) : setEditingWorship({ id: selectedItem.id, title: selectedItem.title, plannedDuration: formatDurationInput(selectedItem.planned_duration_seconds) })} className="min-h-10 w-full rounded-lg border border-white/10 px-4 text-sm font-semibold text-zinc-200 hover:bg-white/[0.05]">Editar</button><button type="button" onClick={() => setDeletingItem(selectedItem)} className="min-h-10 w-full rounded-lg px-4 text-sm font-semibold text-rose-300 hover:bg-rose-400/[0.08]">Eliminar</button></div> : null}
+      </aside> : null}
 
       {isAdmin && deletingItem ? (
         <div className="fixed inset-0 z-[70] grid place-items-center bg-black/70 px-4 backdrop-blur-sm" role="presentation">
@@ -461,25 +588,34 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceI
             <h2 id="add-service-item-title" className="text-2xl font-bold tracking-tight text-white">Agregar elemento</h2>
             {addStep === "type" ? (
               <div className="mt-6 grid gap-3">
-                <PrimaryButton type="button" onClick={() => setAddStep("text")} disabled={isSaving}>Texto</PrimaryButton>
-                <SecondaryButton type="button" onClick={() => void addItem("worship", "Bloque de alabanza")} disabled={isSaving}>Bloque de alabanza</SecondaryButton>
+                <PrimaryButton type="button" onClick={() => setAddStep("song")} disabled={isSaving}>Canción</PrimaryButton>
+                <SecondaryButton type="button" onClick={() => setAddStep("text")} disabled={isSaving}>Momento</SecondaryButton>
               </div>
+            ) : addStep === "song" ? (
+              <form className="mt-6 space-y-4" onSubmit={(event) => { event.preventDefault(); void addSongItem(); }}>
+                <label className="block"><span className="mb-2 block text-sm font-semibold text-zinc-300">Buscar canción</span><input autoFocus value={songSearch} onChange={(event) => { setSongSearch(event.target.value); setSelectedSongId(""); }} placeholder="Título o artista" className="min-h-12 w-full rounded-2xl border border-white/10 bg-zinc-950/60 px-4 text-white outline-none focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]" /></label>
+                <label className="block"><span className="mb-2 block text-sm font-semibold text-zinc-300">Biblioteca</span><select required value={selectedSongId} onChange={(event) => setSelectedSongId(event.target.value)} className="min-h-12 w-full rounded-2xl border border-white/10 bg-zinc-950/60 px-4 text-white outline-none focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]"><option value="">Selecciona una canción</option>{filterSongs(songs, songSearch).map((song) => <option key={song.id} value={song.id}>{song.title} · {song.artist} · {song.key} · {song.bpm} BPM · {song.duration}</option>)}</select></label>
+                {selectedSongId ? <p className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2 text-xs text-zinc-400">Duración de biblioteca: <span className="font-semibold text-zinc-200">{songs.find((song) => song.id === selectedSongId)?.duration || "—"}</span></p> : null}
+                <div><AssignmentFields members={teamMembers} value={songNotes} onChange={setSongNotes} /></div>
+                <PlannedDurationField value={songPlannedDuration} onChange={setSongPlannedDuration} />
+                <PrimaryButton type="submit" disabled={isSaving || !selectedSongId} className="w-full">{isSaving ? "Agregando..." : "Agregar canción"}</PrimaryButton>
+              </form>
             ) : (
               <form className="mt-6 space-y-4" onSubmit={(event) => { event.preventDefault(); void addItem("text", textTitle, textDetails, textPlannedDuration); }}>
                 <label className="block">
-                  <span className="mb-2 block text-sm font-semibold text-zinc-300">Title</span>
+                  <span className="mb-2 block text-sm font-semibold text-zinc-300">Título</span>
                   <input autoFocus required value={textTitle} onChange={(event) => setTextTitle(event.target.value)} className="min-h-12 w-full rounded-2xl border border-white/10 bg-zinc-950/60 px-4 text-white outline-none focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]" />
                 </label>
                 <label className="block">
-                  <span className="mb-2 block text-sm font-semibold text-zinc-300">Details <span className="font-normal text-zinc-500">(optional)</span></span>
+                  <span className="mb-2 block text-sm font-semibold text-zinc-300">Detalles <span className="font-normal text-zinc-500">(opcional)</span></span>
                   <span className="mb-2 block"><AssignmentFields members={teamMembers} value={textDetails} onChange={setTextDetails} /></span>
                   <textarea value={textDetails} onChange={(event) => setTextDetails(event.target.value)} rows={3} className="w-full resize-y rounded-2xl border border-white/10 bg-zinc-950/60 px-4 py-3 text-white outline-none focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]" />
                 </label>
                 <PlannedDurationField value={textPlannedDuration} onChange={setTextPlannedDuration} />
-                <PrimaryButton type="submit" disabled={isSaving || !textTitle.trim()} className="w-full">Add</PrimaryButton>
+                <PrimaryButton type="submit" disabled={isSaving || !textTitle.trim()} className="w-full">Agregar momento</PrimaryButton>
               </form>
             )}
-            <button type="button" onClick={() => { setAddStep("closed"); setTextTitle(""); setTextDetails(""); setTextPlannedDuration(""); }} disabled={isSaving} className="mt-4 min-h-11 w-full rounded-full text-sm font-semibold text-zinc-400 transition-colors hover:bg-white/[0.04] hover:text-white">Cancel</button>
+            <button type="button" onClick={() => { closeSongItemComposer(); setTextTitle(""); setTextDetails(""); setTextPlannedDuration(""); }} disabled={isSaving} className="mt-4 min-h-11 w-full rounded-full text-sm font-semibold text-zinc-400 transition-colors hover:bg-white/[0.04] hover:text-white">Cancelar</button>
           </section>
         </div>
       ) : null}
@@ -566,6 +702,21 @@ export function ServiceItems({ initialItems, songs, isAdmin, loadError, serviceI
           </section>
         </div>
       ) : null}
+
+      {isAdmin && editingSongItem ? (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-black/70 px-4 backdrop-blur-sm" role="presentation">
+          <section role="dialog" aria-modal="true" aria-labelledby="edit-song-item-title" className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-900 p-6 shadow-2xl shadow-black/60 sm:p-7">
+            <h2 id="edit-song-item-title" className="text-2xl font-bold tracking-tight text-white">Editar canción</h2>
+            <form className="mt-6 space-y-4" onSubmit={(event) => { event.preventDefault(); void updateSongItem(); }}>
+              <div><AssignmentFields members={teamMembers} value={editingSongItem.details} onChange={(details) => setEditingSongItem({ ...editingSongItem, details })} /></div>
+              <PlannedDurationField value={editingSongItem.plannedDuration} onChange={(plannedDuration) => setEditingSongItem({ ...editingSongItem, plannedDuration })} />
+              {editingSongItem.plannedDuration ? <button type="button" onClick={() => setEditingSongItem({ ...editingSongItem, plannedDuration: "" })} className="min-h-11 text-sm font-semibold text-emerald-400 transition-colors hover:text-emerald-300">Usar duración original</button> : null}
+              <PrimaryButton type="submit" disabled={isSaving} className="w-full">{isSaving ? "Guardando..." : "Guardar"}</PrimaryButton>
+            </form>
+            <button type="button" onClick={() => setEditingSongItem(null)} disabled={isSaving} className="mt-4 min-h-11 w-full rounded-full text-sm font-semibold text-zinc-400 transition-colors hover:bg-white/[0.04] hover:text-white">Cancelar</button>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -577,8 +728,29 @@ function serializeService(items: ServiceItem[]) {
     title: item.title,
     details: item.details,
     plannedDurationSeconds: item.planned_duration_seconds,
+    songId: item.song_id,
     songIds: item.song_ids,
   })));
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return <div><dt className="text-xs font-medium text-zinc-500">{label}</dt><dd className="mt-1 whitespace-pre-wrap text-zinc-200">{value}</dd></div>;
+}
+
+function formatLongDuration(seconds: number) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return hours ? `${hours}h ${minutes}m` : `${minutes} min`;
+}
+
+function formatItemDuration(item: ServiceItem, songs: ServiceSong[]) {
+  if (item.type === "worship") return "";
+  if (item.type === "song") {
+    const song = item.song_id ? songs.find((candidate) => candidate.id === item.song_id) : null;
+    const duration = song ? getSongDurationSeconds({ plannedDurationSeconds: item.planned_duration_seconds }, song.duration) : null;
+    return duration ? formatDuration(duration) : "—";
+  }
+  return item.planned_duration_seconds ? formatDuration(item.planned_duration_seconds) : "—";
 }
 
 function PlannedDurationField({ onChange, value }: { onChange: (value: string) => void; value: string }) {
@@ -596,13 +768,48 @@ function SongDurationLine({ entry, libraryDuration }: { entry: WorshipSongEntry;
   return <p className="mt-1 text-xs text-zinc-500">Duración: {formatDuration(duration)} · {hasSongDurationOverride(entry) ? "Personalizada" : "Biblioteca"}</p>;
 }
 
-function AssignedResourcesLine({ assignmentText, assignments, teamMembers }: { assignmentText: string; assignments: CurrentServiceTeamMember[]; teamMembers: TeamMember[] }) {
-  const resources = getServiceAssignmentResources(assignments, assignmentText, teamMembers);
-  return resources.length ? <p className="mt-1 break-words text-xs leading-5 text-zinc-500">{resources.join(" · ")}</p> : null;
+function AssignedMicrophonesLine({ assignmentText, assignments, teamMembers }: { assignmentText: string; assignments: CurrentServiceTeamMember[]; teamMembers: TeamMember[] }) {
+  const microphones = getServiceEntryMicrophones(assignments, assignmentText, teamMembers);
+  return microphones.length ? <div className="mt-1"><AssignedMicrophoneItems microphones={microphones} /></div> : null;
+}
+
+function DesktopAssignedMicrophones({ assignmentText, assignments, teamMembers, showEmpty = false }: { assignmentText: string; assignments: CurrentServiceTeamMember[]; teamMembers: TeamMember[]; showEmpty?: boolean }) {
+  const microphones = getServiceEntryMicrophones(assignments, assignmentText, teamMembers);
+  return (
+    <div className="hidden min-w-0 flex-col gap-1 lg:flex">
+      {microphones.length ? <AssignedMicrophoneItems microphones={microphones} /> : showEmpty ? <span className="text-xs text-zinc-600">—</span> : null}
+    </div>
+  );
+}
+
+function AssignedMicrophoneItems({ microphones }: { microphones: string[] }) {
+  const label = microphones.join(" · ");
+  return <span className="flex min-w-0 items-start gap-1.5 text-xs leading-5 text-zinc-400" title={label}><Mic aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-zinc-500" strokeWidth={1.75} /><span className="min-w-0 break-words">{label}</span></span>;
+}
+
+function DesktopSongMetadata({ song, entry }: { song: ServiceSong; entry: WorshipSongEntry }) {
+  const assignment = parseAssignmentText(entry.notes);
+  const metadata = [song.key, song.bpm ? `${song.bpm} BPM` : null, song.time_signature, assignment.name, assignment.role].filter(Boolean);
+  return metadata.length ? <p className="mt-0.5 hidden truncate text-xs text-zinc-500 lg:block" title={metadata.join(" · ")}>{metadata.join(" · ")}</p> : null;
+}
+
+function DirectSongItemMetadata({ item, songs }: { item: ServiceItem; songs: ServiceSong[] }) {
+  const song = item.song_id ? songs.find((candidate) => candidate.id === item.song_id) : null;
+  if (!song) return <p className="mt-1 text-xs text-rose-300">Canción no disponible</p>;
+  const assignment = parseAssignmentText(item.details ?? "");
+  const metadata = [song.key, song.bpm ? `${song.bpm} BPM` : null, song.time_signature, assignment.name, assignment.role].filter(Boolean);
+  const duration = getSongDurationSeconds({ plannedDurationSeconds: item.planned_duration_seconds }, song.duration);
+  return <><p className="mt-0.5 truncate text-xs text-zinc-500" title={metadata.join(" · ")}>{metadata.join(" · ")}</p>{duration ? <p className="mt-1 text-xs text-zinc-500 lg:hidden">Duración: {formatDuration(duration)} · {item.planned_duration_seconds ? "Personalizada" : "Biblioteca"}</p> : null}</>;
 }
 
 function isValidPlannedDuration(value: string) {
   return !value.trim() || parsePlannedDurationInput(value) !== null;
+}
+
+function filterSongs(songs: ServiceSong[], query: string) {
+  const normalized = query.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
+  if (!normalized) return songs;
+  return songs.filter((song) => `${song.title} ${song.artist}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es").includes(normalized));
 }
 
 function ResourceIndicators({ song }: { song: ServiceSong }) {

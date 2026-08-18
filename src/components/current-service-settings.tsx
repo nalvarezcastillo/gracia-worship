@@ -81,28 +81,28 @@ export function CurrentServiceSettings({ initialDate, initialName, initialTime, 
   }
 
   return (
-    <AppSectionCard eyebrow="Servicio" title="Servicio actual">
-      <form onSubmit={save} className="grid gap-4 px-5 py-4 sm:grid-cols-2 sm:px-6 sm:py-5">
-        <label className="text-sm font-semibold text-zinc-300 sm:col-span-2">
+    <AppSectionCard eyebrow="Servicio" title="Servicio actual" compactDesktop>
+      <form onSubmit={save} className="grid gap-4 px-5 py-4 sm:grid-cols-2 sm:px-6 sm:py-5 lg:grid-cols-[2fr_1fr_1fr] lg:gap-x-4 lg:gap-y-3 lg:px-5 lg:py-4">
+        <label className="text-sm font-semibold text-zinc-300 sm:col-span-2 lg:col-span-1 lg:col-start-1 lg:row-start-1">
           Nombre del servicio
           <input required value={serviceName} onChange={(event) => setServiceName(event.target.value)} className={`${appFieldStyles} mt-2`} />
         </label>
-        <label className="text-sm font-semibold text-zinc-300">
+        <label className="text-sm font-semibold text-zinc-300 lg:col-start-2 lg:row-start-1">
           Fecha del servicio
           <input type="date" value={serviceDate} onChange={(event) => setServiceDate(event.target.value)} className={`${appFieldStyles} mt-2`} />
         </label>
-        <label className="text-sm font-semibold text-zinc-300 sm:col-span-2">
+        <label className="text-sm font-semibold text-zinc-300 sm:col-span-2 lg:col-span-3 lg:row-start-2">
           Notas del líder
-          <textarea value={leaderNotes} onChange={(event) => setLeaderNotes(event.target.value)} rows={5} className={`${appFieldStyles} mt-2 resize-y py-3`} />
+          <textarea value={leaderNotes} onChange={(event) => setLeaderNotes(event.target.value)} rows={5} className={`${appFieldStyles} mt-2 resize-y py-3 lg:h-24 lg:min-h-24`} />
         </label>
-        <label className="text-sm font-semibold text-zinc-300">
+        <label className="text-sm font-semibold text-zinc-300 lg:col-start-3 lg:row-start-1">
           Hora del servicio
           <input type="time" required value={serviceTime} onChange={(event) => setServiceTime(event.target.value)} className={`${appFieldStyles} mt-2`} />
         </label>
-        <AppActionBar className="sm:col-span-2">
-          <PrimaryButton type="submit" disabled={isSaving || !serviceName.trim() || !serviceTime.trim()}>{isSaving ? "Guardando..." : "Guardar"}</PrimaryButton>
+        <AppActionBar className="sm:col-span-2 lg:col-span-3 lg:row-start-3">
+          <PrimaryButton type="submit" disabled={isSaving || !serviceName.trim() || !serviceTime.trim()} className="lg:min-h-10 lg:rounded-xl lg:px-4 lg:text-sm lg:shadow-none lg:hover:translate-y-0">{isSaving ? "Guardando..." : "Guardar"}</PrimaryButton>
         </AppActionBar>
-        <p role="status" aria-live="polite" className={`min-h-5 text-sm sm:col-span-2 ${isError ? "text-rose-400" : "text-emerald-400"}`}>{message}</p>
+        <p role="status" aria-live="polite" className={`min-h-5 text-sm sm:col-span-2 lg:col-span-3 lg:row-start-4 ${isError ? "text-rose-400" : "text-emerald-400"}`}>{message}</p>
       </form>
     </AppSectionCard>
   );

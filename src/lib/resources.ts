@@ -17,19 +17,19 @@ export type ServiceResource = {
 };
 
 export type ResourceUsage = {
+  assignment_id: string;
   person_name: string;
   resource_id: string;
-  service_team_id: string;
 };
 
-export async function getResourceManagerData() {
+export async function getResourceManagerData(serviceId: number) {
   try {
     const supabase = await createSupabaseServerClient();
     const [{ data: categories, error: categoriesError }, { data: resources, error: resourcesError }, { data: links, error: linksError }, { data: team }] = await Promise.all([
       supabase.from("resource_categories").select("id, name, sort_order").order("sort_order"),
       supabase.from("resources").select("id, name, category_id, active, notes, created_at"),
-      supabase.from("current_service_team_resources").select("resource_id, service_team_id"),
-      supabase.from("current_service_team").select("id, person_name"),
+      supabase.from("service_team_assignment_resources").select("resource_id, assignment_id").eq("service_id", serviceId),
+      supabase.from("service_team_assignments").select("id, person_name").eq("service_id", serviceId),
     ]);
     const usages = linksError ? [] : joinResourceUsages(links ?? [], team ?? []);
 

@@ -21,13 +21,16 @@ export default async function LivePage() {
       .maybeSingle();
   const { data: itemsData, error: itemsError } = await supabase
       .from("service_items")
-      .select("id, position, type, title, details, planned_duration_seconds, song_ids, created_at")
+      .select("id, position, type, title, details, planned_duration_seconds, song_ids, song_id, created_at")
       .eq("service_id", serviceData?.id ?? -1)
       .order("position", { ascending: true });
 
   const service = serviceError ? null : serviceData as LiveService | null;
   const items = itemsError ? [] : (itemsData ?? []).map((item) => normalizeServiceItemSongIds(item)) as ServiceItem[];
-  const songIds = Array.from(new Set(items.flatMap((item) => (item.song_ids ?? []).map((entry) => entry.songId))));
+  const songIds = Array.from(new Set(items.flatMap((item) => [
+    ...(item.song_ids ?? []).map((entry) => entry.songId),
+    ...(item.song_id ? [item.song_id] : []),
+  ])));
   const { data: songsData, error: songsError } = songIds.length > 0
     ? await supabase
         .from("songs")

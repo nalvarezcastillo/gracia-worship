@@ -128,13 +128,13 @@ export function ManageResources({ initialCategories, initialResources, initialUs
         </form>
       ) : null}
 
-      <div className="lg:grid lg:grid-cols-2 lg:gap-x-6">
+      <div className="lg:grid lg:grid-cols-2 lg:gap-x-5">
       {visibleByCategory.map(({ category, items }) => (
-        <AppSectionCard key={category.id} eyebrow="Categoría" title={category.name}>
+        <AppSectionCard key={category.id} eyebrow="Categoría" title={category.name} className="lg:mt-5 lg:rounded-xl lg:border-t lg:bg-transparent lg:shadow-none">
           {items.length ? (
             <div className="divide-y divide-white/[0.06] px-4 sm:px-6">
               {items.map((resource) => (
-                <div key={resource.id} className={`py-3 sm:py-4 ${resource.active ? "" : "opacity-60"}`}>
+                <div key={resource.id} className={`py-3 sm:py-4 lg:py-2.5 ${resource.active ? "" : "opacity-60"}`}>
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                     <div className="min-w-0">
                       <p className="break-words font-semibold text-white">{resource.name}</p>

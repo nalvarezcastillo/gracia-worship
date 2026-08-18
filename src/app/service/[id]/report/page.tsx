@@ -36,7 +36,7 @@ export default async function ServiceReportPage({ params }: { params: Promise<{ 
     title: itemTitles.get(run.service_item_id) ?? "Elemento del servicio",
   }));
 
-  return <AppPage title="Reporte del servicio" maxWidth="max-w-5xl"><ServiceRunReport date={service.service_date} rows={reportRows} serviceName={localizeDefaultServiceName(service.service_name)} /></AppPage>;
+  return <AppPage title="Reporte del servicio" maxWidth="max-w-5xl" desktopAdminSidebar><ServiceRunReport date={service.service_date} rows={reportRows} serviceName={localizeDefaultServiceName(service.service_name)} /></AppPage>;
 }
 
 function localizeDefaultServiceName(value: string) {

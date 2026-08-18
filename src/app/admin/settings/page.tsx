@@ -11,5 +11,5 @@ export const metadata: Metadata = { title: "Configuración | Gracia Worship" };
 export default async function SettingsPage() {
   if (!(await hasAuthenticatedUser())) redirect("/login?next=/admin/settings");
   const settings = await getAppSettings();
-  return <AppPage title="Configuración" maxWidth="max-w-2xl"><AppSettingsForm initialSettings={settings} version={packageJson.version} /></AppPage>;
+  return <AppPage title="Configuración" maxWidth="max-w-3xl" desktopAdminSidebar><AppSettingsForm initialSettings={settings} version={packageJson.version} /></AppPage>;
 }

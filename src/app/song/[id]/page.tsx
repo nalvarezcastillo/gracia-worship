@@ -15,8 +15,12 @@ type SongPageProps = {
 
 type SongDetail = Pick<SongRecord, "id" | "title" | "key" | "bpm" | "time_signature" | "audio_url" | "lyrics" | "sheet_url">;
 
-export default async function SongPage({ params }: SongPageProps) {
+export default async function SongPage({ params, searchParams }: SongPageProps & { searchParams: Promise<{ service?: string }> }) {
   const { id } = await params;
+  const requestedService = (await searchParams).service;
+  const requestedServiceId = Number(requestedService);
+  if (requestedService && (!Number.isSafeInteger(requestedServiceId) || requestedServiceId < 1 || requestedServiceId > 32767)) notFound();
+  const serviceId = requestedService ? requestedServiceId : undefined;
   let song: SongDetail | null = null;
   let songKeys: Pick<SongKeyRow, "id" | "key_name" | "audio_url" | "sheet_url" | "sort_order">[] = [];
   const supabase = createSupabaseClient();
@@ -51,9 +55,11 @@ export default async function SongPage({ params }: SongPageProps) {
 
   return (
     <main className="min-h-screen py-6 sm:py-8">
-      <MainContainer className="max-w-3xl">
-        <header>
+      <MainContainer className="max-w-3xl lg:max-w-5xl">
+        <header className="border-b border-white/[0.07] pb-5 lg:flex lg:items-end lg:justify-between">
+          <div><p className="mb-2 hidden text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400 lg:block">Biblioteca / Canción</p>
           <h1 className="text-[1.75rem] font-bold tracking-[-0.035em] text-white sm:text-[2rem]">{song.title}</h1>
+          </div>
         </header>
 
         <SongDetailContent
@@ -67,6 +73,7 @@ export default async function SongPage({ params }: SongPageProps) {
           legacySheetUrl={song.sheet_url}
           lyrics={song.lyrics}
           songId={song.id}
+          serviceId={serviceId}
           enableMultitrack
           timeSignature={song.time_signature}
           title={song.title}

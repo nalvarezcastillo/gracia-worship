@@ -15,12 +15,12 @@ const items = [
 export function BottomNavigation() {
   const pathname = usePathname();
 
-  if (pathname === "/viewer" || pathname === "/service/rehearsal") {
+  if (pathname === "/viewer" || pathname === "/service/rehearsal" || /^\/service\/\d+\/rehearsal$/.test(pathname)) {
     return null;
   }
 
   return (
-    <nav aria-label="Main navigation" className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.07] bg-zinc-950/85 pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_32px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
+    <nav aria-label="Main navigation" className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.07] bg-zinc-950/85 pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_32px_rgba(0,0,0,0.28)] backdrop-blur-2xl lg:hidden">
       <div className="mx-auto grid h-18 max-w-lg grid-cols-5 gap-1 px-2 py-1.5 sm:px-3">
         {items.map((item) => {
           const isActive = item.active(pathname);

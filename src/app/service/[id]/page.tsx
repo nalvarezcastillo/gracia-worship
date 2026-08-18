@@ -1,48 +1,55 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { ServiceItems } from "@/components/service-items";
 import { MainContainer } from "@/components/ui/main-container";
 import type { ActiveSetlistRow } from "@/lib/database.types";
 import type { ServiceItem, ServiceSong } from "@/lib/service";
 import { normalizeServiceItemSongIds } from "@/lib/service-item-normalization";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { hasAuthenticatedUser } from "@/lib/auth";
+import { getServiceTeam } from "@/lib/current-service-team";
+import { getTeamMembers } from "@/lib/team";
 
 export const metadata: Metadata = { title: "Servicio | Gracia Worship" };
 export const dynamic = "force-dynamic";
 
-export default async function ArchivedServicePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ServiceWorkspacePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ prepared?: string }> }) {
   const serviceId = Number((await params).id);
   if (!Number.isSafeInteger(serviceId) || serviceId < 1 || serviceId > 32767) notFound();
 
   const supabase = await createSupabaseServerClient();
-  const [{ data, error }, { data: songsData, error: songsError }, { data: serviceData, error: serviceError }] = await Promise.all([
+  const [{ data, error }, { data: songsData, error: songsError }, { data: serviceData, error: serviceError }, authenticated, teamMembers, serviceTeamAssignments] = await Promise.all([
     supabase
       .from("service_items")
-      .select("id, position, type, title, details, planned_duration_seconds, song_ids, created_at")
+      .select("id, position, type, title, details, planned_duration_seconds, song_ids, song_id, created_at")
       .eq("service_id", serviceId)
       .order("position", { ascending: true }),
     supabase
       .from("songs")
-      .select("id, title, key, bpm, duration, time_signature, audio_url, sheet_url, song_keys(audio_url, sheet_url, song_stems(id))")
+      .select("id, title, artist, key, bpm, duration, time_signature, audio_url, sheet_url, song_keys(audio_url, sheet_url, song_stems(id))")
       .order("title", { ascending: true }),
     supabase.from("active_setlist").select("service_name, service_date, service_time, leader_notes, status").eq("id", serviceId).maybeSingle(),
+    hasAuthenticatedUser(),
+    getTeamMembers(true),
+    getServiceTeam(serviceId),
   ]);
 
   if (serviceError || !serviceData) notFound();
-  if ((serviceData as { status: string }).status !== "archived") redirect("/service");
   const items = error ? [] : (data ?? []).map((item) => normalizeServiceItemSongIds(item)) as ServiceItem[];
   const songs = songsError ? [] : (songsData ?? []) as ServiceSong[];
   const loadError = error?.message ?? songsError?.message;
-  const service = serviceData as Pick<ActiveSetlistRow, "service_name" | "service_date" | "service_time" | "leader_notes">;
+  const service = serviceData as Pick<ActiveSetlistRow, "service_name" | "service_date" | "service_time" | "leader_notes" | "status">;
+  const isActive = service.status === "active";
+  const isEditable = isActive || service.status === "planned";
   const serviceSchedule = [
     service.service_date ? formatServiceDate(service.service_date) : null,
     service.service_time ? formatServiceTime(service.service_time) : null,
   ].filter(Boolean).join(" • ");
 
   return (
-    <main className="min-h-screen py-6 sm:py-10">
-      <MainContainer className="max-w-3xl">
-        <ServiceItems initialItems={items} songs={songs} isAdmin={false} loadError={loadError} serviceId={serviceId} serviceName={service.service_name} serviceSchedule={serviceSchedule} />
+    <main className="min-h-screen py-6 sm:py-10 lg:py-0">
+      <MainContainer className="max-w-3xl lg:max-w-none lg:px-0">
+        <ServiceItems initialItems={items} songs={songs} isAdmin={authenticated && isEditable} canPrepareNext={authenticated && isActive} loadError={loadError} serviceId={serviceId} serviceName={localizeDefaultServiceName(service.service_name)} serviceSchedule={serviceSchedule} serviceTime={service.service_time} showPreparedToast={(await searchParams).prepared === "1"} teamMembers={teamMembers} serviceTeamAssignments={serviceTeamAssignments} />
         {service.leader_notes?.trim() ? (
           <section className="mt-6 overflow-hidden rounded-3xl border border-white/[0.07] bg-zinc-900/60 shadow-xl shadow-black/10 sm:mt-8">
             <div className="border-b border-white/[0.06] p-5 sm:p-6">
@@ -56,6 +63,8 @@ export default async function ArchivedServicePage({ params }: { params: Promise<
     </main>
   );
 }
+
+function localizeDefaultServiceName(value: string) { return value === "Saturday Service" ? "Servicio del Sábado" : value; }
 
 function formatServiceDate(value: string) {
   const [year, month, day] = value.split("-").map(Number);

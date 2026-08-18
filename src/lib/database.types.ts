@@ -23,6 +23,8 @@ export type SongSummary = Pick<
   cover: string;
 };
 
+export type ServiceStatus = "active" | "planned" | "completed" | "archived";
+
 export type ActiveSetlistRow = {
   id: number;
   service_name: string;
@@ -30,8 +32,33 @@ export type ActiveSetlistRow = {
   service_time: string;
   song_ids: string[];
   leader_notes: string | null;
-  status: "active" | "archived";
+  status: ServiceStatus;
   updated_at: string;
+};
+
+export type ServiceTeamAssignmentRow = {
+  id: string;
+  service_id: number;
+  team_member_id: string | null;
+  person_name: string;
+  role_name: string;
+  microphone_name: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ServiceTeamAssignmentResourceRow = {
+  id: string;
+  service_id: number;
+  assignment_id: string;
+  resource_id: string;
+  created_at: string;
+};
+
+export type SetServiceTeamAssignmentResourcesArgs = {
+  p_assignment_id: string;
+  p_resource_ids: string[];
 };
 
 export type SongKeyRow = {

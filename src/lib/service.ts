@@ -7,15 +7,17 @@ export type WorshipSongEntry = {
 export type ServiceItem = {
   id: string;
   position: number;
-  type: "text" | "worship";
+  type: "text" | "worship" | "song";
   title: string;
   details: string | null;
   planned_duration_seconds: number | null;
   song_ids: WorshipSongEntry[] | null;
+  song_id: string | null;
   created_at: string;
 };
 
 export type ServiceSong = {
+  artist: string;
   audio_url: string;
   bpm: number;
   duration: string;

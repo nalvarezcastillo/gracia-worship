@@ -3,10 +3,9 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { SecondaryButton } from "@/components/ui/action-button";
-import { normalizeSongIds } from "@/lib/service-item-normalization";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-export function AddSongToServiceButton({ songId }: { songId: string }) {
+export function AddSongToServiceButton({ serviceId, songId, songTitle }: { serviceId?: number; songId: string; songTitle: string }) {
   const savingRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
   const [notice, setNotice] = useState<"success" | "no-service" | "error" | null>(null);
@@ -19,52 +18,48 @@ export function AddSongToServiceButton({ songId }: { songId: string }) {
 
     try {
       const supabase = createSupabaseBrowserClient();
-      const { data: activeService, error: serviceError } = await supabase
+      const serviceQuery = supabase
         .from("active_setlist")
-        .select("id")
-        .eq("status", "active")
-        .maybeSingle();
+        .select("id, status");
+      const { data: targetService, error: serviceError } = serviceId
+        ? await serviceQuery.eq("id", serviceId).maybeSingle()
+        : await serviceQuery.eq("status", "active").maybeSingle();
 
       if (serviceError) throw serviceError;
-      if (!activeService) {
+      if (!targetService) {
+        setNotice("no-service");
+        return;
+      }
+      if (targetService.status !== "active" && targetService.status !== "planned") {
         setNotice("no-service");
         return;
       }
 
       const { data: finalItem, error: itemError } = await supabase
         .from("service_items")
-        .select("id, position, type, song_ids")
-        .eq("service_id", activeService.id)
+        .select("position")
+        .eq("service_id", targetService.id)
         .order("position", { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (itemError) throw itemError;
 
-      if (finalItem?.type === "worship") {
-        const entries = normalizeSongIds(finalItem.song_ids).entries;
-        if (entries.at(-1)?.songId !== songId) {
-          const { error } = await supabase
-            .from("service_items")
-            .update({ song_ids: [...entries, { songId, notes: "" }] })
-            .eq("id", finalItem.id);
-          if (error) throw error;
-        }
-      } else {
-        const { error } = await supabase.from("service_items").insert({
-          service_id: activeService.id,
-          position: (finalItem?.position ?? 0) + 1,
-          type: "worship",
-          title: "Alabanza",
-          details: null,
-          song_ids: [{ songId, notes: "" }],
-        });
-        if (error) throw error;
-      }
+      const { error } = await supabase.from("service_items").insert({
+        service_id: targetService.id,
+        position: (finalItem?.position ?? 0) + 1,
+        type: "song",
+        song_id: songId,
+        title: songTitle,
+        details: null,
+        planned_duration_seconds: null,
+        song_ids: null,
+      });
+      if (error) throw error;
 
       setNotice("success");
     } catch (error) {
-      console.error("Unable to add song to active service:", error);
+      console.error("Unable to add song to service:", error);
       setNotice("error");
     } finally {
       savingRef.current = false;

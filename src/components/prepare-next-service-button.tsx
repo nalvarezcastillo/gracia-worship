@@ -21,9 +21,9 @@ export function PrepareNextServiceButton() {
     setHasError(false);
     try {
       const supabase = createSupabaseBrowserClient();
-      const { error } = await supabase.rpc("prepare_next_service");
+      const { data: preparedServiceId, error } = await supabase.rpc("prepare_next_service");
       if (error) throw error;
-      router.push("/service?prepared=1");
+      router.push(typeof preparedServiceId === "number" ? `/service/${preparedServiceId}?prepared=1` : "/service");
       router.refresh();
     } catch (error) {
       console.error("Unable to prepare next service:", error);
