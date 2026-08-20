@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ServiceItems } from "@/components/service-items";
 import { MainContainer } from "@/components/ui/main-container";
 import type { ActiveSetlistRow } from "@/lib/database.types";
-import type { ServiceItem, ServiceSong } from "@/lib/service";
+import type { ServiceItem, ServiceItemNote, ServiceSong, ServiceSongSetting } from "@/lib/service";
 import { normalizeServiceItemSongIds } from "@/lib/service-item-normalization";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { hasAuthenticatedUser } from "@/lib/auth";
@@ -18,7 +18,8 @@ export default async function ServiceWorkspacePage({ params, searchParams }: { p
   if (!Number.isSafeInteger(serviceId) || serviceId < 1 || serviceId > 32767) notFound();
 
   const supabase = await createSupabaseServerClient();
-  const [{ data, error }, { data: songsData, error: songsError }, { data: serviceData, error: serviceError }, { data: activeService }, authenticated, teamMembers, serviceTeamAssignments] = await Promise.all([
+  const authenticated = await hasAuthenticatedUser();
+  const [{ data, error }, { data: songsData, error: songsError }, { data: settingsData, error: settingsError }, { data: notesData, error: notesError }, { data: serviceData, error: serviceError }, { data: activeService }, teamMembers, serviceTeamAssignments] = await Promise.all([
     supabase
       .from("service_items")
       .select("id, position, type, title, details, planned_duration_seconds, song_ids, song_id, created_at")
@@ -26,11 +27,12 @@ export default async function ServiceWorkspacePage({ params, searchParams }: { p
       .order("position", { ascending: true }),
     supabase
       .from("songs")
-      .select("id, title, artist, key, bpm, duration, time_signature, audio_url, sheet_url, song_keys(audio_url, sheet_url, song_stems(id))")
+      .select("id, title, artist, key, bpm, duration, time_signature, audio_url, sheet_url, song_keys(key_name, audio_url, sheet_url, song_stems(id))")
       .order("title", { ascending: true }),
+    supabase.from("service_song_settings").select("service_id, service_item_id, song_id, key_override").eq("service_id", serviceId),
+    authenticated ? supabase.from("service_item_notes").select("service_id, service_item_id, notes").eq("service_id", serviceId) : Promise.resolve({ data: [], error: null }),
     supabase.from("active_setlist").select("service_name, service_date, service_time, leader_notes, status").eq("id", serviceId).maybeSingle(),
     supabase.from("active_setlist").select("id").eq("status", "active").maybeSingle(),
-    hasAuthenticatedUser(),
     getTeamMembers(true),
     getServiceTeam(serviceId),
   ]);
@@ -38,7 +40,9 @@ export default async function ServiceWorkspacePage({ params, searchParams }: { p
   if (serviceError || !serviceData) notFound();
   const items = error ? [] : (data ?? []).map((item) => normalizeServiceItemSongIds(item)) as ServiceItem[];
   const songs = songsError ? [] : (songsData ?? []) as ServiceSong[];
-  const loadError = error?.message ?? songsError?.message;
+  const settings = settingsError ? [] : (settingsData ?? []) as ServiceSongSetting[];
+  const itemNotes = notesError ? [] : (notesData ?? []) as ServiceItemNote[];
+  const loadError = error?.message ?? songsError?.message ?? settingsError?.message ?? notesError?.message;
   const service = serviceData as Pick<ActiveSetlistRow, "service_name" | "service_date" | "service_time" | "leader_notes" | "status">;
   const isEditable = service.status === "active" || service.status === "planned";
   const serviceSchedule = [
@@ -53,8 +57,8 @@ export default async function ServiceWorkspacePage({ params, searchParams }: { p
   return (
     <main className="min-h-screen pb-[calc(5rem+env(safe-area-inset-bottom))] pt-3 sm:py-10 lg:py-0">
       <MainContainer className="max-w-3xl lg:max-w-none lg:px-0">
-        <ServiceItems initialItems={items} songs={songs} isAdmin={authenticated && isEditable} authenticated={authenticated} lifecycleStatus={service.status} hasCurrentActive={Boolean(activeService)} canDeleteService={authenticated && service.status === "planned"} loadError={loadError} mobileServiceSchedule={mobileServiceSchedule} serviceId={serviceId} serviceName={localizeDefaultServiceName(service.service_name)} serviceSchedule={serviceSchedule} serviceTime={service.service_time} showPreparedToast={(await searchParams).prepared === "1"} teamMembers={teamMembers} serviceTeamAssignments={serviceTeamAssignments} />
-        {service.leader_notes?.trim() ? (
+        <ServiceItems initialItems={items} initialItemNotes={itemNotes} initialSongSettings={settings} songs={songs} isAdmin={authenticated && isEditable} authenticated={authenticated} lifecycleStatus={service.status} hasCurrentActive={Boolean(activeService)} canDeleteService={authenticated && service.status === "planned"} loadError={loadError} mobileServiceSchedule={mobileServiceSchedule} serviceId={serviceId} serviceName={localizeDefaultServiceName(service.service_name)} serviceSchedule={serviceSchedule} serviceTime={service.service_time} showPreparedToast={(await searchParams).prepared === "1"} teamMembers={teamMembers} serviceTeamAssignments={serviceTeamAssignments} />
+        {authenticated && service.leader_notes?.trim() ? (
           <section className="mt-6 overflow-hidden rounded-3xl border border-white/[0.07] bg-zinc-900/60 shadow-xl shadow-black/10 sm:mt-8">
             <div className="border-b border-white/[0.06] p-5 sm:p-6">
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">Notas</p>

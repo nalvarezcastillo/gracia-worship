@@ -8,7 +8,7 @@ import { ServiceLifecycleActions } from "@/components/service-lifecycle-actions"
 import { AssignmentFields } from "@/components/assignment-fields";
 import { PrimaryButton, SecondaryButton } from "@/components/ui/action-button";
 import { formatDuration, formatDurationInput, getSongDurationSeconds, hasSongDurationOverride, parsePlannedDurationInput } from "@/lib/duration";
-import type { ServiceItem, ServiceSong, WorshipSongEntry } from "@/lib/service";
+import type { ServiceItem, ServiceItemNote, ServiceSong, ServiceSongSetting, WorshipSongEntry } from "@/lib/service";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { TeamMember } from "@/lib/team";
 import type { CurrentServiceTeamMember } from "@/lib/current-service-team";
@@ -19,9 +19,13 @@ import { parseAssignmentText } from "@/lib/assignment-text";
 import { buildServiceSchedule } from "@/lib/service-schedule";
 
 type AddStep = "closed" | "type" | "text" | "song";
+const STANDARD_MUSICAL_KEYS = ["C", "C#", "Db", "D", "D#", "Eb", "E", "F", "F#", "Gb", "G", "G#", "Ab", "A", "A#", "Bb", "B"];
 
-export function ServiceItems({ initialItems, songs, isAdmin, authenticated, lifecycleStatus, hasCurrentActive, canDeleteService = false, loadError, mobileServiceSchedule, serviceId, serviceName, serviceSchedule, serviceTime = null, showPreparedToast = false, teamMembers = [], serviceTeamAssignments = [] }: { initialItems: ServiceItem[]; songs: ServiceSong[]; isAdmin: boolean; authenticated: boolean; lifecycleStatus: ServiceStatus; hasCurrentActive: boolean; canDeleteService?: boolean; loadError?: string; mobileServiceSchedule: string; serviceId: number; serviceName: string; serviceSchedule: string; serviceTime?: string | null; showPreparedToast?: boolean; teamMembers?: TeamMember[]; serviceTeamAssignments?: CurrentServiceTeamMember[] }) {
+export function ServiceItems({ initialItems, initialItemNotes, initialSongSettings, songs, isAdmin, authenticated, lifecycleStatus, hasCurrentActive, canDeleteService = false, loadError, mobileServiceSchedule, serviceId, serviceName, serviceSchedule, serviceTime = null, showPreparedToast = false, teamMembers = [], serviceTeamAssignments = [] }: { initialItems: ServiceItem[]; initialItemNotes: ServiceItemNote[]; initialSongSettings: ServiceSongSetting[]; songs: ServiceSong[]; isAdmin: boolean; authenticated: boolean; lifecycleStatus: ServiceStatus; hasCurrentActive: boolean; canDeleteService?: boolean; loadError?: string; mobileServiceSchedule: string; serviceId: number; serviceName: string; serviceSchedule: string; serviceTime?: string | null; showPreparedToast?: boolean; teamMembers?: TeamMember[]; serviceTeamAssignments?: CurrentServiceTeamMember[] }) {
   const [items, setItems] = useState(initialItems);
+  const [songSettings, setSongSettings] = useState(initialSongSettings);
+  const [itemNotes, setItemNotes] = useState(initialItemNotes);
+  const [editingItemNote, setEditingItemNote] = useState<{ itemId: string; title: string; notes: string } | null>(null);
   const savedItemsRef = useRef(initialItems);
   const [addStep, setAddStep] = useState<AddStep>("closed");
   const [textTitle, setTextTitle] = useState("");
@@ -45,13 +49,19 @@ export function ServiceItems({ initialItems, songs, isAdmin, authenticated, life
   const [showSuccessToast, setShowSuccessToast] = useState(showPreparedToast);
   const [selectedRow, setSelectedRow] = useState<{ itemId: string; songId?: string } | null>(null);
   const hasUnsavedChanges = serializeService(items) !== serializeService(savedItemsRef.current);
-  const operationalEntries = buildOperationalServiceEntries(items, songs);
+  const operationalEntries = buildOperationalServiceEntries(items, songs, songSettings);
+  const [keySelector, setKeySelector] = useState<{ itemId: string; songId: string } | null>(null);
   const schedule = buildServiceSchedule(items, songs, serviceTime);
   const totalDuration = schedule.totalSeconds;
   const selectedItem = selectedRow ? items.find((item) => item.id === selectedRow.itemId) : null;
   const selectedEntry = selectedItem && selectedRow?.songId ? selectedItem.song_ids?.find((entry) => entry.songId === selectedRow.songId) : null;
   const selectedDetailSongId = selectedRow?.songId ?? (selectedItem?.type === "song" ? selectedItem.song_id : null);
   const selectedSong = selectedDetailSongId ? songs.find((song) => song.id === selectedDetailSongId) : null;
+  const selectedOperationalSong = selectedSong && selectedItem ? findOperationalSongEntry(operationalEntries, selectedItem.id, selectedSong.id) : null;
+  const selectedItemNote = selectedItem ? itemNotes.find((note) => note.service_item_id === selectedItem.id)?.notes ?? "" : "";
+  const keySelectorSong = keySelector ? songs.find((song) => song.id === keySelector.songId) : null;
+  const keySelectorEntry = keySelector ? operationalEntries.find((entry) => entry.kind === "song" && entry.item.id === keySelector.itemId && entry.song.id === keySelector.songId) : null;
+  const keyOptions = keySelectorSong ? Array.from(new Set([keySelectorSong.key, ...(keySelectorSong.song_keys ?? []).map((key) => key.key_name), ...STANDARD_MUSICAL_KEYS].filter((key): key is string => Boolean(key?.trim())))) : [];
 
   useEffect(() => {
     if (!showSuccessToast) return;
@@ -65,6 +75,55 @@ export function ServiceItems({ initialItems, songs, isAdmin, authenticated, life
     const { data, error } = await supabase.auth.getSession();
     if (error || !data.session) throw new Error("You must be signed in to edit the service.");
     return supabase;
+  }
+
+  async function setServiceSongKey(itemId: string, songId: string, keyOverride: string | null) {
+    setIsSaving(true);
+    setIsError(false);
+    try {
+      const supabase = await requireSession();
+      const { error } = await supabase.rpc("set_service_song_key_override", {
+        p_key_override: keyOverride,
+        p_service_id: serviceId,
+        p_service_item_id: itemId,
+        p_song_id: songId,
+      });
+      if (error) throw error;
+      setSongSettings((current) => keyOverride === null
+        ? current.filter((setting) => setting.service_item_id !== itemId || setting.song_id !== songId)
+        : [...current.filter((setting) => setting.service_item_id !== itemId || setting.song_id !== songId), {
+            key_override: keyOverride.trim(), service_id: serviceId, service_item_id: itemId, song_id: songId,
+          }]);
+      setKeySelector(null);
+      setMessage(keyOverride === null ? "Tonalidad original restaurada." : "Tonalidad del servicio actualizada.");
+    } catch (error) {
+      console.error("Unable to update service song key:", error);
+      setIsError(true);
+      setMessage(error instanceof Error ? error.message : "No se pudo actualizar la tonalidad.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function saveItemNote() {
+    if (!editingItemNote) return;
+    setIsSaving(true); setIsError(false);
+    try {
+      const supabase = await requireSession();
+      const notes = editingItemNote.notes.trim();
+      const result = notes
+        ? await supabase.from("service_item_notes").upsert({ service_id: serviceId, service_item_id: editingItemNote.itemId, notes, updated_at: new Date().toISOString() }, { onConflict: "service_item_id" })
+        : await supabase.from("service_item_notes").delete().eq("service_id", serviceId).eq("service_item_id", editingItemNote.itemId);
+      if (result.error) throw result.error;
+      setItemNotes((current) => notes
+        ? [...current.filter((note) => note.service_item_id !== editingItemNote.itemId), { service_id: serviceId, service_item_id: editingItemNote.itemId, notes }]
+        : current.filter((note) => note.service_item_id !== editingItemNote.itemId));
+      setEditingItemNote(null);
+      setMessage(notes ? "Notas operacionales guardadas." : "Notas operacionales eliminadas.");
+    } catch (error) {
+      console.error("Unable to save service item notes:", error);
+      setIsError(true); setMessage(error instanceof Error ? error.message : "No se pudieron guardar las notas.");
+    } finally { setIsSaving(false); }
   }
 
   async function addItem(type: ServiceItem["type"], title: string, details?: string, plannedDuration?: string) {
@@ -439,7 +498,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, authenticated, life
         <p className="mt-1 text-sm leading-6 text-zinc-400">{serviceSchedule || "Horario por confirmar"}</p>
         <p className="mt-1 text-xs font-medium text-zinc-500">{serviceStatusLabel(lifecycleStatus)}</p>
         <div className="mt-6 rounded-xl border border-white/[0.07] bg-white/[0.025] p-4"><p className="text-xs text-zinc-500">Duración planeada</p><p className="mt-1 text-xl font-semibold tabular-nums text-white">{totalDuration ? formatLongDuration(totalDuration) : "—"}</p></div>
-        <nav aria-label="Secciones del servicio" className="mt-7 space-y-1 text-sm font-medium"><a href="#orden" className="block rounded-lg bg-emerald-400/[0.09] px-3 py-2.5 text-emerald-300">Orden</a><Link href={`/service/${serviceId}/rehearsal`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Ensayo</Link><Link href={`/admin/service-team?service=${serviceId}`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Equipo</Link><Link href={`/admin/resources?service=${serviceId}`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Recursos</Link><Link href={`/service/${serviceId}/report`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Reporte</Link></nav>
+        <nav aria-label="Secciones del servicio" className="mt-7 space-y-1 text-sm font-medium"><a href="#orden" className="block rounded-lg bg-emerald-400/[0.09] px-3 py-2.5 text-emerald-300">Orden</a><Link href={`/admin/service-team?service=${serviceId}`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Equipo</Link><Link href={`/admin/resources?service=${serviceId}`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Recursos</Link><Link href={`/service/${serviceId}/notes`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Notas</Link><Link href={`/service/${serviceId}/rehearsal`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Ensayo</Link><Link href={`/service/${serviceId}/report`} className="block rounded-lg px-3 py-2.5 text-zinc-400 hover:bg-white/[0.04] hover:text-white">Reporte</Link></nav>
         {serviceTeamAssignments.length ? <div className="mt-8 border-t border-white/[0.07] pt-6"><p className="text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-zinc-500">Equipo</p><div className="mt-3 max-h-80 space-y-2.5 overflow-y-auto pr-1">{serviceTeamAssignments.map((assignment) => <p key={assignment.id} className="text-sm text-zinc-300">{assignment.person_name}<span className="mt-0.5 block text-xs text-zinc-500">{[assignment.role_name, ...assignment.resources.map((resource) => resource.name), assignment.microphone_name].filter(Boolean).join(" · ")}</span></p>)}</div><Link href={`/admin/service-team?service=${serviceId}`} className="mt-3 block text-xs font-semibold text-zinc-500 transition-colors hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400">Ver equipo completo →</Link></div> : null}
       </aside>
       <section id="orden" className="min-w-0 space-y-3 overflow-hidden lg:space-y-6 lg:px-6 lg:py-7 xl:px-8">
@@ -465,7 +524,7 @@ export function ServiceItems({ initialItems, songs, isAdmin, authenticated, life
         </div>
       </header>
 
-      <nav aria-label="Secciones del servicio" className="-mx-4 flex h-11 gap-0.5 overflow-x-auto border-b border-white/[0.07] px-4 text-[0.8125rem] font-semibold [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden"><a href="#orden" aria-current="page" className="flex min-h-11 shrink-0 items-center border-b-2 border-emerald-400 px-2.5 text-emerald-300">Orden</a>{isAdmin ? <><Link href={`/admin/service-team?service=${serviceId}`} className="flex min-h-11 shrink-0 items-center border-b-2 border-transparent px-2.5 text-zinc-400">Equipo</Link><Link href={`/admin/resources?service=${serviceId}`} className="flex min-h-11 shrink-0 items-center border-b-2 border-transparent px-2.5 text-zinc-400">Recursos</Link></> : null}<Link href={`/service/${serviceId}/rehearsal`} className="flex min-h-11 shrink-0 items-center border-b-2 border-transparent px-2.5 text-zinc-400">Ensayo</Link><Link href={`/service/${serviceId}/report`} className="flex min-h-11 shrink-0 items-center border-b-2 border-transparent px-2.5 text-zinc-400">Reporte</Link></nav>
+      <nav aria-label="Secciones del servicio" className="-mx-4 flex h-11 gap-0.5 overflow-x-auto border-b border-white/[0.07] px-4 text-[0.8125rem] font-semibold [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden"><a href="#orden" aria-current="page" className="flex min-h-11 shrink-0 items-center border-b-2 border-emerald-400 px-2.5 text-emerald-300">Orden</a>{isAdmin ? <><Link href={`/admin/service-team?service=${serviceId}`} className="flex min-h-11 shrink-0 items-center border-b-2 border-transparent px-2.5 text-zinc-400">Equipo</Link><Link href={`/admin/resources?service=${serviceId}`} className="flex min-h-11 shrink-0 items-center border-b-2 border-transparent px-2.5 text-zinc-400">Recursos</Link></> : null}<Link href={`/service/${serviceId}/notes`} className="flex min-h-11 shrink-0 items-center border-b-2 border-transparent px-2.5 text-zinc-400">Notas</Link><Link href={`/service/${serviceId}/rehearsal`} className="flex min-h-11 shrink-0 items-center border-b-2 border-transparent px-2.5 text-zinc-400">Ensayo</Link><Link href={`/service/${serviceId}/report`} className="flex min-h-11 shrink-0 items-center border-b-2 border-transparent px-2.5 text-zinc-400">Reporte</Link></nav>
 
       {showSuccessToast ? <div role="status" aria-live="polite" className="fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-sm rounded-2xl border border-emerald-400/20 bg-zinc-900 px-4 py-3 text-center text-sm font-medium text-emerald-300 shadow-2xl">✅ Próximo servicio preparado correctamente.</div> : null}
 
@@ -492,19 +551,20 @@ export function ServiceItems({ initialItems, songs, isAdmin, authenticated, life
                   <h3 className={item.type === "worship" ? "py-1 text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-emerald-400/80 lg:py-0 lg:text-xs lg:tracking-[0.16em]" : "truncate text-[0.9375rem] font-semibold leading-5 text-zinc-100 lg:text-base lg:leading-6"}>{item.type === "song" && item.song_id ? <Link href={`/song/${item.song_id}?service=${serviceId}`} onClick={(event) => event.stopPropagation()} className="hover:text-emerald-300">{songs.find((song) => song.id === item.song_id)?.title ?? item.title}</Link> : item.title}</h3>
                   {item.type === "text" ? <MobileTextItemMetadata details={item.details ?? ""} duration={item.planned_duration_seconds} /> : null}
                   {item.type === "text" && item.details ? <p className="mt-0.5 hidden truncate whitespace-nowrap text-sm font-normal leading-5 text-zinc-500 lg:block">{item.details}</p> : null}
-                  {item.type === "song" ? <DirectSongItemMetadata item={item} songs={songs} /> : null}
+                  {item.type === "song" ? <DirectSongItemMetadata item={item} songs={songs} effectiveKey={findOperationalSongEntry(operationalEntries, item.id)?.effectiveKey} isEditable={isAdmin} onKeyClick={item.song_id ? () => setKeySelector({ itemId: item.id, songId: item.song_id! }) : undefined} /> : null}
                   {item.type === "song" ? <span className="lg:hidden"><AssignedMicrophonesLine assignmentText={item.details ?? ""} assignments={serviceTeamAssignments} teamMembers={teamMembers} /></span> : null}
                   {item.type === "text" ? <span className="lg:hidden"><AssignedMicrophonesLine assignmentText={item.details ?? ""} assignments={serviceTeamAssignments} teamMembers={teamMembers} /></span> : null}
                   {item.type !== "text" && item.type !== "song" && item.planned_duration_seconds ? <p className="mt-0.5 text-xs text-zinc-500 lg:hidden">{formatDuration(item.planned_duration_seconds)}</p> : null}
                 </div>
                 <DesktopAssignedMicrophones assignmentText={item.type === "worship" ? "" : item.details ?? ""} assignments={serviceTeamAssignments} teamMembers={teamMembers} showEmpty={item.type !== "worship"} />
                 <div className="col-start-3 row-start-1 flex items-center justify-end gap-0.5 lg:contents">
-                {item.type === "song" ? <MobileSongKey item={item} songs={songs} /> : null}
+                {item.type === "song" ? <MobileSongKey item={item} isEditable={isAdmin} onOpen={setKeySelector} operationalEntries={operationalEntries} songs={songs} /> : null}
                 {isAdmin ? (
                   <details className="relative shrink-0">
                     <summary aria-label={`Acciones para ${item.title}`} className="grid size-10 cursor-pointer list-none place-items-center rounded-xl text-xl leading-none text-zinc-500 transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400 lg:size-11 [&::-webkit-details-marker]:hidden">⋮</summary>
                     <div className="absolute right-0 z-20 mt-1 min-w-36 overflow-hidden rounded-xl border border-white/10 bg-zinc-900 p-1 shadow-xl shadow-black/40">
                       <button type="button" onClick={(event) => { event.stopPropagation(); event.currentTarget.closest("details")?.removeAttribute("open"); if (item.type === "text") setEditingText({ id: item.id, title: item.title, details: item.details ?? "", plannedDuration: formatDurationInput(item.planned_duration_seconds) }); else if (item.type === "song") openSongItemEditor(item); else setEditingWorship({ id: item.id, title: item.title, plannedDuration: formatDurationInput(item.planned_duration_seconds) }); }} disabled={isSaving} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-zinc-200 transition-colors hover:bg-white/[0.06] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-emerald-400">Editar</button>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); event.currentTarget.closest("details")?.removeAttribute("open"); setEditingItemNote({ itemId: item.id, title: item.title, notes: itemNotes.find((note) => note.service_item_id === item.id)?.notes ?? "" }); }} disabled={isSaving} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-zinc-200 transition-colors hover:bg-white/[0.06] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-emerald-400">Notas operacionales</button>
                       <button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); setDeletingItem(item); }} disabled={isSaving} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-rose-300 transition-colors hover:bg-rose-400/[0.08] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-rose-400">Eliminar</button>
                     </div>
                   </details>
@@ -535,11 +595,11 @@ export function ServiceItems({ initialItems, songs, isAdmin, authenticated, life
                           <Link href={`/song/${song.id}?service=${serviceId}`} onClick={(event) => event.stopPropagation()} className="line-clamp-1 text-[0.9375rem] font-semibold leading-5 text-white transition-colors duration-200 hover:text-emerald-300 lg:text-base lg:leading-6 lg:text-zinc-200">{song.title}</Link>
                           <MobileWorshipSongMetadata song={song} entry={entry} />
                           <span className="lg:hidden"><AssignedMicrophonesLine assignmentText={entry.notes} assignments={serviceTeamAssignments} teamMembers={teamMembers} /></span>
-                          <DesktopSongMetadata song={song} entry={entry} />
+                          <DesktopSongMetadata song={song} entry={entry} effectiveKey={findOperationalSongEntry(operationalEntries, item.id, song.id)?.effectiveKey} isEditable={isAdmin} onKeyClick={() => setKeySelector({ itemId: item.id, songId: song.id })} />
                         </div>
                         <DesktopAssignedMicrophones assignmentText={entry.notes} assignments={serviceTeamAssignments} teamMembers={teamMembers} showEmpty />
                         <div className="col-start-3 row-start-1 flex min-w-0 items-center justify-end gap-0.5 lg:col-start-5">
-                          <MobileKeyBadge songKey={song.key} />
+                          <MobileKeyBadge songKey={findOperationalSongEntry(operationalEntries, item.id, song.id)?.effectiveKey} editable={isAdmin} onClick={() => setKeySelector({ itemId: item.id, songId: song.id })} />
                           <div className="hidden lg:block"><ResourceIndicators song={song} /></div>
                           {isAdmin ? <details className="relative shrink-0"><summary aria-label={`Más acciones para ${song.title}`} onClick={(event) => event.stopPropagation()} className="grid size-10 cursor-pointer list-none place-items-center rounded-full text-xl leading-none text-zinc-500 transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400 lg:size-11 [&::-webkit-details-marker]:hidden">⋯</summary><div className="absolute bottom-full right-0 z-20 mb-1 min-w-44 overflow-hidden rounded-xl border border-white/10 bg-zinc-900 p-1 shadow-xl shadow-black/40"><button type="button" onClick={(event) => { event.stopPropagation(); event.currentTarget.closest("details")?.removeAttribute("open"); setEditingSong({ blockId: item.id, songId: entry.songId, notes: entry.notes, plannedDuration: formatDurationInput(entry.plannedDurationSeconds) }); }} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-zinc-200 transition-colors hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-emerald-400">Editar notas y duración</button><button type="button" onClick={(event) => { event.stopPropagation(); event.currentTarget.closest("details")?.removeAttribute("open"); removeSongFromBlock(item.id, entry.songId); }} disabled={isSaving} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-rose-300 transition-colors hover:bg-rose-400/[0.08] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-rose-400">Eliminar canción</button></div></details> : null}
                         </div>
@@ -577,7 +637,9 @@ export function ServiceItems({ initialItems, songs, isAdmin, authenticated, life
           <h2 className="mt-4 pr-8 text-xl font-semibold text-white">{selectedSong?.title ?? selectedItem.title}</h2>
           <dl className="mt-6 space-y-5 text-sm">
             <Detail label="Tipo" value={selectedSong ? "Canción" : selectedItem.type === "worship" ? "Bloque de alabanza" : "Elemento"} />
-            {selectedSong?.key ? <Detail label="Tonalidad" value={selectedSong.key} /> : null}
+            {selectedOperationalSong?.effectiveKey ? isAdmin && selectedSong ? (
+              <div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-600">Tonalidad</dt><dd className="mt-1.5"><ServiceKeyTrigger songKey={selectedOperationalSong.effectiveKey} onClick={() => setKeySelector({ itemId: selectedItem.id, songId: selectedSong.id })} /></dd></div>
+            ) : <Detail label="Tonalidad" value={selectedOperationalSong.effectiveKey} /> : null}
             {selectedSong?.bpm ? <Detail label="BPM" value={String(selectedSong.bpm)} /> : null}
             {selectedSong?.time_signature ? <Detail label="Compás" value={selectedSong.time_signature} /> : null}
             <Detail label="Duración" value={selectedSong ? formatDuration(selectedEntry ? getSongDurationSeconds(selectedEntry, selectedSong.duration) ?? 0 : getSongDurationSeconds({ plannedDurationSeconds: selectedItem.planned_duration_seconds }, selectedSong.duration) ?? 0) : selectedItem.planned_duration_seconds ? formatDuration(selectedItem.planned_duration_seconds) : "—"} />
@@ -585,8 +647,21 @@ export function ServiceItems({ initialItems, songs, isAdmin, authenticated, life
             {(selectedEntry?.notes || selectedItem.details) ? <Detail label="Notas / responsable" value={selectedEntry?.notes || selectedItem.details || "—"} /> : null}
             {(selectedEntry?.notes || selectedItem.details) ? <Detail label="Micrófono" value={getServiceEntryMicrophones(serviceTeamAssignments, selectedEntry?.notes || selectedItem.details || "", teamMembers).join(" · ") || "—"} /> : null}
           </dl>
+          {authenticated ? <div className="mt-7 border-t border-white/[0.07] pt-5"><div className="flex items-center justify-between gap-3"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-600">Notas operacionales</p>{isAdmin ? <button type="button" onClick={() => setEditingItemNote({ itemId: selectedItem.id, title: selectedItem.title, notes: selectedItemNote })} className="min-h-8 rounded-lg px-2 text-xs font-semibold text-emerald-400 hover:bg-emerald-400/[0.07]">{selectedItemNote ? "Editar notas" : "Agregar notas"}</button> : null}</div>{selectedItemNote ? <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-300">{selectedItemNote}</p> : <p className="mt-2 text-sm text-zinc-600">Sin notas para este elemento.</p>}</div> : null}
           {isAdmin ? <div className="mt-8 space-y-2"><button type="button" onClick={() => selectedItem.type === "song" ? openSongItemEditor(selectedItem) : selectedSong && selectedEntry ? setEditingSong({ blockId: selectedItem.id, songId: selectedSong.id, notes: selectedEntry.notes, plannedDuration: formatDurationInput(selectedEntry.plannedDurationSeconds) }) : selectedItem.type === "text" ? setEditingText({ id: selectedItem.id, title: selectedItem.title, details: selectedItem.details ?? "", plannedDuration: formatDurationInput(selectedItem.planned_duration_seconds) }) : setEditingWorship({ id: selectedItem.id, title: selectedItem.title, plannedDuration: formatDurationInput(selectedItem.planned_duration_seconds) })} className="min-h-10 w-full rounded-lg border border-white/10 px-4 text-sm font-semibold text-zinc-200 hover:bg-white/[0.05]">Editar</button><button type="button" onClick={() => setDeletingItem(selectedItem)} className="min-h-10 w-full rounded-lg px-4 text-sm font-semibold text-rose-300 hover:bg-rose-400/[0.08]">Eliminar</button></div> : null}
       </aside> : null}
+
+      {isAdmin && keySelector && keySelectorSong && keySelectorEntry?.kind === "song" ? (
+        <div className="fixed inset-0 z-[75] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center" onClick={() => setKeySelector(null)}>
+          <section role="dialog" aria-modal="true" aria-labelledby="service-key-title" onClick={(event) => event.stopPropagation()} className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-2xl">
+            <div className="flex items-start justify-between gap-4"><div><h2 id="service-key-title" className="text-base font-semibold text-white">Tonalidad para este servicio</h2><p className="mt-1 text-xs text-zinc-500">Original: {keySelectorSong.key}</p></div><button type="button" onClick={() => setKeySelector(null)} className="grid size-9 place-items-center rounded-lg text-zinc-500 hover:bg-white/[0.05] hover:text-white" aria-label="Cerrar">×</button></div>
+            <div className="mt-4 grid grid-cols-4 gap-2">{keyOptions.map((key) => <button key={key} type="button" disabled={isSaving} onClick={() => setServiceSongKey(keySelector.itemId, keySelector.songId, key === keySelectorSong.key ? null : key)} className={`min-h-11 rounded-xl border px-2 text-sm font-semibold ${keySelectorEntry.effectiveKey === key ? "border-emerald-400/50 bg-emerald-400/10 text-emerald-300" : "border-white/10 text-zinc-300 hover:bg-white/[0.05]"}`}>{key}</button>)}</div>
+            <button type="button" disabled={isSaving} onClick={() => setServiceSongKey(keySelector.itemId, keySelector.songId, null)} className="mt-3 min-h-11 w-full rounded-xl border border-white/10 px-3 text-sm font-semibold text-zinc-300 hover:bg-white/[0.05] disabled:opacity-40">Usar tonalidad original</button>
+          </section>
+        </div>
+      ) : null}
+
+      {isAdmin && editingItemNote ? <div className="fixed inset-0 z-[75] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center" onClick={() => setEditingItemNote(null)}><section role="dialog" aria-modal="true" aria-labelledby="item-note-title" onClick={(event) => event.stopPropagation()} className="w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-2xl"><div className="flex items-start justify-between gap-4"><div><p className="text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-emerald-400">Notas operacionales</p><h2 id="item-note-title" className="mt-1 text-lg font-semibold text-white">{editingItemNote.title}</h2></div><button type="button" onClick={() => setEditingItemNote(null)} className="grid size-9 place-items-center rounded-lg text-zinc-500 hover:bg-white/[0.05] hover:text-white" aria-label="Cerrar">×</button></div><label className="mt-4 block"><span className="sr-only">Notas</span><textarea autoFocus rows={5} value={editingItemNote.notes} onChange={(event) => setEditingItemNote({ ...editingItemNote, notes: event.target.value })} placeholder="Talking points e instrucciones para este momento" className="min-h-28 w-full resize-y rounded-xl border border-white/10 bg-zinc-950/70 px-3 py-3 text-base leading-6 text-white outline-none placeholder:text-zinc-600 focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]" /></label><div className="mt-3 flex justify-end gap-2"><button type="button" onClick={() => setEditingItemNote(null)} className="min-h-11 rounded-xl px-4 text-sm font-semibold text-zinc-400 hover:bg-white/[0.05]">Cancelar</button><button type="button" onClick={() => void saveItemNote()} disabled={isSaving} className="min-h-11 rounded-xl bg-emerald-400 px-4 text-sm font-semibold text-zinc-950 hover:bg-emerald-300 disabled:opacity-40">{isSaving ? "Guardando…" : "Guardar"}</button></div></section></div> : null}
 
       {isAdmin && deletingItem ? (
         <div className="fixed inset-0 z-[70] grid place-items-center bg-black/70 px-4 backdrop-blur-sm" role="presentation">
@@ -800,31 +875,46 @@ function AssignedMicrophoneItems({ microphones }: { microphones: string[] }) {
   return <span className="flex min-w-0 items-start gap-1.5 text-xs leading-5 text-zinc-400" title={label}><Mic aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-zinc-500" strokeWidth={1.75} /><span className="min-w-0 break-words">{label}</span></span>;
 }
 
-function DesktopSongMetadata({ song, entry }: { song: ServiceSong; entry: WorshipSongEntry }) {
+function DesktopSongMetadata({ song, entry, effectiveKey, isEditable, onKeyClick }: { song: ServiceSong; entry: WorshipSongEntry; effectiveKey?: string | null; isEditable: boolean; onKeyClick: () => void }) {
   const assignment = parseAssignmentText(entry.notes);
-  const metadata = [song.key, song.bpm ? `${song.bpm} BPM` : null, song.time_signature, assignment.name, assignment.role].filter(Boolean);
-  return metadata.length ? <p className="mt-0.5 hidden truncate text-xs text-zinc-500 lg:block" title={metadata.join(" · ")}>{metadata.join(" · ")}</p> : null;
+  const metadata = [song.bpm ? `${song.bpm} BPM` : null, song.time_signature, assignment.name, assignment.role].filter((value): value is string => Boolean(value));
+  return <DesktopSongMetadataLine effectiveKey={effectiveKey} isEditable={isEditable} metadata={metadata} onKeyClick={onKeyClick} />;
 }
 
-function DirectSongItemMetadata({ item, songs }: { item: ServiceItem; songs: ServiceSong[] }) {
+function DirectSongItemMetadata({ item, songs, effectiveKey, isEditable, onKeyClick }: { item: ServiceItem; songs: ServiceSong[]; effectiveKey?: string | null; isEditable: boolean; onKeyClick?: () => void }) {
   const song = item.song_id ? songs.find((candidate) => candidate.id === item.song_id) : null;
   if (!song) return <p className="mt-1 text-xs text-rose-300">Canción no disponible</p>;
   const assignment = parseAssignmentText(item.details ?? "");
-  const metadata = [song.key, song.bpm ? `${song.bpm} BPM` : null, song.time_signature, assignment.name, assignment.role].filter(Boolean);
+  const metadata = [song.bpm ? `${song.bpm} BPM` : null, song.time_signature, assignment.name, assignment.role].filter((value): value is string => Boolean(value));
   const duration = getSongDurationSeconds({ plannedDurationSeconds: item.planned_duration_seconds }, song.duration);
   const mobileMetadata = [song.artist, assignment.name, assignment.role, duration ? formatDuration(duration) : null].filter(Boolean);
-  return <><p className="mt-0.5 truncate text-xs leading-4 text-zinc-500 lg:hidden">{mobileMetadata.join(" · ")}</p><p className="mt-0.5 hidden truncate text-xs text-zinc-500 lg:block" title={metadata.join(" · ")}>{metadata.join(" · ")}</p></>;
+  return <><p className="mt-0.5 truncate text-xs leading-4 text-zinc-500 lg:hidden">{mobileMetadata.join(" · ")}</p><DesktopSongMetadataLine effectiveKey={effectiveKey} isEditable={isEditable && Boolean(onKeyClick)} metadata={metadata} onKeyClick={onKeyClick} /></>;
 }
 
-function MobileSongKey({ item, songs }: { item: ServiceItem; songs: ServiceSong[] }) {
+function DesktopSongMetadataLine({ effectiveKey, isEditable, metadata, onKeyClick }: { effectiveKey?: string | null; isEditable: boolean; metadata: string[]; onKeyClick?: () => void }) {
+  if (!effectiveKey && metadata.length === 0) return null;
+  return <div className="mt-0.5 hidden min-w-0 items-center gap-1.5 text-xs text-zinc-500 lg:flex" title={[effectiveKey, ...metadata].filter(Boolean).join(" · ")}>{effectiveKey ? isEditable && onKeyClick ? <ServiceKeyTrigger songKey={effectiveKey} onClick={onKeyClick} compact /> : <span className="shrink-0">{effectiveKey}</span> : null}{effectiveKey && metadata.length ? <span aria-hidden="true">·</span> : null}<span className="truncate">{metadata.join(" · ")}</span></div>;
+}
+
+function MobileSongKey({ item, isEditable, onOpen, operationalEntries, songs }: { item: ServiceItem; isEditable: boolean; onOpen: (target: { itemId: string; songId: string }) => void; operationalEntries: ReturnType<typeof buildOperationalServiceEntries<ServiceSong>>; songs: ServiceSong[] }) {
   if (!item.song_id) return null;
   const song = songs.find((candidate) => candidate.id === item.song_id);
-  return <MobileKeyBadge songKey={song?.key} />;
+  const entry = operationalEntries.find((candidate) => candidate.kind === "song" && candidate.item.id === item.id);
+  return <MobileKeyBadge songKey={entry?.kind === "song" ? entry.effectiveKey : song?.key} editable={isEditable} onClick={() => onOpen({ itemId: item.id, songId: item.song_id! })} />;
 }
 
-function MobileKeyBadge({ songKey }: { songKey?: string | null }) {
+function findOperationalSongEntry(entries: ReturnType<typeof buildOperationalServiceEntries<ServiceSong>>, itemId: string, songId?: string) {
+  return entries.find((entry): entry is Extract<(typeof entries)[number], { kind: "song" }> => entry.kind === "song" && entry.item.id === itemId && (!songId || entry.song.id === songId));
+}
+
+function MobileKeyBadge({ songKey, editable = false, onClick }: { songKey?: string | null; editable?: boolean; onClick?: () => void }) {
   if (!songKey?.trim()) return null;
-  return <span className="grid min-h-8 min-w-8 place-items-center rounded-full border border-emerald-400/25 px-1.5 text-xs font-bold text-emerald-300 lg:hidden" title={`Tonalidad ${songKey}`}>{songKey}</span>;
+  const className = "grid min-h-8 min-w-8 place-items-center rounded-full border border-emerald-400/25 px-1.5 text-xs font-bold text-emerald-300 lg:hidden";
+  return editable ? <button type="button" onClick={(event) => { event.stopPropagation(); onClick?.(); }} className={className} title={`Cambiar tonalidad ${songKey}`}>{songKey}</button> : <span className={className} title={`Tonalidad ${songKey}`}>{songKey}</span>;
+}
+
+function ServiceKeyTrigger({ songKey, onClick, compact = false }: { songKey: string; onClick: () => void; compact?: boolean }) {
+  return <button type="button" onClick={(event) => { event.stopPropagation(); onClick(); }} className={`inline-grid min-w-8 shrink-0 place-items-center rounded-lg border border-emerald-400/25 bg-emerald-400/[0.06] px-2 text-xs font-bold text-emerald-300 transition-colors hover:border-emerald-400/40 hover:bg-emerald-400/[0.1] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 ${compact ? "min-h-7" : "min-h-8"}`} title={`Cambiar tonalidad ${songKey}`}>{songKey}</button>;
 }
 
 function MobileWorshipSongMetadata({ song, entry }: { song: ServiceSong; entry: WorshipSongEntry }) {

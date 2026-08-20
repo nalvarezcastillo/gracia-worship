@@ -380,10 +380,84 @@ revoke insert, update, delete on public.service_items from anon;
 grant select on public.service_items to anon, authenticated;
 grant insert, update, delete on public.service_items to authenticated;
 
-create or replace function public.prepare_next_service()
-returns smallint language plpgsql security invoker set search_path = public as $$
-declare current_service public.active_setlist%rowtype; new_id smallint; next_date date; anchor_date date;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conrelid = 'public.service_items'::regclass and conname = 'service_items_service_id_id_key') then
+    alter table public.service_items add constraint service_items_service_id_id_key unique (service_id, id);
+  end if;
+end; $$;
+
+create table if not exists public.service_song_settings (
+  service_id smallint not null,
+  service_item_id uuid not null,
+  song_id uuid not null references public.songs(id) on delete restrict,
+  key_override text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint service_song_settings_pkey primary key (service_item_id, song_id),
+  constraint service_song_settings_item_fkey foreign key (service_id, service_item_id) references public.service_items(service_id, id) on delete cascade,
+  constraint service_song_settings_key_not_blank check (btrim(key_override) <> '')
+);
+create index if not exists service_song_settings_service_id_idx on public.service_song_settings(service_id);
+alter table public.service_song_settings enable row level security;
+drop policy if exists "Public can read service song settings" on public.service_song_settings;
+create policy "Public can read service song settings" on public.service_song_settings for select to public using (true);
+revoke all on public.service_song_settings from public, anon, authenticated;
+grant select on public.service_song_settings to anon, authenticated;
+
+create or replace function public.set_service_song_key_override(p_service_id smallint, p_service_item_id uuid, p_song_id uuid, p_key_override text)
+returns void language plpgsql security definer set search_path = pg_catalog, public as $$
+declare target_status text; target_item public.service_items%rowtype; normalized_key text;
 begin
+  if auth.uid() is null then raise exception 'Authentication required'; end if;
+  if p_service_id is null or p_service_item_id is null or p_song_id is null then raise exception 'Service, service item, and song are required'; end if;
+  perform pg_advisory_xact_lock(71831, p_service_id::integer);
+  select status into target_status from public.active_setlist where id = p_service_id for update;
+  if not found then raise exception 'Service not found'; end if;
+  if target_status not in ('active', 'planned') then raise exception 'Only active or planned services can be edited'; end if;
+  select * into target_item from public.service_items where service_id = p_service_id and id = p_service_item_id for update;
+  if not found then raise exception 'Service item not found in service'; end if;
+  if not ((target_item.type = 'song' and target_item.song_id = p_song_id) or (target_item.type = 'worship' and exists (
+    select 1 from unnest(coalesce(target_item.song_ids, '{}'::text[])) stored(value)
+    where stored.value = p_song_id::text or stored.value ~ ('"(songId|song_id|id)"[[:space:]]*:[[:space:]]*"' || p_song_id::text || '"')
+  ))) then raise exception 'Song does not belong to this service occurrence'; end if;
+  if not exists (select 1 from public.songs where id = p_song_id) then raise exception 'Song not found'; end if;
+  if p_key_override is null then delete from public.service_song_settings where service_item_id = p_service_item_id and song_id = p_song_id; return; end if;
+  normalized_key := btrim(p_key_override);
+  if normalized_key = '' then raise exception 'Key cannot be empty'; end if;
+  insert into public.service_song_settings(service_id, service_item_id, song_id, key_override) values (p_service_id, p_service_item_id, p_song_id, normalized_key)
+  on conflict (service_item_id, song_id) do update set key_override = excluded.key_override, updated_at = now();
+end; $$;
+revoke all on function public.set_service_song_key_override(smallint, uuid, uuid, text) from public, anon, authenticated;
+grant execute on function public.set_service_song_key_override(smallint, uuid, uuid, text) to authenticated;
+
+create table if not exists public.service_item_notes (
+  service_id smallint not null,
+  service_item_id uuid primary key,
+  notes text not null check (btrim(notes) <> ''),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint service_item_notes_item_fkey foreign key (service_id, service_item_id) references public.service_items(service_id, id) on delete cascade
+);
+create index if not exists service_item_notes_service_id_idx on public.service_item_notes(service_id);
+alter table public.service_item_notes enable row level security;
+drop policy if exists "Authenticated can read service item notes" on public.service_item_notes;
+drop policy if exists "Public can read service item notes" on public.service_item_notes;
+create policy "Public can read service item notes" on public.service_item_notes for select to public using (true);
+drop policy if exists "Authenticated can insert editable service item notes" on public.service_item_notes;
+create policy "Authenticated can insert editable service item notes" on public.service_item_notes for insert to authenticated with check (exists (select 1 from public.active_setlist service where service.id = service_item_notes.service_id and service.status in ('active', 'planned')));
+drop policy if exists "Authenticated can update editable service item notes" on public.service_item_notes;
+create policy "Authenticated can update editable service item notes" on public.service_item_notes for update to authenticated using (exists (select 1 from public.active_setlist service where service.id = service_item_notes.service_id and service.status in ('active', 'planned'))) with check (exists (select 1 from public.active_setlist service where service.id = service_item_notes.service_id and service.status in ('active', 'planned')));
+drop policy if exists "Authenticated can delete editable service item notes" on public.service_item_notes;
+create policy "Authenticated can delete editable service item notes" on public.service_item_notes for delete to authenticated using (exists (select 1 from public.active_setlist service where service.id = service_item_notes.service_id and service.status in ('active', 'planned')));
+revoke all on public.service_item_notes from public, anon, authenticated;
+grant select on public.service_item_notes to anon, authenticated;
+grant insert, update, delete on public.service_item_notes to authenticated;
+
+create or replace function public.prepare_next_service()
+returns smallint language plpgsql security definer set search_path = pg_catalog, public as $$
+declare current_service public.active_setlist%rowtype; new_id smallint; new_item_id uuid; next_date date; anchor_date date; source_item record;
+begin
+  if auth.uid() is null then raise exception 'Authentication required'; end if;
   lock table public.active_setlist in share row exclusive mode;
   select * into current_service from public.active_setlist where status = 'active' for update;
   if not found then raise exception 'Active service not found'; end if;
@@ -393,8 +467,18 @@ begin
   update public.active_setlist set status = 'archived', updated_at = now() where id = current_service.id;
   insert into public.active_setlist (id, service_name, service_date, service_time, song_ids, leader_notes, status, updated_at)
   values (new_id, current_service.service_name, next_date, current_service.service_time, current_service.song_ids, null, 'active', now());
-  insert into public.service_items (service_id, position, type, title, details, planned_duration_seconds, song_ids, song_id)
-  select new_id, position, type, title, details, planned_duration_seconds, song_ids, song_id from public.service_items where service_id = current_service.id order by position;
+  for source_item in select * from public.service_items where service_id = current_service.id order by position, created_at, id loop
+    new_item_id := gen_random_uuid();
+    insert into public.service_items(id, service_id, position, type, title, details, planned_duration_seconds, song_ids, song_id)
+    values (new_item_id, new_id, source_item.position, source_item.type, source_item.title, source_item.details, source_item.planned_duration_seconds, source_item.song_ids, source_item.song_id);
+    insert into public.service_song_settings(service_id, service_item_id, song_id, key_override)
+    select new_id, new_item_id, song_id, key_override from public.service_song_settings
+    where service_id = current_service.id
+      and service_item_id = source_item.id;
+    insert into public.service_item_notes(service_id, service_item_id, notes)
+    select new_id, new_item_id, notes from public.service_item_notes
+    where service_id = current_service.id and service_item_id = source_item.id;
+  end loop;
   return new_id;
 end; $$;
 
@@ -1383,7 +1467,7 @@ create or replace function public.duplicate_service_plan(
 )
 returns smallint language plpgsql security definer
 set search_path = pg_catalog, public as $$
-declare new_service_id smallint; new_assignment_id uuid; source_assignment record;
+declare new_service_id smallint; new_assignment_id uuid; new_item_id uuid; source_assignment record; source_item record;
 begin
   if auth.uid() is null then raise exception 'Authentication required'; end if;
   if p_source_service_id is null then raise exception 'Source service is required'; end if;
@@ -1411,12 +1495,18 @@ begin
   returning id into new_service_id;
 
   if coalesce(p_copy_order, true) then
-    insert into public.service_items(id, service_id, position, type, title, details, planned_duration_seconds, song_ids, song_id, created_at)
-    select gen_random_uuid(), new_service_id, source_item.position, source_item.type, source_item.title,
-      source_item.details, source_item.planned_duration_seconds, source_item.song_ids, source_item.song_id, now()
-    from public.service_items source_item
-    where source_item.service_id = p_source_service_id
-    order by source_item.position, source_item.created_at, source_item.id;
+    for source_item in select * from public.service_items where service_id = p_source_service_id order by position, created_at, id loop
+      new_item_id := gen_random_uuid();
+      insert into public.service_items(id, service_id, position, type, title, details, planned_duration_seconds, song_ids, song_id, created_at)
+      values (new_item_id, new_service_id, source_item.position, source_item.type, source_item.title, source_item.details, source_item.planned_duration_seconds, source_item.song_ids, source_item.song_id, now());
+      insert into public.service_song_settings(service_id, service_item_id, song_id, key_override)
+      select new_service_id, new_item_id, setting.song_id, setting.key_override from public.service_song_settings setting
+      where setting.service_id = p_source_service_id
+        and setting.service_item_id = source_item.id;
+      insert into public.service_item_notes(service_id, service_item_id, notes)
+      select new_service_id, new_item_id, note.notes from public.service_item_notes note
+      where note.service_id = p_source_service_id and note.service_item_id = source_item.id;
+    end loop;
   end if;
 
   if coalesce(p_copy_team, false) then

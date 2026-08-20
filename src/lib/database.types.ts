@@ -101,6 +101,30 @@ export type SongKeyRow = {
   created_at: string;
 };
 
+export type ServiceSongSettingRow = {
+  service_id: number;
+  service_item_id: string;
+  song_id: string;
+  key_override: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ServiceItemNoteRow = {
+  service_id: number;
+  service_item_id: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SetServiceSongKeyOverrideArgs = {
+  p_service_id: number;
+  p_service_item_id: string;
+  p_song_id: string;
+  p_key_override: string | null;
+};
+
 export type SongStemRow = {
   id: string;
   song_key_id: string;

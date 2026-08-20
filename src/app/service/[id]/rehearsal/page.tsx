@@ -4,6 +4,7 @@ import { RehearsalMode, type RehearsalSong } from "@/components/rehearsal-mode";
 import type { PublicSongKey } from "@/components/song-key-selector";
 import { MainContainer } from "@/components/ui/main-container";
 import type { ActiveSetlistRow } from "@/lib/database.types";
+import type { ServiceSongSetting } from "@/lib/service";
 import { isRecord, normalizeServiceItemSongIds, normalizeSongIds } from "@/lib/service-item-normalization";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -17,9 +18,10 @@ export default async function ServiceRehearsalPage({ params }: { params: Promise
   if (!Number.isSafeInteger(serviceId) || serviceId < 1 || serviceId > 32767) notFound();
 
   const supabase = await createSupabaseServerClient();
-  const [serviceResult, itemsResult] = await Promise.all([
+  const [serviceResult, itemsResult, settingsResult] = await Promise.all([
     supabase.from("active_setlist").select("id, service_name, service_date, service_time").eq("id", serviceId).maybeSingle(),
     supabase.from("service_items").select("id, position, type, title, details, planned_duration_seconds, song_ids, song_id, created_at").eq("service_id", serviceId).order("position", { ascending: true }),
+    supabase.from("service_song_settings").select("service_id, service_item_id, song_id, key_override").eq("service_id", serviceId),
   ]);
 
   const { data: serviceData, error: serviceError } = serviceResult;
@@ -65,7 +67,7 @@ export default async function ServiceRehearsalPage({ params }: { params: Promise
   return (
     <main className="min-h-screen py-2 sm:py-10">
       <MainContainer className="max-w-4xl">
-        <RehearsalMode service={service} serviceId={serviceId} items={items} songs={songs} loadError={itemsError?.message} />
+        <RehearsalMode service={service} serviceId={serviceId} items={items} songSettings={(settingsResult.data ?? []) as ServiceSongSetting[]} songs={songs} loadError={itemsError?.message ?? settingsResult.error?.message} />
       </MainContainer>
     </main>
   );

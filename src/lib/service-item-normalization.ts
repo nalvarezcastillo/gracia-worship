@@ -79,6 +79,17 @@ function normalizeSongEntry(rawEntry: unknown): WorshipSongEntry | null {
   return normalizedEntry;
 }
 
+export function getLegacyServiceSongKey(entry: WorshipSongEntry | null | undefined) {
+  if (!entry) return null;
+  const storedEntry = entry as unknown as Record<string, unknown>;
+  const value = storedEntry.keyName
+    ?? storedEntry.key_name
+    ?? storedEntry.selectedKey
+    ?? storedEntry.selected_key
+    ?? storedEntry.key;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 function normalizePositiveInteger(value: unknown) {
   const duration = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
   return Number.isInteger(duration) && duration > 0 ? duration : null;

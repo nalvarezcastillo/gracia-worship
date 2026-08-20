@@ -1,12 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BarChart3, Cable, ChevronRight, CircleUserRound, ListMusic, Music2, Plus, Users } from "lucide-react";
+import { BarChart3, Cable, ChevronRight, CircleUserRound, FileText, ListMusic, Music2, Plus, Users } from "lucide-react";
 import { MusicIcon } from "@/components/icons";
 import { ServiceCountdownCard } from "@/components/service-countdown-card";
 import { PrimaryButton, SecondaryButton } from "@/components/ui/action-button";
 import { MainContainer } from "@/components/ui/main-container";
 import { formatDuration } from "@/lib/duration";
-import type { ServiceItem } from "@/lib/service";
+import type { ServiceItem, ServiceSongSetting } from "@/lib/service";
 import { buildOperationalServiceEntries, type OperationalServiceEntry } from "@/lib/service-entries";
 import { normalizeServiceItemSongIds } from "@/lib/service-item-normalization";
 import { buildServiceSchedule, getOperationalEntryScheduleKey } from "@/lib/service-schedule";
@@ -23,8 +23,8 @@ type DashboardSong = { duration: string; id: string; key?: string | null; title:
 export default async function Home({ searchParams }: { searchParams: Promise<{ restored?: string }> }) {
   const [setlist, appSettings, authenticated] = await Promise.all([getActiveSetlist(), getAppSettings(), hasAuthenticatedUser()]);
   const serviceTeam = setlist ? await getServiceTeam(setlist.id) : [];
-  const operationalData = setlist ? await getOperationalServiceData(setlist.id, setlist.songs) : { items: [], songs: [] };
-  const operationalEntries = buildOperationalServiceEntries(operationalData.items, operationalData.songs);
+  const operationalData = setlist ? await getOperationalServiceData(setlist.id, setlist.songs) : { hasItemNotes: false, items: [], settings: [], songs: [] };
+  const operationalEntries = buildOperationalServiceEntries(operationalData.items, operationalData.songs, operationalData.settings);
   const schedule = buildServiceSchedule(operationalData.items, operationalData.songs, setlist?.serviceTime ?? null);
   const serviceTeamGroups = groupCurrentServiceTeam(serviceTeam);
   const serviceSchedule = setlist ? [setlist.serviceDate ? formatServiceDate(setlist.serviceDate) : null, setlist.serviceTime ? formatServiceTime(setlist.serviceTime) : null].filter(Boolean).join(" • ") : "";
@@ -38,7 +38,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
             <Link href={authenticated ? "/profile" : "/login"} aria-label={authenticated ? "Cuenta" : "Iniciar sesión"} className="grid size-10 shrink-0 place-items-center rounded-xl text-zinc-500 transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400"><CircleUserRound aria-hidden="true" className="size-5" /></Link>
           </header>
           <p className="mt-2.5 text-[1.375rem] font-semibold tracking-[-0.025em] text-white">{formatGreeting(new Date())}</p>
-          <MobileHomeContent authenticated={authenticated} entries={operationalEntries} serviceTeamGroups={serviceTeamGroups} setlist={setlist} />
+          <MobileHomeContent authenticated={authenticated} entries={operationalEntries} hasItemNotes={operationalData.hasItemNotes} serviceTeamGroups={serviceTeamGroups} setlist={setlist} />
         </div>
 
         <div className="hidden lg:block">
@@ -58,7 +58,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
               <DashboardCard label="Equipo del servicio" aside={`${serviceTeamGroups.length} ${serviceTeamGroups.length === 1 ? "persona asignada" : "personas asignadas"}`}><TeamPreview groups={serviceTeamGroups} /><DashboardFooterLink href={`/admin/service-team?service=${setlist.id}`}>Ver equipo completo →</DashboardFooterLink></DashboardCard>
             </div>
 
-            <section className="mt-5"><p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Accesos rápidos</p><div className="mt-2 grid grid-cols-2 gap-2 xl:grid-cols-5"><QuickAccess href="/admin/song/new" icon={Plus} label="Canción" /><QuickAccess href={`/admin/setlist?service=${setlist.id}`} icon={ListMusic} label="Editar Setlist" /><QuickAccess href={`/admin/service-team?service=${setlist.id}`} icon={Users} label="Equipo" /><QuickAccess href={`/admin/resources?service=${setlist.id}`} icon={Cable} label="Recursos" /><QuickAccess href="/admin/reports" icon={BarChart3} label="Reportes" /></div></section>
+            <section className="mt-5"><p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Accesos rápidos</p><div className="mt-2 grid grid-cols-2 gap-2 xl:grid-cols-6"><QuickAccess href="/admin/song/new" icon={Plus} label="Canción" /><QuickAccess href={`/admin/setlist?service=${setlist.id}`} icon={ListMusic} label="Editar Setlist" /><QuickAccess href={`/admin/service-team?service=${setlist.id}`} icon={Users} label="Equipo" /><QuickAccess href={`/admin/resources?service=${setlist.id}`} icon={Cable} label="Recursos" />{operationalData.hasItemNotes || Boolean(setlist.leaderNotes?.trim()) ? <QuickAccess href={`/service/${setlist.id}/notes`} icon={FileText} label="Notas" /> : null}<QuickAccess href="/admin/reports" icon={BarChart3} label="Reportes" /></div></section>
           </> : <section className="mt-6 border-y border-white/[0.07] py-12 text-center"><p className="text-sm text-zinc-400">No hay un servicio preparado.</p><SecondaryButton href="/admin" className="mt-4 min-h-10 rounded-xl px-4 text-sm">Ir a Administración</SecondaryButton></section>}
         </div>
 
@@ -68,7 +68,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   );
 }
 
-function MobileHomeContent({ authenticated, entries, serviceTeamGroups, setlist }: { authenticated: boolean; entries: OperationalServiceEntry<DashboardSong>[]; serviceTeamGroups: CurrentServiceTeamGroup[]; setlist: Awaited<ReturnType<typeof getActiveSetlist>> }) {
+function MobileHomeContent({ authenticated, entries, hasItemNotes, serviceTeamGroups, setlist }: { authenticated: boolean; entries: OperationalServiceEntry<DashboardSong>[]; hasItemNotes: boolean; serviceTeamGroups: CurrentServiceTeamGroup[]; setlist: Awaited<ReturnType<typeof getActiveSetlist>> }) {
   if (!setlist) {
     return (
       <section className="mt-4 rounded-2xl border border-white/[0.08] bg-zinc-900/55 px-4 py-5">
@@ -104,13 +104,15 @@ function MobileHomeContent({ authenticated, entries, serviceTeamGroups, setlist 
 
       <section>
         <div className="flex items-center justify-between gap-4"><h2 className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Repertorio</h2><Link href={`/service/${setlist.id}`} className="text-xs font-semibold text-zinc-500 transition-colors hover:text-emerald-300">Ver repertorio ›</Link></div>
-        {previewSongs.length ? <ol className="mt-1.5 divide-y divide-white/[0.07] border-y border-white/[0.07]">{previewSongs.map((entry) => <li key={entry.id}><Link href={`/song/${entry.song.id}?service=${setlist.id}`} className="flex min-h-12 items-center gap-2.5 px-1 py-2 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-emerald-400"><MusicIcon className="size-3.5 shrink-0 text-emerald-400/60" /><span className="min-w-0 flex-1 truncate text-[0.9375rem] font-semibold text-zinc-200">{entry.title}</span>{entry.song.key ? <span className="shrink-0 text-sm font-bold text-emerald-300">{entry.song.key}</span> : null}</Link></li>)}</ol> : <p className="mt-1.5 border-y border-white/[0.07] py-5 text-center text-sm text-zinc-500">No hay canciones en este servicio.</p>}
+        {previewSongs.length ? <ol className="mt-1.5 divide-y divide-white/[0.07] border-y border-white/[0.07]">{previewSongs.map((entry) => <li key={entry.id}><Link href={`/song/${entry.song.id}?service=${setlist.id}&serviceItem=${entry.item.id}`} className="flex min-h-12 items-center gap-2.5 px-1 py-2 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-emerald-400"><MusicIcon className="size-3.5 shrink-0 text-emerald-400/60" /><span className="min-w-0 flex-1 truncate text-[0.9375rem] font-semibold text-zinc-200">{entry.title}</span>{entry.effectiveKey ? <span className="shrink-0 text-sm font-bold text-emerald-300">{entry.effectiveKey}</span> : null}</Link></li>)}</ol> : <p className="mt-1.5 border-y border-white/[0.07] py-5 text-center text-sm text-zinc-500">No hay canciones en este servicio.</p>}
         {remainingSongs > 0 ? <p className="mt-1.5 text-right text-xs text-zinc-600">+{remainingSongs} {remainingSongs === 1 ? "canción" : "canciones"}</p> : null}
       </section>
 
       {serviceTeamGroups.length ? <section className="border-y border-white/[0.07] py-3"><div className="flex min-h-10 items-center gap-3"><Users aria-hidden="true" className="size-4 shrink-0 text-emerald-400/70" /><div className="min-w-0 flex-1"><h2 className="text-sm font-semibold text-zinc-200">Equipo del servicio</h2><p className="mt-0.5 text-xs text-zinc-500">{serviceTeamGroups.length} {serviceTeamGroups.length === 1 ? "persona sirviendo" : "personas sirviendo"}</p></div>{authenticated ? <Link href={`/admin/service-team?service=${setlist.id}`} aria-label="Ver equipo" className="grid size-10 shrink-0 place-items-center rounded-xl text-zinc-600 hover:bg-white/[0.04] hover:text-emerald-300"><ChevronRight aria-hidden="true" className="size-4" /></Link> : null}</div></section> : null}
 
-      {setlist.leaderNotes?.trim() ? <section><h2 className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Preparación</h2><p className="mt-1.5 whitespace-pre-wrap border-y border-white/[0.07] py-3 text-sm leading-6 text-zinc-400">{setlist.leaderNotes}</p></section> : null}
+      {hasItemNotes || Boolean(setlist.leaderNotes?.trim()) ? <Link href={`/service/${setlist.id}/notes`} className="flex min-h-12 items-center border-y border-white/[0.07] px-1 py-2.5 focus-visible:outline-2 focus-visible:outline-emerald-400"><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-zinc-200">Notas del servicio</p><p className="mt-0.5 text-xs text-zinc-500">Guía para el servicio</p></div><ChevronRight aria-hidden="true" className="size-4 shrink-0 text-zinc-600" /></Link> : null}
+
+      {authenticated && setlist.leaderNotes?.trim() ? <section><h2 className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Preparación</h2><p className="mt-1.5 whitespace-pre-wrap border-y border-white/[0.07] py-3 text-sm leading-6 text-zinc-400">{setlist.leaderNotes}</p></section> : null}
     </div>
   );
 }
@@ -129,17 +131,23 @@ function QuickAccess({ href, icon: Icon, label }: { href: string; icon: typeof P
 
 async function getOperationalServiceData(serviceId: number, existingSongs: DashboardSong[]) {
   const supabase = await createSupabaseServerClient();
-  const { data: itemData, error: itemError } = await supabase.from("service_items").select("id, position, type, title, details, planned_duration_seconds, song_ids, song_id, created_at").eq("service_id", serviceId).order("position", { ascending: true });
-  if (itemError) return { items: [] as ServiceItem[], songs: [] as DashboardSong[] };
+  const [{ data: itemData, error: itemError }, { data: settingsData, error: settingsError }, { data: noteData }] = await Promise.all([
+    supabase.from("service_items").select("id, position, type, title, details, planned_duration_seconds, song_ids, song_id, created_at").eq("service_id", serviceId).order("position", { ascending: true }),
+    supabase.from("service_song_settings").select("service_id, service_item_id, song_id, key_override").eq("service_id", serviceId),
+    supabase.from("service_item_notes").select("service_item_id").eq("service_id", serviceId).limit(1),
+  ]);
+  if (itemError) return { hasItemNotes: false, items: [] as ServiceItem[], settings: [] as ServiceSongSetting[], songs: [] as DashboardSong[] };
+  const hasItemNotes = Boolean(noteData?.length);
   const items = (itemData ?? []).map((item) => normalizeServiceItemSongIds(item)) as ServiceItem[];
+  const settings = settingsError ? [] : (settingsData ?? []) as ServiceSongSetting[];
   const songIds = Array.from(new Set(items.flatMap((item) => [...(item.song_ids ?? []).map((entry) => entry.songId), ...(item.song_id ? [item.song_id] : [])])));
-  if (!songIds.length) return { items, songs: [] as DashboardSong[] };
+  if (!songIds.length) return { hasItemNotes, items, settings, songs: [] as DashboardSong[] };
   const reusableSongs = existingSongs.filter((song) => songIds.includes(song.id));
   const reusableIds = new Set(reusableSongs.map((song) => song.id));
   const missingSongIds = songIds.filter((id) => !reusableIds.has(id));
-  if (!missingSongIds.length) return { items, songs: reusableSongs };
+  if (!missingSongIds.length) return { hasItemNotes, items, settings, songs: reusableSongs };
   const { data: songData, error: songError } = await supabase.from("songs").select("id, title, key, duration").in("id", missingSongIds);
-  return { items, songs: [...reusableSongs, ...(songError ? [] : (songData ?? []) as DashboardSong[])] };
+  return { hasItemNotes, items, settings, songs: [...reusableSongs, ...(songError ? [] : (songData ?? []) as DashboardSong[])] };
 }
 
 function formatDashboardDate(value: Date) { const formatted = new Intl.DateTimeFormat("es-419", { weekday: "long", day: "numeric", month: "long" }).format(value); return formatted.charAt(0).toLocaleUpperCase("es-419") + formatted.slice(1); }

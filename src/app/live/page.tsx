@@ -3,7 +3,7 @@ import { LiveMode, type LiveRun, type LiveSong } from "@/components/live-mode";
 import { MainContainer } from "@/components/ui/main-container";
 import { hasAuthenticatedUser } from "@/lib/auth";
 import type { ActiveSetlistRow } from "@/lib/database.types";
-import type { ServiceItem } from "@/lib/service";
+import type { ServiceItem, ServiceSongSetting } from "@/lib/service";
 import { normalizeServiceItemSongIds } from "@/lib/service-item-normalization";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -27,6 +27,10 @@ export default async function LivePage() {
 
   const service = serviceError ? null : serviceData as LiveService | null;
   const items = itemsError ? [] : (itemsData ?? []).map((item) => normalizeServiceItemSongIds(item)) as ServiceItem[];
+  const { data: settingsData, error: settingsError } = serviceData?.id
+    ? await supabase.from("service_song_settings").select("service_id, service_item_id, song_id, key_override").eq("service_id", serviceData.id)
+    : { data: [], error: null };
+  const songSettings = settingsError ? [] : (settingsData ?? []) as ServiceSongSetting[];
   const songIds = Array.from(new Set(items.flatMap((item) => [
     ...(item.song_ids ?? []).map((entry) => entry.songId),
     ...(item.song_id ? [item.song_id] : []),
@@ -58,7 +62,7 @@ export default async function LivePage() {
   if (stateError && process.env.NODE_ENV !== "production") {
     console.info("[Live] Realtime state is not available yet", stateError.message);
   }
-  const loadError = serviceError?.message ?? itemsError?.message ?? songsError?.message;
+  const loadError = serviceError?.message ?? itemsError?.message ?? songsError?.message ?? settingsError?.message;
 
   return (
     <main className="min-h-screen py-6 sm:py-10">
@@ -71,6 +75,7 @@ export default async function LivePage() {
           loadError={loadError}
           service={service}
           serviceId={serviceData?.id ?? null}
+          songSettings={songSettings}
           songs={songs}
         />
       </MainContainer>

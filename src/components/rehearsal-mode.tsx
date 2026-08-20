@@ -5,7 +5,7 @@ import Link from "next/link";
 import { SongDetailContent } from "@/components/song-detail-content";
 import type { PublicSongKey } from "@/components/song-key-selector";
 import type { ActiveSetlistRow } from "@/lib/database.types";
-import type { ServiceItem, WorshipSongEntry } from "@/lib/service";
+import type { ServiceItem, ServiceSongSetting, WorshipSongEntry } from "@/lib/service";
 import { buildOperationalServiceEntries } from "@/lib/service-entries";
 
 type RehearsalService = Pick<ActiveSetlistRow, "service_name" | "service_date" | "service_time">;
@@ -28,21 +28,23 @@ type RehearsalModeProps = {
   loadError?: string;
   service: RehearsalService | null;
   serviceId: number;
+  songSettings: ServiceSongSetting[];
   songs: RehearsalSong[];
 };
 
-export function RehearsalMode({ items, loadError, service, serviceId, songs }: RehearsalModeProps) {
+export function RehearsalMode({ items, loadError, service, serviceId, songSettings, songs }: RehearsalModeProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedSongIndex, setSelectedSongIndex] = useState<number | null>(null);
   const currentItem = items[currentIndex];
+  const operationalEntries = buildOperationalServiceEntries(items, songs, songSettings);
   const directSongEntry = currentItem?.type === "song"
-    ? buildOperationalServiceEntries([currentItem], songs).find((entry) => entry.kind === "song")
+    ? operationalEntries.find((entry) => entry.kind === "song" && entry.item.id === currentItem.id)
     : null;
   const blockSongs = currentItem?.type === "worship"
-    ? (currentItem.song_ids ?? []).flatMap((entry) => {
-        const song = songs.find((candidate) => candidate.id === entry.songId);
-        return song ? [{ entry, song }] : [];
-      })
+    ? operationalEntries.filter((entry): entry is Extract<(typeof operationalEntries)[number], { kind: "song" }> => entry.kind === "song" && entry.item.id === currentItem.id).map((entry) => ({
+        entry: { ...(entry.legacyEntry ?? { notes: entry.assignmentText ?? "", plannedDurationSeconds: entry.plannedDurationSeconds, songId: entry.song.id }), keyOverride: entry.effectiveKey },
+        song: entry.song,
+      }))
     : [];
   const selectedBlockSong = selectedSongIndex === null ? null : blockSongs[selectedSongIndex];
   const isFirst = currentIndex === 0;
@@ -81,6 +83,7 @@ export function RehearsalMode({ items, loadError, service, serviceId, songs }: R
                   notes: directSongEntry.assignmentText ?? "",
                   plannedDurationSeconds: currentItem.planned_duration_seconds,
                   songId: directSongEntry.song.id,
+                  keyOverride: directSongEntry.effectiveKey,
                 },
                 song: directSongEntry.song,
               }}
@@ -240,7 +243,8 @@ const secondaryNavigationStyles = "min-h-11 rounded-xl border border-white/10 bg
 
 function getSavedKeyName(entry: WorshipSongEntry) {
   const storedEntry = entry as unknown as Record<string, unknown>;
-  const value = storedEntry.keyName
+  const value = storedEntry.keyOverride
+    ?? storedEntry.keyName
     ?? storedEntry.key_name
     ?? storedEntry.selectedKey
     ?? storedEntry.selected_key

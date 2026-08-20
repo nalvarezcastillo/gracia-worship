@@ -1,7 +1,21 @@
 export type WorshipSongEntry = {
+  keyOverride?: string | null;
   plannedDurationSeconds: number | null;
   songId: string;
   notes: string;
+};
+
+export type ServiceSongSetting = {
+  key_override: string;
+  service_id: number;
+  service_item_id: string;
+  song_id: string;
+};
+
+export type ServiceItemNote = {
+  notes: string;
+  service_id: number;
+  service_item_id: string;
 };
 
 export type ServiceItem = {
@@ -25,6 +39,7 @@ export type ServiceSong = {
   key: string;
   sheet_url: string;
   song_keys?: {
+    key_name?: string;
     audio_url: string | null;
     sheet_url: string | null;
     song_stems?: { id: string }[];

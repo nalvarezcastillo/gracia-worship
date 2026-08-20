@@ -57,6 +57,7 @@ export function SongDetailContent({
       ?? keys[0]
       ?? null,
   );
+  const [hasSelectedKeyManually, setHasSelectedKeyManually] = useState(false);
   const [stemLoad, setStemLoad] = useState<{
     keyId: string | null;
     loading: boolean;
@@ -137,7 +138,7 @@ export function SongDetailContent({
     return () => { cancelled = true; };
   }, [enableMultitrack, selectedKey]);
 
-  const displayedKey = selectedKey?.key_name ?? legacyKey;
+  const displayedKey = !hasSelectedKeyManually && initialKeyName ? initialKeyName : selectedKey?.key_name ?? legacyKey;
   const audioUrl = selectedKey ? (selectedKey.audio_url ?? "") : legacyAudioUrl;
   const sheetUrl = selectedKey ? (selectedKey.sheet_url ?? "") : legacySheetUrl;
   const mediaSelectionId = selectedKey?.id ?? "legacy";
@@ -151,7 +152,7 @@ export function SongDetailContent({
       {rehearsalMode ? <div className="lg:hidden"><h2 className="truncate text-[1.625rem] font-bold leading-8 tracking-[-0.03em] text-white">{title}</h2><div className="mt-1 flex items-center justify-between gap-3 text-[0.8125rem]"><p className="min-w-0 truncate text-zinc-500">{rehearsalSubtitle}</p><p className="shrink-0 font-semibold"><span className="text-emerald-300">{displayedKey}</span>{bpm ? <span className="text-zinc-500"> · {bpm} BPM</span> : null}</p></div></div> : null}
       <SongMetadataLine songKey={displayedKey} bpm={bpm} timeSignature={timeSignature} className={`${rehearsalMode ? "hidden lg:block" : ""} mt-2`} />
       {headerNavigation}
-      <SongKeySelector keys={keys} selectedKey={selectedKey} onSelect={setSelectedKey} polished={enableMultitrack} />
+      <SongKeySelector keys={keys} selectedKey={selectedKey} onSelect={(key) => { setHasSelectedKeyManually(true); setSelectedKey(key); }} polished={enableMultitrack} />
       {editHref || canAddToService ? (
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           {editHref ? (

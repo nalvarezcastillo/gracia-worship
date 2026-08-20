@@ -9,7 +9,7 @@ import { PrimaryButton, SecondaryButton } from "@/components/ui/action-button";
 import type { ActiveSetlistRow, CompleteLiveServiceAndAdvanceResult } from "@/lib/database.types";
 import { parseAssignmentText } from "@/lib/assignment-text";
 import { formatDuration, getActualRunSeconds, getServiceItemDurationSeconds, getSongDurationSeconds } from "@/lib/duration";
-import type { ServiceItem, WorshipSongEntry } from "@/lib/service";
+import type { ServiceItem, ServiceSongSetting, WorshipSongEntry } from "@/lib/service";
 import { buildOperationalServiceEntries } from "@/lib/service-entries";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -35,7 +35,7 @@ export type LiveSong = {
 
 type LiveEntry =
   | { id: string; item: ServiceItem; kind: "item"; title: string }
-  | { entry: WorshipSongEntry; id: string; item: ServiceItem; kind: "song"; song: LiveSong; title: string };
+  | { effectiveKey: string | null; entry: WorshipSongEntry; id: string; item: ServiceItem; kind: "song"; song: LiveSong; title: string };
 
 type LiveServiceState = {
   current_item_id: string;
@@ -56,13 +56,14 @@ type LiveModeProps = {
   loadError?: string;
   service: LiveService | null;
   serviceId: number | null;
+  songSettings: ServiceSongSetting[];
   songs: LiveSong[];
 };
 
-export function LiveMode({ canControl, initialRuns, initialState, items, loadError, service, serviceId, songs }: LiveModeProps) {
+export function LiveMode({ canControl, initialRuns, initialState, items, loadError, service, serviceId, songSettings, songs }: LiveModeProps) {
   const finishInFlightRef = useRef(false);
   const reopenInFlightRef = useRef(false);
-  const entries = useMemo(() => buildLiveEntries(items, songs), [items, songs]);
+  const entries = useMemo(() => buildLiveEntries(items, songs, songSettings), [items, songSettings, songs]);
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const initialIndex = resolveStateIndex(entries, initialState);
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
@@ -504,10 +505,11 @@ function RunSheet({ canControl, currentIndex, entries, onSelect }: { canControl:
   );
 }
 
-function buildLiveEntries(items: ServiceItem[], songs: LiveSong[]) {
-  return buildOperationalServiceEntries(items, songs).map<LiveEntry>((entry) => entry.kind === "moment"
+function buildLiveEntries(items: ServiceItem[], songs: LiveSong[], settings: ServiceSongSetting[]) {
+  return buildOperationalServiceEntries(items, songs, settings).map<LiveEntry>((entry) => entry.kind === "moment"
     ? { id: entry.id, item: entry.item, kind: "item", title: entry.title }
     : {
+        effectiveKey: entry.effectiveKey,
         entry: entry.legacyEntry ?? {
           notes: entry.assignmentText ?? "",
           plannedDurationSeconds: entry.item.planned_duration_seconds,
@@ -621,12 +623,11 @@ function parseServiceStart(serviceDate: string, serviceTime: string) {
 }
 
 function getSongMetadata(entry: Extract<LiveEntry, { kind: "song" }>) {
-  const selectedKeyName = getSavedKeyName(entry.entry);
-  return [selectedKeyName || entry.song.key, entry.song.bpm ? `${entry.song.bpm} BPM` : "", entry.song.time_signature].filter(Boolean).join(" • ");
+  return [entry.effectiveKey || entry.song.key, entry.song.bpm ? `${entry.song.bpm} BPM` : "", entry.song.time_signature].filter(Boolean).join(" • ");
 }
 
 function getSongResources(entry: Extract<LiveEntry, { kind: "song" }>) {
-  const selectedKeyName = getSavedKeyName(entry.entry);
+  const selectedKeyName = entry.effectiveKey;
   const selectedKey = entry.song.song_keys.find((key) => key.key_name === selectedKeyName)
     ?? entry.song.song_keys.find((key) => key.key_name === entry.song.key)
     ?? entry.song.song_keys[0];
@@ -635,12 +636,6 @@ function getSongResources(entry: Extract<LiveEntry, { kind: "song" }>) {
     sheetUrl: selectedKey ? selectedKey.sheet_url ?? "" : entry.song.sheet_url,
     hasAdditionalResources: Boolean(entry.song.lyrics || selectedKey?.song_stems.length),
   };
-}
-
-function getSavedKeyName(entry: WorshipSongEntry) {
-  const storedEntry = entry as unknown as Record<string, unknown>;
-  const value = storedEntry.keyName ?? storedEntry.key_name ?? storedEntry.selectedKey ?? storedEntry.selected_key ?? storedEntry.key;
-  return typeof value === "string" ? value : "";
 }
 
 function formatDeviceTime(date: Date) {
