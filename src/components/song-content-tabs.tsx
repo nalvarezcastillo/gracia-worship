@@ -105,7 +105,7 @@ function OrganizedSongContent({ audioUrl, lyrics, rehearsalMode = false, sheetUr
 
         {stems.length > 0 ? (
           <div id="multitrack-panel" role="tabpanel" className="px-1 sm:px-2" hidden={visibleTab !== "multitrack"}>
-            <MultitrackPlayer active={visibleTab === "multitrack"} stems={stems} title={title} />
+            <MultitrackPlayer active={visibleTab === "multitrack"} layout="song-detail" stems={stems} title={title} />
           </div>
         ) : null}
 

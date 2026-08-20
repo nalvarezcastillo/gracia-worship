@@ -111,6 +111,55 @@ textarea {
   opacity: 0.5;
 }
 
+@media (min-width: 1024px) {
+  [data-multitrack-layout="playback"] {
+    display: flex;
+    min-height: 35rem;
+    flex-direction: column;
+  }
+
+  [data-multitrack-layout="playback"] input[aria-label^="Volumen de"],
+  [data-multitrack-layout="playback"] input[aria-label="Volumen general del multitrack"] {
+    height: 12.5rem;
+  }
+
+  [data-multitrack-layout="playback"] > div:has(input[aria-label^="Volumen de"]) {
+    position: relative;
+    margin-top: 2.25rem;
+    min-height: 19rem;
+    background: #070b0a;
+  }
+
+  [data-multitrack-layout="playback"] > div:has(input[aria-label^="Volumen de"])::before {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    width: 100%;
+    padding: 0.65rem 0.25rem;
+    border-top: 1px solid rgb(255 255 255 / 7%);
+    color: #a1a1aa;
+    content: "MEZCLADOR";
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+  }
+
+  [data-multitrack-layout="playback"] input[aria-label^="Volumen de"],
+  [data-multitrack-layout="playback"] input[aria-label="Volumen general del multitrack"] {
+    accent-color: #34d399;
+  }
+
+  [data-multitrack-layout="playback"] > :last-child {
+    margin-top: auto;
+    padding-top: 0.5rem;
+    opacity: 0.78;
+  }
+
+  [data-multitrack-layout="playback"] > :last-child > button {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
