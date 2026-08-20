@@ -1,5 +1,5 @@
 import type { SongSectionRow } from "@/lib/database.types";
 export type SongSection = Pick<SongSectionRow, "bar_number" | "beat_fraction" | "beat_number" | "id" | "label" | "section_type" | "song_key_id" | "sort_order" | "start_seconds">;
 export type SongSectionRegion = { end: number; section: SongSection; start: number };
-export function getCurrentSongSection(sections: SongSection[], currentTime: number) { return [...sections].sort((a, b) => a.start_seconds - b.start_seconds).filter((section) => section.start_seconds <= currentTime).at(-1) ?? null; }
+export function getCurrentSongSection(sections: SongSection[], currentTime: number) { let current: SongSection | null = null; for (const section of sections) if (section.start_seconds <= currentTime && (!current || section.start_seconds >= current.start_seconds)) current = section; return current; }
 export function getSongSectionRegions(sections: SongSection[], duration: number): SongSectionRegion[] { const ordered = [...sections].sort((a, b) => a.start_seconds - b.start_seconds).filter((section) => section.start_seconds < duration); return ordered.map((section, index) => ({ section, start: Math.max(0, section.start_seconds), end: Math.min(duration, ordered[index + 1]?.start_seconds ?? duration) })).filter((region) => region.end > region.start); }

@@ -1,4 +1,4 @@
-export const PHONE_SAFE_DECODED_PCM_BYTES = 512 * 1024 * 1024;
+export const PHONE_HIGH_DECODED_PCM_BYTES = 512 * 1024 * 1024;
 
 export function isPhonePlaybackDevice() {
   if (typeof window === "undefined") return false;
