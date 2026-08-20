@@ -135,3 +135,14 @@ export type SongStemRow = {
   file_size_bytes: number | null;
   created_at: string;
 };
+
+export type SongSectionRow = {
+  id: string;
+  song_key_id: string;
+  label: string;
+  section_type: "intro" | "verse" | "chorus" | "bridge" | "prechorus" | "instrumental" | "outro" | "other" | null;
+  start_seconds: number;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
