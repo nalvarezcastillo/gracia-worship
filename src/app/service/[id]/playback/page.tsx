@@ -30,7 +30,7 @@ export default async function PlaybackPage({ params }: { params: Promise<{ id: s
   const operationalEntries = buildOperationalServiceEntries(items, playbackSongs, (settings ?? []) as ServiceSongSetting[]);
   const schedule = buildServiceSchedule(items, playbackSongs, service.service_time);
   const entries = operationalEntries.map<PlaybackEntry>((entry) => {
-    const base = { durationLabel: entry.plannedDurationSeconds ? formatDuration(entry.plannedDurationSeconds) : "—", id: entry.id, scheduledTime: schedule.times.get(getOperationalEntryScheduleKey(entry)) ?? "—", title: entry.title };
+    const base = { durationLabel: entry.plannedDurationSeconds ? formatDuration(entry.plannedDurationSeconds) : "—", durationSeconds: entry.plannedDurationSeconds, id: entry.id, scheduledTime: schedule.times.get(getOperationalEntryScheduleKey(entry)) ?? "—", title: entry.title };
     if (entry.kind === "moment") return { ...base, artist: null, bpm: null, coverUrl: null, effectiveKey: null, kind: "moment", stems: [], timeSignature: null };
     const keyVariant = entry.song.song_keys.find((variant) => variant.key_name === entry.effectiveKey);
     const stems = (keyVariant?.song_stems ?? []).sort((a, b) => a.sort_order - b.sort_order).map((stem) => ({ id: stem.id, name: stem.name, publicUrl: supabase.storage.from("songs").getPublicUrl(stem.storage_path).data.publicUrl, song_key_id: stem.song_key_id, sort_order: stem.sort_order }));
