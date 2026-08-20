@@ -68,6 +68,10 @@ export function ManageSongKeys({ initialKeys, initialStems, songId }: { initialK
         key_name: keyName,
         audio_url: uploadedAudioUrl ?? editingKey?.audio_url ?? null,
         sheet_url: uploadedSheetUrl ?? editingKey?.sheet_url ?? null,
+        grid_bpm: editingKey?.grid_bpm ?? null,
+        grid_beats_per_bar: editingKey?.grid_beats_per_bar ?? null,
+        grid_beat_unit: editingKey?.grid_beat_unit ?? null,
+        grid_offset_seconds: editingKey?.grid_offset_seconds ?? null,
         sort_order: editingKey?.sort_order ?? (keys.reduce((max, item) => Math.max(max, item.sort_order), -1) + 1),
       };
 
@@ -75,7 +79,7 @@ export function ManageSongKeys({ initialKeys, initialStems, songId }: { initialK
         ? supabase.from("song_keys").update(payload).eq("id", editingKey.id)
         : supabase.from("song_keys").insert(payload);
       const { data, error } = await query
-        .select("id, song_id, key_name, audio_url, sheet_url, sort_order, created_at")
+        .select("id, song_id, key_name, audio_url, sheet_url, grid_bpm, grid_beats_per_bar, grid_beat_unit, grid_offset_seconds, sort_order, created_at")
         .single();
       if (error) throw error;
 

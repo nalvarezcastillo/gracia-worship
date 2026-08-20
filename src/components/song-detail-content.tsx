@@ -9,6 +9,7 @@ import { SongKeySelector, type PublicSongKey } from "@/components/song-key-selec
 import { SecondaryButton } from "@/components/ui/action-button";
 import { SongMetadataLine } from "@/components/ui/song-tags";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import type { MusicalGrid } from "@/lib/musical-grid";
 
 type SongDetailContentProps = {
   bpm: number;
@@ -146,6 +147,7 @@ export function SongDetailContent({
   const loadingStems = enableMultitrack
     && selectedKey !== null
     && (stemLoad.keyId !== selectedKey.id || stemLoad.loading);
+  const selectedGrid: MusicalGrid | null = selectedKey?.grid_bpm && selectedKey.grid_beats_per_bar && selectedKey.grid_beat_unit && selectedKey.grid_offset_seconds !== null ? { bpm: selectedKey.grid_bpm, beatsPerBar: selectedKey.grid_beats_per_bar, beatUnit: selectedKey.grid_beat_unit, gridOffsetSeconds: selectedKey.grid_offset_seconds } : null;
 
   return (
     <>
@@ -167,7 +169,7 @@ export function SongDetailContent({
 
       <AudioPlayerProvider key={mediaSelectionId} src={audioUrl} title={title}>
         {enableMultitrack ? (
-            <SongContentTabs audioUrl={audioUrl} key={mediaSelectionId} lyrics={lyrics} rehearsalMode={rehearsalMode} sheetUrl={sheetUrl} stems={selectedStems} stemsLoading={loadingStems} title={title} />
+            <SongContentTabs audioUrl={audioUrl} bpm={bpm} grid={selectedGrid} key={mediaSelectionId} lyrics={lyrics} rehearsalMode={rehearsalMode} sheetUrl={sheetUrl} stems={selectedStems} stemsLoading={loadingStems} timeSignature={timeSignature} title={title} />
         ) : (
           <>
             <div className={`sticky top-0 z-30 -mx-2 border-b border-white/[0.04] bg-zinc-950/90 px-2 shadow-[0_10px_24px_rgba(0,0,0,0.18)] backdrop-blur-xl ${rehearsalMode ? "mt-3 py-2 lg:mt-5 lg:py-3" : "mt-5 py-3 sm:mt-7"}`}>

@@ -22,7 +22,7 @@ export default async function SongPage({ params, searchParams }: SongPageProps &
   if (requestedService && (!Number.isSafeInteger(requestedServiceId) || requestedServiceId < 1 || requestedServiceId > 32767)) notFound();
   const serviceId = requestedService ? requestedServiceId : undefined;
   let song: SongDetail | null = null;
-  let songKeys: Pick<SongKeyRow, "id" | "key_name" | "audio_url" | "sheet_url" | "sort_order">[] = [];
+  let songKeys: Pick<SongKeyRow, "id" | "key_name" | "audio_url" | "sheet_url" | "sort_order" | "grid_bpm" | "grid_beats_per_bar" | "grid_beat_unit" | "grid_offset_seconds">[] = [];
   const supabase = createSupabaseClient();
 
   try {
@@ -40,14 +40,14 @@ export default async function SongPage({ params, searchParams }: SongPageProps &
 
   const { data: keysData, error: keysError } = await supabase
     .from("song_keys")
-    .select("id, key_name, audio_url, sheet_url, sort_order")
+    .select("id, key_name, audio_url, sheet_url, sort_order, grid_bpm, grid_beats_per_bar, grid_beat_unit, grid_offset_seconds")
     .eq("song_id", id)
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
   if (keysError) {
     console.error("Unable to load public song keys:", keysError);
   } else {
-    songKeys = (keysData ?? []) as Pick<SongKeyRow, "id" | "key_name" | "audio_url" | "sheet_url" | "sort_order">[];
+    songKeys = (keysData ?? []) as Pick<SongKeyRow, "id" | "key_name" | "audio_url" | "sheet_url" | "sort_order" | "grid_bpm" | "grid_beats_per_bar" | "grid_beat_unit" | "grid_offset_seconds">[];
   }
 
   if (!song) notFound();

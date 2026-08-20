@@ -73,8 +73,13 @@ create table if not exists public.song_keys (
   key_name text not null,
   audio_url text null,
   sheet_url text null,
+  grid_bpm numeric(8,3),
+  grid_beats_per_bar smallint,
+  grid_beat_unit smallint,
+  grid_offset_seconds numeric(10,3),
   sort_order integer not null default 0 check (sort_order >= 0),
   created_at timestamptz not null default now(),
+  constraint song_keys_musical_grid_check check (num_nonnulls(grid_bpm, grid_beats_per_bar, grid_beat_unit, grid_offset_seconds) = 0 or (num_nonnulls(grid_bpm, grid_beats_per_bar, grid_beat_unit, grid_offset_seconds) = 4 and grid_bpm > 0 and grid_bpm <= 400 and grid_beats_per_bar between 1 and 32 and grid_beat_unit in (1, 2, 4, 8, 16) and grid_offset_seconds >= 0)),
   unique (song_id, key_name)
 );
 
@@ -132,10 +137,14 @@ create table if not exists public.song_sections (
   label text not null check (length(trim(label)) > 0),
   section_type text null check (section_type is null or section_type in ('intro','verse','chorus','bridge','prechorus','instrumental','outro','other')),
   start_seconds numeric(10,3) not null check (start_seconds >= 0),
+  bar_number integer,
+  beat_number smallint,
+  beat_fraction numeric(8,6),
   sort_order integer not null default 0 check (sort_order >= 0),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (song_key_id, start_seconds)
+  unique (song_key_id, start_seconds),
+  constraint song_sections_musical_position_check check (num_nonnulls(bar_number, beat_number, beat_fraction) = 0 or (num_nonnulls(bar_number, beat_number, beat_fraction) = 3 and bar_number >= 1 and beat_number >= 1 and beat_fraction >= 0 and beat_fraction < 1))
 );
 
 create index if not exists song_sections_song_key_time_idx on public.song_sections (song_key_id, start_seconds, sort_order);

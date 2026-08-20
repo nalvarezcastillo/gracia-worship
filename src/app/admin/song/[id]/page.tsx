@@ -31,7 +31,7 @@ export default async function EditSongPage({ params }: { params: Promise<{ id: s
   try {
     const { data: keysData, error: keysError } = await supabase
       .from("song_keys")
-      .select("id, song_id, key_name, audio_url, sheet_url, sort_order, created_at")
+      .select("id, song_id, key_name, audio_url, sheet_url, grid_bpm, grid_beats_per_bar, grid_beat_unit, grid_offset_seconds, sort_order, created_at")
       .eq("song_id", id)
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true });

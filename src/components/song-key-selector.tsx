@@ -3,6 +3,10 @@ export type PublicSongKey = {
   key_name: string;
   audio_url: string | null;
   sheet_url: string | null;
+  grid_bpm: number | null;
+  grid_beats_per_bar: number | null;
+  grid_beat_unit: number | null;
+  grid_offset_seconds: number | null;
   sort_order: number;
 };
 

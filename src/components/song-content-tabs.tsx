@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useState } from "react";
 import { AudioPlayer, useAudioPlayer } from "@/components/audio-player";
 import { MultitrackPlayer, type PublicSongStem } from "@/components/multitrack-player";
+import type { MusicalGrid } from "@/lib/musical-grid";
 
 const FullscreenPdfReader = dynamic(
   () => import("@/components/fullscreen-pdf-reader").then((module) => module.FullscreenPdfReader),
@@ -18,17 +19,20 @@ type SongContentTabsProps = {
   sheetUrl: string;
   stems: PublicSongStem[];
   stemsLoading?: boolean;
+  bpm?: number | null;
+  grid?: MusicalGrid | null;
+  timeSignature?: string | null;
   title: string;
 };
 
 type SongSection = "audio" | "lyrics" | "pdf" | "multitrack";
 
-export function SongContentTabs({ audioUrl, lyrics, organized = true, rehearsalMode = false, sheetUrl, stems, stemsLoading = false, title }: SongContentTabsProps) {
+export function SongContentTabs({ audioUrl, bpm, grid, lyrics, organized = true, rehearsalMode = false, sheetUrl, stems, stemsLoading = false, timeSignature, title }: SongContentTabsProps) {
   if (!organized) return <LegacySongContent lyrics={lyrics} rehearsalMode={rehearsalMode} sheetUrl={sheetUrl} title={title} />;
-  return <OrganizedSongContent audioUrl={audioUrl} lyrics={lyrics} rehearsalMode={rehearsalMode} sheetUrl={sheetUrl} stems={stems} stemsLoading={stemsLoading} title={title} />;
+  return <OrganizedSongContent audioUrl={audioUrl} bpm={bpm} grid={grid} lyrics={lyrics} rehearsalMode={rehearsalMode} sheetUrl={sheetUrl} stems={stems} stemsLoading={stemsLoading} timeSignature={timeSignature} title={title} />;
 }
 
-function OrganizedSongContent({ audioUrl, lyrics, rehearsalMode = false, sheetUrl, stems, stemsLoading = false, title }: SongContentTabsProps) {
+function OrganizedSongContent({ audioUrl, bpm, grid, lyrics, rehearsalMode = false, sheetUrl, stems, stemsLoading = false, timeSignature, title }: SongContentTabsProps) {
   const audio = useAudioPlayer();
   const sections: { id: SongSection; label: string }[] = [
     ...(audioUrl ? [{ id: "audio" as const, label: "Audio" }] : []),
@@ -105,7 +109,7 @@ function OrganizedSongContent({ audioUrl, lyrics, rehearsalMode = false, sheetUr
 
         {stems.length > 0 ? (
           <div id="multitrack-panel" role="tabpanel" className="px-1 sm:px-2" hidden={visibleTab !== "multitrack"}>
-            <MultitrackPlayer active={visibleTab === "multitrack"} layout="song-detail" stems={stems} title={title} />
+            <MultitrackPlayer active={visibleTab === "multitrack"} bpm={bpm} grid={grid} layout="song-detail" stems={stems} timeSignature={timeSignature} title={title} />
           </div>
         ) : null}
 

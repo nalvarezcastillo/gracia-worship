@@ -41,7 +41,7 @@ export default async function ServiceRehearsalPage({ params }: { params: Promise
   if (songIds.length) {
     const [songsResult, keysResult] = await Promise.all([
       supabase.from("songs").select("id, title, key, bpm, duration, time_signature, audio_url, sheet_url, lyrics").in("id", songIds),
-      supabase.from("song_keys").select("id, song_id, key_name, audio_url, sheet_url, sort_order").in("song_id", songIds).order("sort_order", { ascending: true }).order("created_at", { ascending: true }),
+      supabase.from("song_keys").select("id, song_id, key_name, audio_url, sheet_url, grid_bpm, grid_beats_per_bar, grid_beat_unit, grid_offset_seconds, sort_order").in("song_id", songIds).order("sort_order", { ascending: true }).order("created_at", { ascending: true }),
     ]);
     const itemSummaries = rawItems.filter((item) => item.type === "worship").map((item) => ({
       serviceItemId: item.id,
@@ -56,7 +56,7 @@ export default async function ServiceRehearsalPage({ params }: { params: Promise
       if (!keysResult.error) {
         for (const key of keysResult.data ?? []) {
           const current = keysBySong.get(key.song_id) ?? [];
-          current.push({ id: key.id, key_name: key.key_name, audio_url: key.audio_url, sheet_url: key.sheet_url, sort_order: key.sort_order });
+          current.push({ id: key.id, key_name: key.key_name, audio_url: key.audio_url, sheet_url: key.sheet_url, grid_bpm: key.grid_bpm, grid_beats_per_bar: key.grid_beats_per_bar, grid_beat_unit: key.grid_beat_unit, grid_offset_seconds: key.grid_offset_seconds, sort_order: key.sort_order });
           keysBySong.set(key.song_id, current);
         }
       }

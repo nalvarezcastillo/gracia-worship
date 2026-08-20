@@ -97,6 +97,10 @@ export type SongKeyRow = {
   key_name: string;
   audio_url: string | null;
   sheet_url: string | null;
+  grid_bpm: number | null;
+  grid_beats_per_bar: number | null;
+  grid_beat_unit: number | null;
+  grid_offset_seconds: number | null;
   sort_order: number;
   created_at: string;
 };
@@ -142,6 +146,9 @@ export type SongSectionRow = {
   label: string;
   section_type: "intro" | "verse" | "chorus" | "bridge" | "prechorus" | "instrumental" | "outro" | "other" | null;
   start_seconds: number;
+  bar_number: number | null;
+  beat_number: number | null;
+  beat_fraction: number | null;
   sort_order: number;
   created_at: string;
   updated_at: string;

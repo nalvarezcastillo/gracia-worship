@@ -1,0 +1,9 @@
+export type MusicalGrid = { beatUnit: number; beatsPerBar: number; bpm: number; gridOffsetSeconds: number };
+export type MusicalPosition = { bar: number; beat: number; fraction: number; preRoll: false } | { bar: null; beat: null; fraction: null; preRoll: true };
+export type GridSnap = "bar" | "beat" | "off";
+
+export function secondsPerGridBeat(grid: MusicalGrid) { return (60 / grid.bpm) * (4 / grid.beatUnit); }
+export function musicalPositionToSeconds({ bar, beat, fraction = 0 }: { bar: number; beat: number; fraction?: number }, grid: MusicalGrid) { return grid.gridOffsetSeconds + (((bar - 1) * grid.beatsPerBar) + (beat - 1) + fraction) * secondsPerGridBeat(grid); }
+export function secondsToMusicalPosition(seconds: number, grid: MusicalGrid): MusicalPosition { if (seconds < grid.gridOffsetSeconds) return { bar: null, beat: null, fraction: null, preRoll: true }; const beatPosition = (seconds - grid.gridOffsetSeconds) / secondsPerGridBeat(grid); const wholeBeat = Math.floor(beatPosition + 1e-9); return { bar: Math.floor(wholeBeat / grid.beatsPerBar) + 1, beat: (wholeBeat % grid.beatsPerBar) + 1, fraction: Number((beatPosition - wholeBeat).toFixed(6)), preRoll: false }; }
+export function snapSecondsToGrid(seconds: number, grid: MusicalGrid, snap: GridSnap) { if (snap === "off") return seconds; const beatPosition = (seconds - grid.gridOffsetSeconds) / secondsPerGridBeat(grid); const snappedBeats = snap === "bar" ? Math.round(beatPosition / grid.beatsPerBar) * grid.beatsPerBar : Math.round(beatPosition); return Math.max(0, grid.gridOffsetSeconds + (snappedBeats * secondsPerGridBeat(grid))); }
+export function isValidMusicalGrid(grid: MusicalGrid) { return Number.isFinite(grid.bpm) && grid.bpm > 0 && grid.bpm <= 400 && Number.isInteger(grid.beatsPerBar) && grid.beatsPerBar > 0 && grid.beatsPerBar <= 32 && [1, 2, 4, 8, 16].includes(grid.beatUnit) && Number.isFinite(grid.gridOffsetSeconds) && grid.gridOffsetSeconds >= 0; }
