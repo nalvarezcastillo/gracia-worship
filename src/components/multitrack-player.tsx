@@ -44,6 +44,7 @@ export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNe
   const startedAtRef = useRef(0);
   const offsetRef = useRef(0);
   const animationRef = useRef<number | null>(null);
+  const loadControllerRef = useRef<AbortController | null>(null);
   const operationRef = useRef(0);
   const transitionRef = useRef(false);
   const playingRef = useRef(false);
@@ -171,6 +172,7 @@ export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNe
   useLayoutEffect(() => {
     let current = true;
     const controller = new AbortController();
+    loadControllerRef.current = controller;
     const mobilePolicy = isPhonePlaybackDevice();
     const cachePolicy: AudioCachePolicy | undefined = mobilePolicy ? { maxCachedSongs: 1, retainOnlyCurrent: true } : undefined;
     const AudioContextConstructor = window.AudioContext
@@ -221,13 +223,15 @@ export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNe
       if (process.env.NODE_ENV === "development") void getAudioCacheDiagnostics().then((cache) => console.info("Playback runtime diagnostics:", { song: title, stems: loaded.length, decodedPcmMb: Number((nextDiagnostics.approximateBytes / 1024 / 1024).toFixed(1)), decodedBundlesRetained: cache.songs, cacheBundles: cache.songs, estimatedCachedPcmMb: Number((cache.approximateBytes / 1024 / 1024).toFixed(1)), ...getPlaybackRuntimeDiagnostics(loaded.length ? loaded.length + 1 : 0) }));
     }).catch((error) => {
       if (!current) return;
+      if (isAbortError(error)) return;
       console.error("Unable to load multitrack stems:", error);
       setStatus("error");
     });
 
     return () => {
       current = false;
-      controller.abort();
+      loadControllerRef.current?.abort();
+      loadControllerRef.current = null;
       context.removeEventListener("statechange", onStateChange);
       stopSources();
       stopAnimation();
@@ -271,7 +275,7 @@ export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNe
   }, [active, getPlaybackTime, isPlaying, pauseAt]);
 
   useEffect(() => { setMusicalGrid(grid); }, [grid, stems]);
-  useEffect(() => { setLoopSectionId(null); sectionLoopRef.current = null; for (const source of sourcesRef.current) source.loop = false; if (!stems[0]?.song_key_id) { setSections([]); return; } let current = true; const supabase = createSupabaseBrowserClient(); void supabase.from("song_sections").select("id, song_key_id, label, section_type, start_seconds, bar_number, beat_number, beat_fraction, sort_order").eq("song_key_id", stems[0].song_key_id).order("start_seconds").then(({ data, error }) => { if (!current) return; if (error) console.error("Unable to load song sections:", error); setSections((data ?? []) as SongSection[]); }); return () => { current = false; }; }, [stems]);
+  useEffect(() => { setLoopSectionId(null); sectionLoopRef.current = null; for (const source of sourcesRef.current) source.loop = false; if (!stems[0]?.song_key_id) { setSections([]); return; } let current = true; const controller = new AbortController(); const supabase = createSupabaseBrowserClient(); void supabase.from("song_sections").select("id, song_key_id, label, section_type, start_seconds, bar_number, beat_number, beat_fraction, sort_order").eq("song_key_id", stems[0].song_key_id).order("start_seconds").abortSignal(controller.signal).then(({ data, error }) => { if (!current || controller.signal.aborted) return; if (error) console.error("Unable to load song sections:", error); setSections((data ?? []) as SongSection[]); }); return () => { current = false; controller.abort(); }; }, [stems]);
   useEffect(() => { if (layout !== "song-detail") return; void createSupabaseBrowserClient().auth.getUser().then(({ data }) => setCanEditSections(Boolean(data.user))); }, [layout]);
 
   function openNewSection() { const time = musicalGrid ? snapSecondsToGrid(currentTime, musicalGrid, "bar") : currentTime; setSectionEditorError(null); setSectionEditor(buildSectionEditorState(null, "", null, time, musicalGrid, "bar")); }
@@ -377,11 +381,12 @@ export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNe
   async function resumeAudio() { const context = contextRef.current; if (!context || context.state === "closed") return; try { await context.resume(); setContextState(context.state); if (context.state === "running") setEngineMessage(null); } catch (error) { console.error("Unable to recover AudioContext:", error); setEngineMessage("No se pudo reanudar el motor de audio."); } }
 
   async function retryLoad() {
-    const context = contextRef.current; if (!context || status === "loading") return; pauseAt(0); setStatus("loading"); setEngineMessage(null);
+    const context = contextRef.current; if (!context || status === "loading") return; loadControllerRef.current?.abort(); const controller = new AbortController(); loadControllerRef.current = controller; pauseAt(0); setStatus("loading"); setEngineMessage(null);
     try {
       const policy = isPhonePlaybackDevice() ? { maxCachedSongs: 1, retainOnlyCurrent: true } : undefined;
-      const result = await retryStemBundle(context, stems, { label: title, mode: "foreground", policy }); installBundle(result);
-    } catch (error) { console.error("Unable to retry Playback stems:", error); setStatus("error"); }
+      const result = await retryStemBundle(context, stems, { label: title, mode: "foreground", policy, signal: controller.signal }); if (controller.signal.aborted || contextRef.current !== context) return; installBundle(result);
+    } catch (error) { if (!isAbortError(error)) { console.error("Unable to retry Playback stems:", error); setStatus("error"); } }
+    finally { if (loadControllerRef.current === controller) loadControllerRef.current = null; }
   }
 
   function installBundle({ diagnostics: nextDiagnostics, failures: nextFailures, loaded }: StemBundleResult) {
@@ -478,6 +483,7 @@ function compactStemName(name: string, songTitle: string) { const escaped = song
 function StemChannelHeader({ label, master = false, title }: { label: string; master?: boolean; title: string }) { const Icon = master ? Volume2 : getStemDisplayIcon(label); return <div title={title} className={`flex h-8 max-w-full flex-col items-center justify-between ${master ? "text-emerald-300" : "text-zinc-400"}`}><Icon aria-hidden="true" className="size-[1.0625rem] shrink-0" strokeWidth={1.6} /><span className="block max-w-full truncate text-center text-[0.625rem] font-bold uppercase tracking-[0.1em]">{label}</span></div>; }
 function getStemDisplayIcon(name: string): LucideIcon { const normalized = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); if (/click|metronome/.test(normalized)) return Timer; if (/guia|guide|cue/.test(normalized)) return Mic2; if (/drum|perc|percussion/.test(normalized)) return Drum; if (/bass|\begs?\b|electric guitar|\bgtrs?\b|\bag\b|acoustic guitar|guitar/.test(normalized)) return Guitar; if (/piano|keys?|keyboard/.test(normalized)) return KeyboardMusic; if (/synth/.test(normalized)) return SlidersHorizontal; if (/\bbgvs?\b|background vocals?|vocals?/.test(normalized)) return Users; if (/tracks?|loops?|layers?/.test(normalized)) return Layers3; return AudioWaveform; }
 function engineHealth(status: "loading" | "ready" | "partial" | "error", failures: number, durationWarnings: number, partialAccepted: boolean, durationAccepted: boolean) { if (status === "error") return "Error fatal"; if (status === "loading") return "Cargando"; if ((failures && !partialAccepted) || (durationWarnings && !durationAccepted)) return "Requiere atención"; if (failures || durationWarnings) return "Advertencia aceptada"; return "Saludable"; }
+function isAbortError(error: unknown) { return error instanceof DOMException && error.name === "AbortError"; }
 function Diagnostic({ label, value }: { label: string; value: string }) { return <div><dt className="text-zinc-600">{label}</dt><dd className="mt-0.5 truncate font-medium text-zinc-300">{value}</dd></div>; }
 function OperationalMetric({ label, value }: { label: string; value: string }) { return <div className="min-w-32 border border-white/[0.07] bg-black/15 px-4 py-3 text-right"><p className="text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-zinc-600">{label}</p><p className="mt-1 font-mono text-2xl text-zinc-100">{value}</p></div>; }
 const MobilePlaybackMixer = memo(function MobilePlaybackMixer({ failures, masterVolume, mixes, onMasterChange, onMixChange, stems, title }: { failures: StemLoadFailure[]; masterVolume: number; mixes: StemMix[]; onMasterChange: (value: number) => void; onMixChange: (index: number, patch: Partial<StemMix>) => void; stems: PublicSongStem[]; title: string }) {

@@ -67,11 +67,12 @@ export function SongDetailContent({
 
   useEffect(() => {
     const key = selectedKey;
+    const controller = new AbortController();
     let cancelled = false;
 
     if (!enableMultitrack || !key) {
       setStemLoad({ keyId: key?.id ?? null, loading: false, stems: [] });
-      return () => { cancelled = true; };
+      return () => { cancelled = true; controller.abort(); };
     }
 
     const selectedSongKey = key;
@@ -83,9 +84,10 @@ export function SongDetailContent({
         .from("song_stems")
         .select("id, song_key_id, name, storage_path, sort_order, mime_type")
         .eq("song_key_id", selectedSongKey.id)
-        .order("sort_order", { ascending: true });
+        .order("sort_order", { ascending: true })
+        .abortSignal(controller.signal);
 
-      if (cancelled) return;
+      if (cancelled || controller.signal.aborted) return;
 
       if (error) {
         console.error("[Song Detail] Unable to load selected-key stems", {
@@ -136,7 +138,7 @@ export function SongDetailContent({
     }
 
     void loadStems();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
   }, [enableMultitrack, selectedKey]);
 
   const displayedKey = !hasSelectedKeyManually && initialKeyName ? initialKeyName : selectedKey?.key_name ?? legacyKey;

@@ -107,9 +107,9 @@ function OrganizedSongContent({ audioUrl, bpm, grid, lyrics, rehearsalMode = fal
           </div>
         ) : null}
 
-        {stems.length > 0 ? (
-          <div id="multitrack-panel" role="tabpanel" className="px-1 sm:px-2" hidden={visibleTab !== "multitrack"}>
-            <MultitrackPlayer active={visibleTab === "multitrack"} bpm={bpm} grid={grid} layout="song-detail" stems={stems} timeSignature={timeSignature} title={title} />
+        {stems.length > 0 && visibleTab === "multitrack" ? (
+          <div id="multitrack-panel" role="tabpanel" className="px-1 sm:px-2">
+            <MultitrackPlayer active bpm={bpm} grid={grid} layout="song-detail" stems={stems} timeSignature={timeSignature} title={title} />
           </div>
         ) : null}
 
