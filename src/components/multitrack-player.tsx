@@ -36,7 +36,7 @@ type SectionEditorState = {
 
 const PREVIOUS_SECTION_THRESHOLD_SECONDS = 2;
 
-export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNext = false, canPrevious = false, effectiveKey, grid = null, layout = "playback", onNext, onPrevious, showStop = false, stems, timeSignature, title }: { active?: boolean; artist?: string | null; artworkUrl?: string | null; bpm?: number | null; canNext?: boolean; canPrevious?: boolean; effectiveKey?: string | null; grid?: MusicalGrid | null; layout?: "playback" | "song-detail"; onNext?: () => void; onPrevious?: () => void; showStop?: boolean; stems: PublicSongStem[]; timeSignature?: string | null; title: string }) {
+export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNext = false, canPrevious = false, effectiveKey, externalStopSignal = 0, grid = null, layout = "playback", onEngineChange, onNext, onPrevious, showStop = false, stems, timeSignature, title }: { active?: boolean; artist?: string | null; artworkUrl?: string | null; bpm?: number | null; canNext?: boolean; canPrevious?: boolean; effectiveKey?: string | null; externalStopSignal?: number; grid?: MusicalGrid | null; layout?: "playback" | "song-detail"; onEngineChange?: (engine: PlaybackEngine | null) => void; onNext?: () => void; onPrevious?: () => void; showStop?: boolean; stems: PublicSongStem[]; timeSignature?: string | null; title: string }) {
   const engineRef = useRef<PlaybackEngine | null>(null);
   const animationRef = useRef<number | null>(null);
   const loadControllerRef = useRef<AbortController | null>(null);
@@ -137,6 +137,7 @@ export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNe
     const engine = new PlaybackEngine(AudioContextConstructor);
     const context = engine.context;
     engineRef.current = engine;
+    onEngineChange?.(engine);
     if (process.env.NODE_ENV === "development") { recordMultitrackPlayerMount(1); recordAudioContext(1); }
     setCurrentTime(0);
     setDuration(0);
@@ -181,13 +182,16 @@ export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNe
       setWaveformBuffers([]);
       setPlayableStems([]);
       engineRef.current = null;
+      onEngineChange?.(null);
       if (mobilePolicy) releaseStemBundle(stems);
       if (process.env.NODE_ENV === "development") { recordAudioContext(-1); recordMultitrackPlayerMount(-1); }
       void engine.destroy();
     };
-  }, [stems, stopAnimation, title]);
+  }, [onEngineChange, stems, stopAnimation, title]);
 
   useEffect(() => { engineRef.current?.setMasterVolume(masterVolume); }, [masterVolume]);
+
+  useEffect(() => { if (!externalStopSignal) return; engineRef.current?.stop(); stopAnimation(); setCurrentTime(0); setIsPlaying(false); }, [externalStopSignal, stopAnimation]);
 
   useEffect(() => {
     engineRef.current?.applyMixes(playableStems.flatMap((stem, index) => mixes[index] ? [{ ...mixes[index], stemId: stem.id }] : []));
