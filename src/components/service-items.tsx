@@ -893,7 +893,9 @@ function DirectSongItemMetadata({ item, songs, effectiveKey, isEditable, onKeyCl
 
 function DesktopSongMetadataLine({ effectiveKey, isEditable, metadata, onKeyClick }: { effectiveKey?: string | null; isEditable: boolean; metadata: string[]; onKeyClick?: () => void }) {
   if (!effectiveKey && metadata.length === 0) return null;
-  return <div className="mt-0.5 hidden min-w-0 items-center gap-1.5 text-xs text-zinc-500 lg:flex" title={[effectiveKey, ...metadata].filter(Boolean).join(" · ")}>{effectiveKey ? isEditable && onKeyClick ? <ServiceKeyTrigger songKey={effectiveKey} onClick={onKeyClick} compact /> : <span className="shrink-0">{effectiveKey}</span> : null}{effectiveKey && metadata.length ? <span aria-hidden="true">·</span> : null}<span className="truncate">{metadata.join(" · ")}</span></div>;
+  return <div className="mt-0.5 hidden min-w-0 items-center gap-1.5 text-xs text-zinc-500 lg:flex" title={[effectiveKey, ...metadata].filter(Boolean).join(" · ")}>{effectiveKey ? isEditable && onKeyClick ? <ServiceKeyTrigger songKey={effectiveKey} onClick={onKeyClick} compact /> : <span className="inline-grid size-7 shrink-0 place-items-center rounded-full border border-emerald-400/30 bg-emerald-400/[0.06] font-bold text-emerald-300">
+  {effectiveKey}
+</span> : null}{effectiveKey && metadata.length ? <span aria-hidden="true">·</span> : null}<span className="truncate">{metadata.join(" · ")}</span></div>;
 }
 
 function MobileSongKey({ item, isEditable, onOpen, operationalEntries, songs }: { item: ServiceItem; isEditable: boolean; onOpen: (target: { itemId: string; songId: string }) => void; operationalEntries: ReturnType<typeof buildOperationalServiceEntries<ServiceSong>>; songs: ServiceSong[] }) {
@@ -913,8 +915,32 @@ function MobileKeyBadge({ songKey, editable = false, onClick }: { songKey?: stri
   return editable ? <button type="button" onClick={(event) => { event.stopPropagation(); onClick?.(); }} className={className} title={`Cambiar tonalidad ${songKey}`}>{songKey}</button> : <span className={className} title={`Tonalidad ${songKey}`}>{songKey}</span>;
 }
 
-function ServiceKeyTrigger({ songKey, onClick, compact = false }: { songKey: string; onClick: () => void; compact?: boolean }) {
-  return <button type="button" onClick={(event) => { event.stopPropagation(); onClick(); }} className={`inline-grid min-w-8 shrink-0 place-items-center rounded-lg border border-emerald-400/25 bg-emerald-400/[0.06] px-2 text-xs font-bold text-emerald-300 transition-colors hover:border-emerald-400/40 hover:bg-emerald-400/[0.1] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 ${compact ? "min-h-7" : "min-h-8"}`} title={`Cambiar tonalidad ${songKey}`}>{songKey}</button>;
+function ServiceKeyTrigger({
+  songKey,
+  onClick,
+  compact = false,
+}: {
+  songKey: string;
+  onClick: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+      className={`inline-grid shrink-0 place-items-center border border-emerald-400/30 bg-emerald-400/[0.06] text-xs font-bold text-emerald-300 transition-colors hover:border-emerald-400/50 hover:bg-emerald-400/[0.1] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 ${
+        compact
+          ? "size-8 rounded-full p-0"
+          : "min-h-8 min-w-8 rounded-lg px-2"
+      }`}
+      title={`Cambiar tonalidad ${songKey}`}
+    >
+      {songKey}
+    </button>
+  );
 }
 
 function MobileWorshipSongMetadata({ song, entry }: { song: ServiceSong; entry: WorshipSongEntry }) {
