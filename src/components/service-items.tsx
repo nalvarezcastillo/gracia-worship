@@ -530,8 +530,8 @@ export function ServiceItems({ initialItems, initialItemNotes, initialSongSettin
 
       {items.length ? (
         <div className="divide-y divide-white/[0.07] border-y border-white/[0.07]">
-          <div className="hidden grid-cols-[112px_76px_minmax(0,1fr)_minmax(110px,0.42fr)_auto_auto] items-center gap-x-3 border-b border-white/[0.07] px-3 py-2 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-zinc-600 lg:grid">
-            <span>Hora</span><span>Duración</span><span>Contenido</span><span>Micrófono</span><span className="col-span-2 text-right">Acciones</span>
+          <div className="hidden grid-cols-[112px_76px_minmax(0,1fr)_minmax(110px,0.42fr)_72px_auto_auto] items-center gap-x-3 border-b border-white/[0.07] px-3 py-2 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-zinc-600 lg:grid">
+            <span>Hora</span><span>Duración</span><span>Contenido</span><span>Micrófono</span><span className="text-right">Tonalidad</span><span className="col-span-2 text-right">Acciones</span>
           </div>
           {items.map((item) => (
             <article
@@ -544,19 +544,20 @@ export function ServiceItems({ initialItems, initialItemNotes, initialSongSettin
               onClick={() => setSelectedRow({ itemId: item.id })}
               className={`group px-0 py-1.5 transition-colors duration-200 lg:px-3 lg:py-0 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${selectedRow?.itemId === item.id && !selectedRow.songId ? "bg-emerald-400/[0.07]" : draggedId === item.id ? "bg-emerald-400/[0.055]" : "hover:bg-white/[0.018]"}`}
             >
-              <div className={`grid grid-cols-[4rem_minmax(0,1fr)_auto] items-start gap-x-1.5 lg:grid-cols-[112px_76px_minmax(0,1fr)_minmax(110px,0.42fr)_auto_auto] lg:items-center lg:gap-x-3 ${item.type === "worship" ? "min-h-7 lg:min-h-9" : "min-h-[3.75rem] lg:min-h-14"}`}>
+              <div className={`grid grid-cols-[4rem_minmax(0,1fr)_auto] items-start gap-x-1.5 lg:grid-cols-[112px_76px_minmax(0,1fr)_minmax(110px,0.42fr)_72px_auto_auto] lg:items-center lg:gap-x-3 ${item.type === "worship" ? "min-h-7 lg:min-h-9" : "min-h-[3.75rem] lg:min-h-14"}`}>
                 <MobileScheduleTime value={item.type !== "worship" ? schedule.times.get(item.id) ?? "—" : ""} hidden={item.type === "worship"} />
                 <span className="hidden text-sm tabular-nums text-zinc-500 lg:block">{formatItemDuration(item, songs)}</span>
                 <div className={`min-w-0 ${item.type === "worship" ? "col-span-2 col-start-1 lg:col-span-1 lg:col-start-3" : "col-start-2 lg:col-start-3"}`}>
                   <h3 className={item.type === "worship" ? "py-1 text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-emerald-400/80 lg:py-0 lg:text-xs lg:tracking-[0.16em]" : "truncate text-[0.9375rem] font-semibold leading-5 text-zinc-100 lg:text-base lg:leading-6"}>{item.type === "song" && item.song_id ? <Link href={`/song/${item.song_id}?service=${serviceId}`} onClick={(event) => event.stopPropagation()} className="hover:text-emerald-300">{songs.find((song) => song.id === item.song_id)?.title ?? item.title}</Link> : item.title}</h3>
                   {item.type === "text" ? <MobileTextItemMetadata details={item.details ?? ""} duration={item.planned_duration_seconds} /> : null}
                   {item.type === "text" && item.details ? <p className="mt-0.5 hidden truncate whitespace-nowrap text-sm font-normal leading-5 text-zinc-500 lg:block">{item.details}</p> : null}
-                  {item.type === "song" ? <DirectSongItemMetadata item={item} songs={songs} effectiveKey={findOperationalSongEntry(operationalEntries, item.id)?.effectiveKey} isEditable={isAdmin} onKeyClick={item.song_id ? () => setKeySelector({ itemId: item.id, songId: item.song_id! }) : undefined} /> : null}
+                  {item.type === "song" ? <DirectSongItemMetadata item={item} songs={songs} /> : null}
                   {item.type === "song" ? <span className="lg:hidden"><AssignedMicrophonesLine assignmentText={item.details ?? ""} assignments={serviceTeamAssignments} teamMembers={teamMembers} /></span> : null}
                   {item.type === "text" ? <span className="lg:hidden"><AssignedMicrophonesLine assignmentText={item.details ?? ""} assignments={serviceTeamAssignments} teamMembers={teamMembers} /></span> : null}
                   {item.type !== "text" && item.type !== "song" && item.planned_duration_seconds ? <p className="mt-0.5 text-xs text-zinc-500 lg:hidden">{formatDuration(item.planned_duration_seconds)}</p> : null}
                 </div>
                 <DesktopAssignedMicrophones assignmentText={item.type === "worship" ? "" : item.details ?? ""} assignments={serviceTeamAssignments} teamMembers={teamMembers} showEmpty={item.type !== "worship"} />
+                <DesktopServiceKeyBadge songKey={item.type === "song" ? findOperationalSongEntry(operationalEntries, item.id)?.effectiveKey : null} editable={isAdmin} onClick={item.type === "song" && item.song_id ? () => setKeySelector({ itemId: item.id, songId: item.song_id! }) : undefined} />
                 <div className="col-start-3 row-start-1 flex items-center justify-end gap-0.5 lg:contents">
                 {item.type === "song" ? <MobileSongKey item={item} isEditable={isAdmin} onOpen={setKeySelector} operationalEntries={operationalEntries} songs={songs} /> : null}
                 {isAdmin ? (
@@ -587,7 +588,7 @@ export function ServiceItems({ initialItems, initialItemNotes, initialSongSettin
                         onDragOver={isAdmin ? (event) => { event.stopPropagation(); event.preventDefault(); } : undefined}
                         onDrop={isAdmin ? (event) => { event.stopPropagation(); reorderBlockSongs(item.id, entry.songId); } : undefined}
                         onClick={(event) => { event.stopPropagation(); setSelectedRow({ itemId: item.id, songId: entry.songId }); }}
-                        className={`grid min-h-[3.75rem] grid-cols-[4rem_minmax(0,1fr)_auto] items-start gap-x-1.5 px-0 py-1.5 transition-colors duration-200 lg:min-h-14 lg:grid-cols-[112px_76px_minmax(0,1fr)_minmax(110px,0.42fr)_auto_auto] lg:items-center lg:gap-x-3 lg:px-3 lg:py-1.5 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${selectedRow?.songId === entry.songId ? "bg-emerald-400/[0.07]" : draggedSong?.songId === entry.songId ? "bg-emerald-400/[0.04] text-emerald-300" : ""}`}
+                        className={`grid min-h-[3.75rem] grid-cols-[4rem_minmax(0,1fr)_auto] items-start gap-x-1.5 px-0 py-1.5 transition-colors duration-200 lg:min-h-14 lg:grid-cols-[112px_76px_minmax(0,1fr)_minmax(110px,0.42fr)_72px_auto_auto] lg:items-center lg:gap-x-3 lg:px-3 lg:py-1.5 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${selectedRow?.songId === entry.songId ? "bg-emerald-400/[0.07]" : draggedSong?.songId === entry.songId ? "bg-emerald-400/[0.04] text-emerald-300" : ""}`}
                       >
                         <MobileScheduleTime value={schedule.times.get(`${item.id}:${entry.songId}`) ?? "—"} />
                         <span className="hidden text-sm tabular-nums text-zinc-500 lg:block">{formatDuration(getSongDurationSeconds(entry, song.duration) ?? 0)}</span>
@@ -595,15 +596,16 @@ export function ServiceItems({ initialItems, initialItemNotes, initialSongSettin
                           <Link href={`/song/${song.id}?service=${serviceId}`} onClick={(event) => event.stopPropagation()} className="line-clamp-1 text-[0.9375rem] font-semibold leading-5 text-white transition-colors duration-200 hover:text-emerald-300 lg:text-base lg:leading-6 lg:text-zinc-200">{song.title}</Link>
                           <MobileWorshipSongMetadata song={song} entry={entry} />
                           <span className="lg:hidden"><AssignedMicrophonesLine assignmentText={entry.notes} assignments={serviceTeamAssignments} teamMembers={teamMembers} /></span>
-                          <DesktopSongMetadata song={song} entry={entry} effectiveKey={findOperationalSongEntry(operationalEntries, item.id, song.id)?.effectiveKey} isEditable={isAdmin} onKeyClick={() => setKeySelector({ itemId: item.id, songId: song.id })} />
+                          <DesktopSongMetadata song={song} entry={entry} />
                         </div>
                         <DesktopAssignedMicrophones assignmentText={entry.notes} assignments={serviceTeamAssignments} teamMembers={teamMembers} showEmpty />
-                        <div className="col-start-3 row-start-1 flex min-w-0 items-center justify-end gap-0.5 lg:col-start-5">
+                        <DesktopServiceKeyBadge songKey={findOperationalSongEntry(operationalEntries, item.id, song.id)?.effectiveKey} editable={isAdmin} onClick={() => setKeySelector({ itemId: item.id, songId: song.id })} />
+                        <div className="col-start-3 row-start-1 flex min-w-0 items-center justify-end gap-0.5 lg:col-start-6">
                           <MobileKeyBadge songKey={findOperationalSongEntry(operationalEntries, item.id, song.id)?.effectiveKey} editable={isAdmin} onClick={() => setKeySelector({ itemId: item.id, songId: song.id })} />
                           <div className="hidden lg:block"><ResourceIndicators song={song} /></div>
                           {isAdmin ? <details className="relative shrink-0"><summary aria-label={`Más acciones para ${song.title}`} onClick={(event) => event.stopPropagation()} className="grid size-10 cursor-pointer list-none place-items-center rounded-full text-xl leading-none text-zinc-500 transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400 lg:size-11 [&::-webkit-details-marker]:hidden">⋯</summary><div className="absolute bottom-full right-0 z-20 mb-1 min-w-44 overflow-hidden rounded-xl border border-white/10 bg-zinc-900 p-1 shadow-xl shadow-black/40"><button type="button" onClick={(event) => { event.stopPropagation(); event.currentTarget.closest("details")?.removeAttribute("open"); setEditingSong({ blockId: item.id, songId: entry.songId, notes: entry.notes, plannedDuration: formatDurationInput(entry.plannedDurationSeconds) }); }} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-zinc-200 transition-colors hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-emerald-400">Editar notas y duración</button><button type="button" onClick={(event) => { event.stopPropagation(); event.currentTarget.closest("details")?.removeAttribute("open"); removeSongFromBlock(item.id, entry.songId); }} disabled={isSaving} className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-medium text-rose-300 transition-colors hover:bg-rose-400/[0.08] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-rose-400">Eliminar canción</button></div></details> : null}
                         </div>
-                        {isAdmin ? <GripIcon label={`Drag ${song.title} to reorder`} className="hidden size-3.5 text-zinc-600 lg:col-start-6 lg:block" /> : null}
+                        {isAdmin ? <GripIcon label={`Drag ${song.title} to reorder`} className="hidden size-3.5 text-zinc-600 lg:col-start-7 lg:block" /> : null}
                       </li>
                     );
                   })}
@@ -875,27 +877,29 @@ function AssignedMicrophoneItems({ microphones }: { microphones: string[] }) {
   return <span className="flex min-w-0 items-start gap-1.5 text-xs leading-5 text-zinc-400" title={label}><Mic aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-zinc-500" strokeWidth={1.75} /><span className="min-w-0 break-words">{label}</span></span>;
 }
 
-function DesktopSongMetadata({ song, entry, effectiveKey, isEditable, onKeyClick }: { song: ServiceSong; entry: WorshipSongEntry; effectiveKey?: string | null; isEditable: boolean; onKeyClick: () => void }) {
+function DesktopSongMetadata({ song, entry }: { song: ServiceSong; entry: WorshipSongEntry }) {
   const assignment = parseAssignmentText(entry.notes);
   const metadata = [song.bpm ? `${song.bpm} BPM` : null, song.time_signature, assignment.name, assignment.role].filter((value): value is string => Boolean(value));
-  return <DesktopSongMetadataLine effectiveKey={effectiveKey} isEditable={isEditable} metadata={metadata} onKeyClick={onKeyClick} />;
+  return <DesktopSongMetadataLine metadata={metadata} />;
 }
 
-function DirectSongItemMetadata({ item, songs, effectiveKey, isEditable, onKeyClick }: { item: ServiceItem; songs: ServiceSong[]; effectiveKey?: string | null; isEditable: boolean; onKeyClick?: () => void }) {
+function DirectSongItemMetadata({ item, songs }: { item: ServiceItem; songs: ServiceSong[] }) {
   const song = item.song_id ? songs.find((candidate) => candidate.id === item.song_id) : null;
   if (!song) return <p className="mt-1 text-xs text-rose-300">Canción no disponible</p>;
   const assignment = parseAssignmentText(item.details ?? "");
   const metadata = [song.bpm ? `${song.bpm} BPM` : null, song.time_signature, assignment.name, assignment.role].filter((value): value is string => Boolean(value));
   const duration = getSongDurationSeconds({ plannedDurationSeconds: item.planned_duration_seconds }, song.duration);
   const mobileMetadata = [song.artist, assignment.name, assignment.role, duration ? formatDuration(duration) : null].filter(Boolean);
-  return <><p className="mt-0.5 truncate text-xs leading-4 text-zinc-500 lg:hidden">{mobileMetadata.join(" · ")}</p><DesktopSongMetadataLine effectiveKey={effectiveKey} isEditable={isEditable && Boolean(onKeyClick)} metadata={metadata} onKeyClick={onKeyClick} /></>;
+  return <><p className="mt-0.5 truncate text-xs leading-4 text-zinc-500 lg:hidden">{mobileMetadata.join(" · ")}</p><DesktopSongMetadataLine metadata={metadata} /></>;
 }
 
-function DesktopSongMetadataLine({ effectiveKey, isEditable, metadata, onKeyClick }: { effectiveKey?: string | null; isEditable: boolean; metadata: string[]; onKeyClick?: () => void }) {
-  if (!effectiveKey && metadata.length === 0) return null;
-  return <div className="mt-0.5 hidden min-w-0 items-center gap-1.5 text-xs text-zinc-500 lg:flex" title={[effectiveKey, ...metadata].filter(Boolean).join(" · ")}>{effectiveKey ? isEditable && onKeyClick ? <ServiceKeyTrigger songKey={effectiveKey} onClick={onKeyClick} compact /> : <span className="inline-grid size-7 shrink-0 place-items-center rounded-full border border-emerald-400/30 bg-emerald-400/[0.06] font-bold text-emerald-300">
-  {effectiveKey}
-</span> : null}{effectiveKey && metadata.length ? <span aria-hidden="true">·</span> : null}<span className="truncate">{metadata.join(" · ")}</span></div>;
+function DesktopSongMetadataLine({ metadata }: { metadata: string[] }) {
+  if (metadata.length === 0) return null;
+  return <div className="mt-0.5 hidden min-w-0 items-center text-xs text-zinc-500 lg:flex" title={metadata.join(" · ")}><span className="truncate">{metadata.join(" · ")}</span></div>;
+}
+
+function DesktopServiceKeyBadge({ songKey, editable, onClick }: { songKey?: string | null; editable: boolean; onClick?: () => void }) {
+  return <div className="hidden items-center justify-end lg:flex">{songKey?.trim() ? editable && onClick ? <ServiceKeyTrigger songKey={songKey} onClick={onClick} compact /> : <span className="inline-grid size-8 shrink-0 place-items-center rounded-full border border-emerald-400/30 bg-emerald-400/[0.06] text-xs font-bold text-emerald-300" title={`Tonalidad ${songKey}`}>{songKey}</span> : null}</div>;
 }
 
 function MobileSongKey({ item, isEditable, onOpen, operationalEntries, songs }: { item: ServiceItem; isEditable: boolean; onOpen: (target: { itemId: string; songId: string }) => void; operationalEntries: ReturnType<typeof buildOperationalServiceEntries<ServiceSong>>; songs: ServiceSong[] }) {
