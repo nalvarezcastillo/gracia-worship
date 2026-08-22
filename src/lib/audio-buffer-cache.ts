@@ -1,4 +1,5 @@
 import { recordStemDecode } from "@/lib/playback-runtime-diagnostics";
+import type { AudioDataDecoder } from "@/lib/audio-data-decoder";
 export type PublicSongStem = { id: string; name: string; publicUrl: string; song_key_id: string; sort_order: number };
 export type LoadedStem = { buffer: AudioBuffer; decodeMs: number; downloadMs: number; stem: PublicSongStem };
 export type StemLoadFailure = { decodeMs: number; downloadMs: number; fetched: boolean; message: string; stem: PublicSongStem };
@@ -12,24 +13,24 @@ const MAX_CACHED_SONGS = 3;
 let evictionCount = 0;
 
 export function stemBundleKey(stems: PublicSongStem[]) { return stems.map((stem) => `${stem.id}:${stem.publicUrl}`).join("|"); }
-export function loadStemBundle(context: AudioContext, stems: PublicSongStem[], options: { label?: string; mode?: LoadMode; policy?: AudioCachePolicy; signal?: AbortSignal } = {}) {
+export function loadStemBundle(decoder: AudioDataDecoder, stems: PublicSongStem[], options: { label?: string; mode?: LoadMode; policy?: AudioCachePolicy; signal?: AbortSignal } = {}) {
   const key = stemBundleKey(stems); applyCachePolicy(key, options.policy); const cached = bundleCache.get(key);
   if (cached) { cached.lastUsed = Date.now(); return consumeEntry(cached, options.signal).then((result) => ({ ...result, diagnostics: { ...result.diagnostics, cacheHit: true, loadMode: options.mode ?? "foreground" } })); }
-  return createBundleLoad(context, stems, [], options, key);
+  return createBundleLoad(decoder, stems, [], options, key);
 }
-export async function retryStemBundle(context: AudioContext, stems: PublicSongStem[], options: { label?: string; mode?: LoadMode; policy?: AudioCachePolicy; signal?: AbortSignal } = {}) {
+export async function retryStemBundle(decoder: AudioDataDecoder, stems: PublicSongStem[], options: { label?: string; mode?: LoadMode; policy?: AudioCachePolicy; signal?: AbortSignal } = {}) {
   const key = stemBundleKey(stems); applyCachePolicy(key, options.policy); const cached = bundleCache.get(key); const previous = cached ? await consumeEntry(cached, options.signal) : undefined; const successful = previous?.loaded ?? [];
-  removeEntry(key, "explicit retry"); return createBundleLoad(context, stems, successful, options, key);
+  removeEntry(key, "explicit retry"); return createBundleLoad(decoder, stems, successful, options, key);
 }
 export function releaseStemBundle(stems: PublicSongStem[]) { removeEntry(stemBundleKey(stems), "release"); }
 export function getAudioCacheDiagnostics() {
   const entries = [...bundleCache.values()];
   return Promise.allSettled(entries.map((entry) => entry.promise)).then((settled) => { const results = settled.flatMap((result) => result.status === "fulfilled" ? [result.value] : []); return { approximateBytes: results.reduce((t, r) => t + r.diagnostics.approximateBytes, 0), decodedDurationSeconds: results.reduce((t, r) => t + r.diagnostics.decodedDurationSeconds, 0), evictions: evictionCount, songs: results.length, stems: results.reduce((t, r) => t + r.loaded.length, 0) }; });
 }
-function createBundleLoad(context: AudioContext, stems: PublicSongStem[], retained: LoadedStem[], options: { label?: string; mode?: LoadMode; policy?: AudioCachePolicy; signal?: AbortSignal }, key: string) {
+function createBundleLoad(decoder: AudioDataDecoder, stems: PublicSongStem[], retained: LoadedStem[], options: { label?: string; mode?: LoadMode; policy?: AudioCachePolicy; signal?: AbortSignal }, key: string) {
   const started = performance.now(); const retainedIds = new Set(retained.map((item) => item.stem.id)); const controller = new AbortController();
   const entry: CacheEntry = { controller, consumers: new Set(), key, label: options.label ?? "Canción", lastUsed: Date.now(), promise: undefined as unknown as Promise<StemBundleResult>, settled: false };
-  entry.promise = Promise.allSettled(stems.filter((stem) => !retainedIds.has(stem.id)).map((stem) => fetchAndDecode(context, stem, controller.signal))).then((settled): StemBundleResult => {
+  entry.promise = Promise.allSettled(stems.filter((stem) => !retainedIds.has(stem.id)).map((stem) => fetchAndDecode(decoder, stem, controller.signal))).then((settled): StemBundleResult => {
     if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
     const newlyLoaded = settled.flatMap((r) => r.status === "fulfilled" ? [r.value] : []); const all = [...retained, ...newlyLoaded];
     const loaded = stems.flatMap((stem) => all.find((item) => item.stem.id === stem.id) ?? []);
@@ -38,9 +39,9 @@ function createBundleLoad(context: AudioContext, stems: PublicSongStem[], retain
   }).then((result) => { if (!result.loaded.length) removeEntry(key, "zero-success load", entry); else evictOldBundles(key, options.policy?.maxCachedSongs ?? MAX_CACHED_SONGS); return result; }).catch((error) => { removeEntry(key, isAbortError(error) ? "aborted load" : "fatal load", entry); throw error; }).finally(() => { entry.settled = true; });
   bundleCache.set(key, entry); return consumeEntry(entry, options.signal);
 }
-async function fetchAndDecode(context: AudioContext, stem: PublicSongStem, signal?: AbortSignal) {
+async function fetchAndDecode(decoder: AudioDataDecoder, stem: PublicSongStem, signal?: AbortSignal) {
   let fetched = false; let downloadMs = 0; let decodeStarted = 0;
-  try { const ds = performance.now(); const response = await fetch(stem.publicUrl, { signal }); if (!response.ok) throw new Error(`HTTP ${response.status}`); const encoded = await response.arrayBuffer(); downloadMs = performance.now() - ds; fetched = true; if (signal?.aborted) throw new DOMException("Aborted", "AbortError"); decodeStarted = performance.now(); if (process.env.NODE_ENV === "development") recordStemDecode(stem.publicUrl); const buffer = await context.decodeAudioData(encoded); return { buffer, decodeMs: performance.now() - decodeStarted, downloadMs, stem } satisfies LoadedStem; }
+  try { const ds = performance.now(); const response = await fetch(stem.publicUrl, { signal }); if (!response.ok) throw new Error(`HTTP ${response.status}`); const encoded = await response.arrayBuffer(); downloadMs = performance.now() - ds; fetched = true; if (signal?.aborted) throw new DOMException("Aborted", "AbortError"); decodeStarted = performance.now(); if (process.env.NODE_ENV === "development") recordStemDecode(stem.publicUrl, decoder.owner); const buffer = await decoder.decode(encoded); return { buffer, decodeMs: performance.now() - decodeStarted, downloadMs, stem } satisfies LoadedStem; }
   catch (error) { throw { decodeMs: decodeStarted ? performance.now() - decodeStarted : 0, downloadMs, fetched, message: error instanceof Error ? error.message : "Error desconocido", stem } satisfies StemLoadFailure; }
 }
 function summarize(requestedStems: number, loaded: LoadedStem[], failures: StemLoadFailure[], readyMs: number, loadMode: LoadMode): BundleDiagnostics {

@@ -11,6 +11,7 @@ import { MusicalGridProvider, useMusicalGrid } from "@/components/musical-grid-c
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { SongSectionsProvider } from "@/components/song-sections-context";
 import { getAudioCacheDiagnostics, loadStemBundle, releaseStemBundle, retryStemBundle, type AudioCachePolicy, type BundleDiagnostics, type PublicSongStem, type StemBundleResult, type StemLoadFailure } from "@/lib/audio-buffer-cache";
+import { createAudioDataDecoder } from "@/lib/audio-data-decoder";
 import { isPhonePlaybackDevice } from "@/lib/playback-device";
 import { getPlaybackRuntimeDiagnostics, recordAudioContext, recordMultitrackPlayerMount } from "@/lib/playback-runtime-diagnostics";
 export type { PublicSongStem } from "@/lib/audio-buffer-cache";
@@ -201,7 +202,7 @@ export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNe
     const onStateChange = () => { setContextState(context.state); if (context.state === "closed") setEngineMessage("El motor de audio se cerró inesperadamente."); else if (context.state !== "running" && playingRef.current) setEngineMessage("El navegador pausó el motor de audio."); };
     context.addEventListener("statechange", onStateChange);
 
-    void loadStemBundle(context, stems, { label: title, mode: "foreground", policy: cachePolicy, signal: controller.signal }).then(({ diagnostics: nextDiagnostics, failures: nextFailures, loaded }) => {
+    void loadStemBundle(createAudioDataDecoder(context, "playback"), stems, { label: title, mode: "foreground", policy: cachePolicy, signal: controller.signal }).then(({ diagnostics: nextDiagnostics, failures: nextFailures, loaded }) => {
       if (!current) return;
       const buffers = loaded.map((result) => result.buffer);
       buffersRef.current = buffers;
@@ -384,7 +385,7 @@ export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNe
     const context = contextRef.current; if (!context || status === "loading") return; loadControllerRef.current?.abort(); const controller = new AbortController(); loadControllerRef.current = controller; pauseAt(0); setStatus("loading"); setEngineMessage(null);
     try {
       const policy = isPhonePlaybackDevice() ? { maxCachedSongs: 1, retainOnlyCurrent: true } : undefined;
-      const result = await retryStemBundle(context, stems, { label: title, mode: "foreground", policy, signal: controller.signal }); if (controller.signal.aborted || contextRef.current !== context) return; installBundle(result);
+      const result = await retryStemBundle(createAudioDataDecoder(context, "playback"), stems, { label: title, mode: "foreground", policy, signal: controller.signal }); if (controller.signal.aborted || contextRef.current !== context) return; installBundle(result);
     } catch (error) { if (!isAbortError(error)) { console.error("Unable to retry Playback stems:", error); setStatus("error"); } }
     finally { if (loadControllerRef.current === controller) loadControllerRef.current = null; }
   }
