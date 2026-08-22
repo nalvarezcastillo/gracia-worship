@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { PrimaryButton } from "@/components/ui/action-button";
 import type { SongKeyRow, SongStemRow } from "@/lib/database.types";
+import { isPreferredStemName, normalizeStemIdentity, preferredStemName, PREFERRED_STEM_NAMES } from "@/lib/stem-naming";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const fieldStyles = "min-h-12 w-full rounded-2xl border border-white/8 bg-zinc-950/60 px-4 text-base text-white outline-none focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]";
@@ -61,7 +62,7 @@ export function ManageSongStems({ onChange, onClose, songId, songKey, stems }: M
     event.preventDefault();
     const form = event.currentTarget;
     const formData = new FormData(form);
-    const name = String(formData.get("name") ?? "").trim();
+    const name = preferredStemName(String(formData.get("name") ?? ""));
     const file = getFile(formData, "file");
     const currentStem = editingStem === "new" ? null : editingStem;
     if (!name) return;
@@ -70,7 +71,7 @@ export function ManageSongStems({ onChange, onClose, songId, songKey, stems }: M
       setMessage("Selecciona un archivo de audio.");
       return;
     }
-    if (orderedStems.some((stem) => stem.id !== currentStem?.id && stem.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+    if (orderedStems.some((stem) => stem.id !== currentStem?.id && normalizeStemIdentity(stem.name) === normalizeStemIdentity(name))) {
       setIsError(true);
       setMessage("Ya existe una pista con ese nombre para esta tonalidad.");
       return;
@@ -281,7 +282,7 @@ export function ManageSongStems({ onChange, onClose, songId, songKey, stems }: M
             .from("song_stems")
             .insert({
               song_key_id: songKey.id,
-              name: item.name.trim(),
+              name: preferredStemName(item.name),
               storage_path: uploadedPath,
               sort_order: item.sortOrder,
               mime_type: item.file.type || null,
@@ -347,7 +348,8 @@ export function ManageSongStems({ onChange, onClose, songId, songKey, stems }: M
 
         {editingStem ? (
           <form key={editingStem === "new" ? "new" : editingStem.id} onSubmit={saveStem} className="mt-6 space-y-4 border-t border-white/[0.07] pt-6">
-            <label className="block text-sm font-semibold text-zinc-300">Nombre<input autoFocus required name="name" defaultValue={editingStem === "new" ? "" : editingStem.name} className={`mt-2 ${fieldStyles}`} /></label>
+            <label className="block text-sm font-semibold text-zinc-300">Nombre<input autoFocus required name="name" list="preferred-stem-names" defaultValue={editingStem === "new" ? "" : editingStem.name} onBlur={(event) => { event.currentTarget.value = preferredStemName(event.currentTarget.value); }} className={`mt-2 ${fieldStyles}`} /></label>
+            <p className="text-xs text-zinc-500">Usa nombres consistentes para reutilizar presets de routing. También puedes escribir un nombre personalizado.</p>
             <label className="block text-sm font-semibold text-zinc-300">Archivo de audio {editingStem !== "new" ? <span className="font-normal text-zinc-500">(opcional para reemplazar)</span> : null}<input required={editingStem === "new"} name="file" type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/aac,audio/*,.mp3,.m4a,.wav,.aac" className={`mt-2 ${fieldStyles} cursor-pointer py-2 text-sm text-zinc-400`} /></label>
             <div className="flex gap-3">
               <PrimaryButton type="submit" disabled={busyId !== null}>{busyId ? "Guardando..." : "Guardar pista"}</PrimaryButton>
@@ -378,6 +380,7 @@ export function ManageSongStems({ onChange, onClose, songId, songKey, stems }: M
           onUpdateName={(itemId, name) => updateBulkItem(itemId, { name })}
         />
       ) : null}
+      <StemNameSuggestions />
     </div>
   );
 }
@@ -421,9 +424,10 @@ function BulkUploadDialog({ existingStems, items, onAddFiles, onClose, onRemove,
                 <div className="min-w-0">
                   <label className="block text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">
                     Nombre
-                    <input value={item.name} onChange={(event) => onUpdateName(item.id, event.target.value)} disabled={running || item.status === "completed"} aria-invalid={Boolean(nameError)} className={`mt-2 ${fieldStyles} ${nameError ? "border-rose-400/60" : ""}`} />
+                    <input value={item.name} list="preferred-stem-names" onChange={(event) => onUpdateName(item.id, event.target.value)} onBlur={(event) => onUpdateName(item.id, preferredStemName(event.currentTarget.value))} disabled={running || item.status === "completed"} aria-invalid={Boolean(nameError)} className={`mt-2 ${fieldStyles} ${nameError ? "border-rose-400/60" : ""}`} />
                   </label>
                   {nameError ? <p className="mt-1.5 text-sm text-rose-400">{nameError}</p> : null}
+                  {!nameError && item.name.trim() && !isPreferredStemName(item.name) ? <p className="mt-1.5 text-xs text-zinc-500">Nombre personalizado · usa nombres consistentes para reutilizar presets de routing.</p> : null}
                   <p className="mt-3 truncate text-sm text-zinc-300" title={item.file.name}>{item.file.name}</p>
                   <p className="mt-1 text-xs text-zinc-500">{formatFileSize(item.file.size)}</p>
                   {item.error ? <p className="mt-2 text-sm text-rose-400">{item.error}</p> : null}
@@ -466,7 +470,7 @@ function createBulkStemItem(file: File): BulkStemItem {
   return {
     id: crypto.randomUUID(),
     file,
-    name: deriveStemName(file.name),
+    name: preferredStemName(deriveStemName(file.name)),
     status,
     error,
     sortOrder: null,
@@ -486,14 +490,14 @@ function deriveStemName(filename: string) {
 
 function getBulkNameErrors(items: BulkStemItem[], existingStems: SongStemRow[]) {
   const errors = new Map<string, string>();
-  const existingNames = new Set(existingStems.map((stem) => normalizeStemName(stem.name)));
+  const existingNames = new Set(existingStems.map((stem) => normalizeStemIdentity(stem.name)));
   const occurrences = new Map<string, number>();
   for (const item of items) {
-    const normalized = normalizeStemName(item.name);
+    const normalized = normalizeStemIdentity(item.name);
     if (normalized) occurrences.set(normalized, (occurrences.get(normalized) ?? 0) + 1);
   }
   for (const item of items) {
-    const normalized = normalizeStemName(item.name);
+    const normalized = normalizeStemIdentity(item.name);
     if (!normalized) errors.set(item.id, "El nombre es obligatorio.");
     else if (existingNames.has(normalized) && !item.savedStem) errors.set(item.id, "Ya existe una pista con ese nombre para esta tonalidad.");
     else if ((occurrences.get(normalized) ?? 0) > 1) errors.set(item.id, "El nombre está repetido dentro de esta selección.");
@@ -501,8 +505,8 @@ function getBulkNameErrors(items: BulkStemItem[], existingStems: SongStemRow[]) 
   return errors;
 }
 
-function normalizeStemName(name: string) {
-  return name.trim().toLocaleLowerCase();
+function StemNameSuggestions() {
+  return <datalist id="preferred-stem-names">{PREFERRED_STEM_NAMES.map((name) => <option key={name} value={name} />)}</datalist>;
 }
 
 function mergeStems(existingStems: SongStemRow[], completedStems: SongStemRow[]) {

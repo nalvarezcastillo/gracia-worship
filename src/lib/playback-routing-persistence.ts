@@ -1,5 +1,8 @@
 import type { PublicSongStem } from "@/lib/audio-buffer-cache";
 import { isValidStemOutputRoute, type StemOutputRoute } from "@/lib/playback-engine";
+import { normalizeStemIdentity } from "@/lib/stem-naming";
+
+export { normalizeStemIdentity } from "@/lib/stem-naming";
 
 export const PLAYBACK_ROUTING_STORAGE_KEY = "gracia-worship.playback-routing.v1";
 export const PLAYBACK_ROUTING_VERSION = 1;
@@ -51,11 +54,6 @@ export function loadPlaybackRoutingPreferences(storage: Pick<Storage, "getItem">
 export function savePlaybackRoutingPreferences(preferences: PlaybackRoutingPreferences, storage: Pick<Storage, "setItem"> = window.localStorage) {
   try { storage.setItem(PLAYBACK_ROUTING_STORAGE_KEY, JSON.stringify(preferences)); return true; }
   catch { return false; }
-}
-
-// Intentionally conservative: only Unicode/case/whitespace variants share an identity.
-export function normalizeStemIdentity(name: string) {
-  return name.normalize("NFKC").trim().toLocaleLowerCase("en-US").replace(/\s+/g, " ");
 }
 
 export function logicalRoutesFromRuntime(stems: PublicSongStem[], routes: ReadonlyMap<string, StemOutputRoute>) {
