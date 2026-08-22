@@ -13,6 +13,7 @@ import { SongSectionsProvider } from "@/components/song-sections-context";
 import { getAudioCacheDiagnostics, loadStemBundle, releaseStemBundle, retryStemBundle, type AudioCachePolicy, type BundleDiagnostics, type PublicSongStem, type StemBundleResult, type StemLoadFailure } from "@/lib/audio-buffer-cache";
 import { createAudioDataDecoder } from "@/lib/audio-data-decoder";
 import { isPhonePlaybackDevice } from "@/lib/playback-device";
+import { PlaybackEngine } from "@/lib/playback-engine";
 import { getPlaybackRuntimeDiagnostics, recordAudioContext, recordMultitrackPlayerMount } from "@/lib/playback-runtime-diagnostics";
 export type { PublicSongStem } from "@/lib/audio-buffer-cache";
 
@@ -36,19 +37,10 @@ type SectionEditorState = {
 const PREVIOUS_SECTION_THRESHOLD_SECONDS = 2;
 
 export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNext = false, canPrevious = false, effectiveKey, grid = null, layout = "playback", onNext, onPrevious, showStop = false, stems, timeSignature, title }: { active?: boolean; artist?: string | null; artworkUrl?: string | null; bpm?: number | null; canNext?: boolean; canPrevious?: boolean; effectiveKey?: string | null; grid?: MusicalGrid | null; layout?: "playback" | "song-detail"; onNext?: () => void; onPrevious?: () => void; showStop?: boolean; stems: PublicSongStem[]; timeSignature?: string | null; title: string }) {
-  const contextRef = useRef<AudioContext | null>(null);
-  const buffersRef = useRef<AudioBuffer[]>([]);
-  const durationRef = useRef(0);
-  const sourcesRef = useRef<AudioBufferSourceNode[]>([]);
-  const stemGainsRef = useRef<GainNode[]>([]);
-  const masterGainRef = useRef<GainNode | null>(null);
-  const startedAtRef = useRef(0);
-  const offsetRef = useRef(0);
+  const engineRef = useRef<PlaybackEngine | null>(null);
   const animationRef = useRef<number | null>(null);
   const loadControllerRef = useRef<AbortController | null>(null);
-  const operationRef = useRef(0);
   const transitionRef = useRef(false);
-  const playingRef = useRef(false);
   const sectionNavigationRef = useRef<{ next: number | null; previous: number | null }>({ next: null, previous: null });
   const sectionSeekRef = useRef<(time: number) => void>(() => undefined);
   const sectionLoopRef = useRef<SongSectionRegion | null>(null);
@@ -95,27 +87,9 @@ export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNe
   const loopRegion = loopSectionId ? sectionRegions.find((region) => region.section.id === loopSectionId) ?? null : null;
   sectionLoopRef.current = loopRegion;
   sectionLoopAvailableRef.current = Boolean(currentSection && duration > 0);
-  durationRef.current = duration;
   sectionNavigationRef.current = { next: nextSectionTarget, previous: previousSectionTarget };
 
-  const getPlaybackTime = useCallback((audioContextTime: number) => {
-    const rawTime = Math.max(0, audioContextTime - startedAtRef.current);
-    const region = sectionLoopRef.current;
-    if (region && rawTime >= region.end) return region.start + ((rawTime - region.start) % (region.end - region.start));
-    return Math.min(durationRef.current, rawTime);
-  }, []);
-
-  const stopSources = useCallback(() => {
-    for (const source of sourcesRef.current) {
-      try {
-        source.stop();
-      } catch {
-        // A source can already be stopped when playback reaches the end.
-      }
-      source.disconnect();
-    }
-    sourcesRef.current = [];
-  }, []);
+  const getPlaybackTime = useCallback((audioContextTime?: number) => engineRef.current?.getPosition(audioContextTime) ?? 0, []);
 
   const stopAnimation = useCallback(() => {
     if (animationRef.current !== null) cancelAnimationFrame(animationRef.current);
@@ -123,20 +97,16 @@ export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNe
   }, []);
 
   const pauseAt = useCallback((time: number) => {
-    operationRef.current += 1;
-    stopSources();
+    engineRef.current?.pauseAt(time);
     stopAnimation();
-    offsetRef.current = time;
     setCurrentTime(time);
-    playingRef.current = false;
     setIsPlaying(false);
-  }, [stopAnimation, stopSources]);
+  }, [stopAnimation]);
 
   const updateTimeline = useCallback(() => {
-    const context = contextRef.current;
-    if (!context) return;
-    const nextTime = getPlaybackTime(context.currentTime);
-    offsetRef.current = nextTime;
+    const engine = engineRef.current;
+    if (!engine) return;
+    const nextTime = getPlaybackTime(engine.context.currentTime);
     setCurrentTime(nextTime);
     if (!sectionLoopRef.current && nextTime >= duration) {
       pauseAt(duration);
@@ -145,30 +115,12 @@ export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNe
     animationRef.current = requestAnimationFrame(updateTimeline);
   }, [duration, getPlaybackTime, pauseAt]);
 
-  const startSources = useCallback((offset: number) => {
-    const context = contextRef.current;
-    if (!context || !masterGainRef.current) return;
-    stopSources();
-    const sharedStartTime = context.currentTime + 0.03;
-    const nextSources = buffersRef.current.flatMap((buffer, index) => {
-      if (offset >= buffer.duration) return [];
-      const source = context.createBufferSource();
-      source.buffer = buffer;
-      const loop = sectionLoopRef.current;
-      if (loop) { source.loop = true; source.loopStart = loop.start; source.loopEnd = loop.end; }
-      source.connect(stemGainsRef.current[index]);
-      source.start(sharedStartTime, offset);
-      return [source];
-    });
-    sourcesRef.current = nextSources;
-    startedAtRef.current = sharedStartTime - offset;
-    offsetRef.current = offset;
+  const reflectStartedPlayback = useCallback((offset: number) => {
     setCurrentTime(offset);
-    playingRef.current = true;
     setIsPlaying(true);
     stopAnimation();
     animationRef.current = requestAnimationFrame(updateTimeline);
-  }, [stopAnimation, stopSources, updateTimeline]);
+  }, [stopAnimation, updateTimeline]);
 
   useLayoutEffect(() => {
     let current = true;
@@ -182,16 +134,12 @@ export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNe
       setStatus("error");
       return;
     }
-    const context = new AudioContextConstructor();
+    const engine = new PlaybackEngine(AudioContextConstructor);
+    const context = engine.context;
+    engineRef.current = engine;
     if (process.env.NODE_ENV === "development") { recordMultitrackPlayerMount(1); recordAudioContext(1); }
-    const masterGain = context.createGain();
-    masterGain.connect(context.destination);
-    contextRef.current = context;
-    masterGainRef.current = masterGain;
-    offsetRef.current = 0;
     setCurrentTime(0);
     setDuration(0);
-    playingRef.current = false;
     setIsPlaying(false);
     setStatus("loading");
     setFailures([]);
@@ -199,25 +147,20 @@ export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNe
     setDurationAccepted(false);
     setEngineMessage(null);
     setContextState(context.state);
-    const onStateChange = () => { setContextState(context.state); if (context.state === "closed") setEngineMessage("El motor de audio se cerró inesperadamente."); else if (context.state !== "running" && playingRef.current) setEngineMessage("El navegador pausó el motor de audio."); };
+    const onStateChange = () => { setContextState(context.state); if (context.state === "closed") setEngineMessage("El motor de audio se cerró inesperadamente."); else if (context.state !== "running" && engine.isPlaying) setEngineMessage("El navegador pausó el motor de audio."); };
     context.addEventListener("statechange", onStateChange);
 
     void loadStemBundle(createAudioDataDecoder(context, "playback"), stems, { label: title, mode: "foreground", policy: cachePolicy, signal: controller.signal }).then(({ diagnostics: nextDiagnostics, failures: nextFailures, loaded }) => {
       if (!current) return;
       const buffers = loaded.map((result) => result.buffer);
-      buffersRef.current = buffers;
       setWaveformBuffers(buffers);
       setPlayableStems(loaded.map((result) => result.stem));
       setMixes(loaded.map(() => ({ muted: false, solo: false, volume: 1 })));
       setFailures(nextFailures);
       setDiagnostics(nextDiagnostics);
       if (nextFailures.length) console.warn("Playback stem load failures:", nextFailures.map((failure) => ({ message: failure.message, stem: failure.stem.name })));
-      stemGainsRef.current = buffers.map(() => {
-        const gain = context.createGain();
-        gain.connect(masterGain);
-        return gain;
-      });
       const canonicalDuration = median(buffers.map((buffer) => buffer.duration));
+      engine.loadChannels(loaded.map((item) => ({ buffer: item.buffer, stemId: item.stem.id })), canonicalDuration);
       setDuration(canonicalDuration);
       setDurationWarnings(loaded.filter((item) => Math.abs(item.buffer.duration - canonicalDuration) > 0.5).map((item) => `${item.stem.name} (${formatTime(item.buffer.duration)})`));
       setStatus(!buffers.length ? "error" : nextFailures.length ? "partial" : "ready");
@@ -234,49 +177,31 @@ export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNe
       loadControllerRef.current?.abort();
       loadControllerRef.current = null;
       context.removeEventListener("statechange", onStateChange);
-      stopSources();
       stopAnimation();
-      for (const gain of stemGainsRef.current) gain.disconnect();
-      stemGainsRef.current = [];
-      masterGain.disconnect();
-      buffersRef.current = [];
       setWaveformBuffers([]);
       setPlayableStems([]);
-      contextRef.current = null;
-      masterGainRef.current = null;
+      engineRef.current = null;
       if (mobilePolicy) releaseStemBundle(stems);
       if (process.env.NODE_ENV === "development") { recordAudioContext(-1); recordMultitrackPlayerMount(-1); }
-      void context.close();
+      void engine.destroy();
     };
-  }, [stems, stopAnimation, stopSources, title]);
+  }, [stems, stopAnimation, title]);
+
+  useEffect(() => { engineRef.current?.setMasterVolume(masterVolume); }, [masterVolume]);
 
   useEffect(() => {
-    const context = contextRef.current;
-    const masterGain = masterGainRef.current;
-    if (context && masterGain) masterGain.gain.setValueAtTime(masterVolume, context.currentTime);
-  }, [masterVolume]);
+    engineRef.current?.applyMixes(playableStems.flatMap((stem, index) => mixes[index] ? [{ ...mixes[index], stemId: stem.id }] : []));
+  }, [mixes, playableStems]);
 
   useEffect(() => {
-    const context = contextRef.current;
-    if (!context) return;
-    const hasSolo = mixes.some((mix) => mix.solo);
-    mixes.forEach((mix, index) => {
-      const gain = stemGainsRef.current[index];
-      if (!gain) return;
-      const value = mix.muted || (hasSolo && !mix.solo) ? 0 : mix.volume;
-      gain.gain.setValueAtTime(value, context.currentTime);
-    });
-  }, [mixes]);
-
-  useEffect(() => {
-    const context = contextRef.current;
-    if (active || !isPlaying || !context) return;
-    const pausedTime = getPlaybackTime(context.currentTime);
+    const engine = engineRef.current;
+    if (active || !isPlaying || !engine) return;
+    const pausedTime = getPlaybackTime(engine.context.currentTime);
     pauseAt(pausedTime);
   }, [active, getPlaybackTime, isPlaying, pauseAt]);
 
   useEffect(() => { setMusicalGrid(grid); }, [grid, stems]);
-  useEffect(() => { setLoopSectionId(null); sectionLoopRef.current = null; for (const source of sourcesRef.current) source.loop = false; if (!stems[0]?.song_key_id) { setSections([]); return; } let current = true; const controller = new AbortController(); const supabase = createSupabaseBrowserClient(); void supabase.from("song_sections").select("id, song_key_id, label, section_type, start_seconds, bar_number, beat_number, beat_fraction, sort_order").eq("song_key_id", stems[0].song_key_id).order("start_seconds").abortSignal(controller.signal).then(({ data, error }) => { if (!current || controller.signal.aborted) return; if (error) console.error("Unable to load song sections:", error); setSections((data ?? []) as SongSection[]); }); return () => { current = false; controller.abort(); }; }, [stems]);
+  useEffect(() => { setLoopSectionId(null); sectionLoopRef.current = null; engineRef.current?.setLoop(null); if (!stems[0]?.song_key_id) { setSections([]); return; } let current = true; const controller = new AbortController(); const supabase = createSupabaseBrowserClient(); void supabase.from("song_sections").select("id, song_key_id, label, section_type, start_seconds, bar_number, beat_number, beat_fraction, sort_order").eq("song_key_id", stems[0].song_key_id).order("start_seconds").abortSignal(controller.signal).then(({ data, error }) => { if (!current || controller.signal.aborted) return; if (error) console.error("Unable to load song sections:", error); setSections((data ?? []) as SongSection[]); }); return () => { current = false; controller.abort(); }; }, [stems]);
   useEffect(() => { if (layout !== "song-detail") return; void createSupabaseBrowserClient().auth.getUser().then(({ data }) => setCanEditSections(Boolean(data.user))); }, [layout]);
 
   function openNewSection() { const time = musicalGrid ? snapSecondsToGrid(currentTime, musicalGrid, "bar") : currentTime; setSectionEditorError(null); setSectionEditor(buildSectionEditorState(null, "", null, time, musicalGrid, "bar")); }
@@ -307,56 +232,52 @@ export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNe
 
   useEffect(() => {
     const reconcile = () => {
-      const context = contextRef.current; if (!context || document.visibilityState !== "visible") return;
+      const engine = engineRef.current; if (!engine || document.visibilityState !== "visible") return; const context = engine.context;
       setContextState(context.state);
-      if (context.state !== "running" && playingRef.current) { pauseAt(Math.min(duration, Math.max(0, context.currentTime - startedAtRef.current))); setEngineMessage("El navegador pausó el motor de audio."); }
+      if (context.state !== "running" && engine.isPlaying) { pauseAt(engine.getPosition(context.currentTime, false)); setEngineMessage("El navegador pausó el motor de audio."); }
     };
     document.addEventListener("visibilitychange", reconcile); window.addEventListener("pageshow", reconcile);
     return () => { document.removeEventListener("visibilitychange", reconcile); window.removeEventListener("pageshow", reconcile); };
   }, [duration, pauseAt]);
 
   async function togglePlayback() {
-    const context = contextRef.current;
-    if (!context || (status !== "ready" && !(status === "partial" && partialAccepted)) || (durationWarnings.length > 0 && !durationAccepted) || duration <= 0 || transitionRef.current) return;
+    const engine = engineRef.current;
+    if (!engine || (status !== "ready" && !(status === "partial" && partialAccepted)) || (durationWarnings.length > 0 && !durationAccepted) || duration <= 0 || transitionRef.current) return;
     transitionRef.current = true;
-    if (playingRef.current) {
-      const pausedTime = getPlaybackTime(context.currentTime);
+    if (engine.isPlaying) {
+      const pausedTime = getPlaybackTime(engine.context.currentTime);
       pauseAt(pausedTime);
       transitionRef.current = false;
       return;
     }
-    try { await context.resume(); setContextState(context.state); if (context.state !== "running") throw new Error("AudioContext did not resume"); setEngineMessage(null); const loop = sectionLoopRef.current; const offset = loop && (offsetRef.current < loop.start || offsetRef.current >= loop.end) ? loop.start : offsetRef.current >= duration ? 0 : offsetRef.current; startSources(offset); } catch (error) { console.error("Unable to resume Playback audio:", error); setEngineMessage("El navegador pausó el motor de audio. Toca Reanudar audio para continuar."); } finally { transitionRef.current = false; }
+    try { const offset = await engine.play(); setContextState(engine.context.state); setEngineMessage(null); reflectStartedPlayback(offset); } catch (error) { console.error("Unable to resume Playback audio:", error); setEngineMessage("El navegador pausó el motor de audio. Toca Reanudar audio para continuar."); } finally { transitionRef.current = false; }
   }
 
   async function seek(value: number) {
     const nextTime = Math.min(duration, Math.max(0, value));
     const loop = sectionLoopRef.current;
-    if (loop && (nextTime < loop.start || nextTime >= loop.end)) { sectionLoopRef.current = null; setLoopSectionId(null); for (const source of sourcesRef.current) source.loop = false; }
-    const operation = ++operationRef.current;
-    offsetRef.current = nextTime;
+    const engine = engineRef.current;
+    if (loop && (nextTime < loop.start || nextTime >= loop.end)) { sectionLoopRef.current = null; setLoopSectionId(null); engine?.setLoop(null); }
     setCurrentTime(nextTime);
-    if (!isPlaying) return;
-    const context = contextRef.current;
-    if (!context) return;
-    stopSources();
+    if (!engine?.isPlaying) return;
     stopAnimation();
-    await context.resume();
-    if (operation !== operationRef.current) return;
-    startSources(nextTime >= duration ? 0 : nextTime);
+    const restartedAt = await engine.seek(nextTime);
+    if (restartedAt !== null) reflectStartedPlayback(restartedAt);
   }
-  function clearSectionLoop() { sectionLoopRef.current = null; setLoopSectionId(null); for (const source of sourcesRef.current) source.loop = false; }
+  function clearSectionLoop() { sectionLoopRef.current = null; setLoopSectionId(null); engineRef.current?.setLoop(null); }
   function toggleSectionLoop() {
     const activeLoop = sectionLoopRef.current;
     if (activeLoop) {
       clearSectionLoop();
-      if (playingRef.current) startSources(currentTime);
+      engineRef.current?.restartAt(currentTime); if (engineRef.current?.isPlaying) reflectStartedPlayback(currentTime);
       return;
     }
     if (!currentSection || duration <= 0) return;
     const nextRegion = sectionRegions.find((region) => region.section.id === currentSection.id);
     if (!nextRegion) return;
-    sectionLoopRef.current = nextRegion; setLoopSectionId(currentSection.id);
-    if (playingRef.current) startSources(currentTime >= nextRegion.start && currentTime < nextRegion.end ? currentTime : nextRegion.start);
+    sectionLoopRef.current = nextRegion; setLoopSectionId(currentSection.id); engineRef.current?.setLoop(nextRegion);
+    const restartTime = currentTime >= nextRegion.start && currentTime < nextRegion.end ? currentTime : nextRegion.start;
+    engineRef.current?.restartAt(restartTime); if (engineRef.current?.isPlaying) reflectStartedPlayback(restartTime);
   }
   sectionSeekRef.current = (time) => { void seek(time); };
   sectionLoopToggleRef.current = toggleSectionLoop;
@@ -379,23 +300,22 @@ export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNe
     setMixes((current) => current.map((mix, mixIndex) => mixIndex === index ? { ...mix, ...patch } : mix));
   }, []);
 
-  async function resumeAudio() { const context = contextRef.current; if (!context || context.state === "closed") return; try { await context.resume(); setContextState(context.state); if (context.state === "running") setEngineMessage(null); } catch (error) { console.error("Unable to recover AudioContext:", error); setEngineMessage("No se pudo reanudar el motor de audio."); } }
+  async function resumeAudio() { const context = engineRef.current?.context; if (!context || context.state === "closed") return; try { await context.resume(); setContextState(context.state); if (context.state === "running") setEngineMessage(null); } catch (error) { console.error("Unable to recover AudioContext:", error); setEngineMessage("No se pudo reanudar el motor de audio."); } }
 
   async function retryLoad() {
-    const context = contextRef.current; if (!context || status === "loading") return; loadControllerRef.current?.abort(); const controller = new AbortController(); loadControllerRef.current = controller; pauseAt(0); setStatus("loading"); setEngineMessage(null);
+    const engine = engineRef.current; if (!engine || status === "loading") return; const context = engine.context; loadControllerRef.current?.abort(); const controller = new AbortController(); loadControllerRef.current = controller; pauseAt(0); setStatus("loading"); setEngineMessage(null);
     try {
       const policy = isPhonePlaybackDevice() ? { maxCachedSongs: 1, retainOnlyCurrent: true } : undefined;
-      const result = await retryStemBundle(createAudioDataDecoder(context, "playback"), stems, { label: title, mode: "foreground", policy, signal: controller.signal }); if (controller.signal.aborted || contextRef.current !== context) return; installBundle(result);
+      const result = await retryStemBundle(createAudioDataDecoder(context, "playback"), stems, { label: title, mode: "foreground", policy, signal: controller.signal }); if (controller.signal.aborted || engineRef.current !== engine) return; installBundle(result);
     } catch (error) { if (!isAbortError(error)) { console.error("Unable to retry Playback stems:", error); setStatus("error"); } }
     finally { if (loadControllerRef.current === controller) loadControllerRef.current = null; }
   }
 
   function installBundle({ diagnostics: nextDiagnostics, failures: nextFailures, loaded }: StemBundleResult) {
-    for (const gain of stemGainsRef.current) gain.disconnect();
-    const context = contextRef.current; const masterGain = masterGainRef.current; if (!context || !masterGain) return;
-    const buffers = loaded.map((item) => item.buffer); buffersRef.current = buffers; setWaveformBuffers(buffers); setPlayableStems(loaded.map((item) => item.stem)); setFailures(nextFailures); setDiagnostics(nextDiagnostics);
-    setMixes(loaded.map(() => ({ muted: false, solo: false, volume: 1 }))); stemGainsRef.current = buffers.map(() => { const gain = context.createGain(); gain.connect(masterGain); return gain; });
-    const canonical = median(buffers.map((buffer) => buffer.duration)); setDuration(canonical); setDurationWarnings(loaded.filter((item) => Math.abs(item.buffer.duration - canonical) > 0.5).map((item) => `${item.stem.name} (${formatTime(item.buffer.duration)})`)); setDurationAccepted(false); setPartialAccepted(false); setStatus(!buffers.length ? "error" : nextFailures.length ? "partial" : "ready");
+    const engine = engineRef.current; if (!engine) return;
+    const buffers = loaded.map((item) => item.buffer); setWaveformBuffers(buffers); setPlayableStems(loaded.map((item) => item.stem)); setFailures(nextFailures); setDiagnostics(nextDiagnostics);
+    setMixes(loaded.map(() => ({ muted: false, solo: false, volume: 1 })));
+    const canonical = median(buffers.map((buffer) => buffer.duration)); engine.loadChannels(loaded.map((item) => ({ buffer: item.buffer, stemId: item.stem.id })), canonical); setDuration(canonical); setDurationWarnings(loaded.filter((item) => Math.abs(item.buffer.duration - canonical) > 0.5).map((item) => `${item.stem.name} (${formatTime(item.buffer.duration)})`)); setDurationAccepted(false); setPartialAccepted(false); setStatus(!buffers.length ? "error" : nextFailures.length ? "partial" : "ready");
   }
 
   if (status === "loading") return <p role="status" className="py-5 text-center text-sm text-zinc-400">Cargando pistas…</p>;
@@ -447,7 +367,7 @@ export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canNe
         {failures.map((failure) => <div key={failure.stem.id} className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-2 opacity-60"><p className="truncate text-sm font-semibold text-zinc-400">{failure.stem.name}</p><span className="text-xs text-rose-300">No disponible</span></div>)}
       </div></>}
       <div className="mt-6 hidden min-w-0 max-w-full overflow-x-auto border-y border-white/[0.07] bg-black/10 lg:flex"><div className={`flex w-max min-w-full items-stretch ${layout === "playback" ? "justify-center" : "justify-start"}`}>{playableStems.map((stem, index) => { const mix = mixes[index]; const displayName = compactStemName(stem.name, title); return <div key={stem.id} className={`flex shrink-0 flex-col items-center border-r border-white/[0.06] py-4 ${layout === "playback" ? "w-[clamp(82px,8vw,106px)] px-3" : "w-[clamp(76px,7vw,92px)] px-2"}`}>{layout === "playback" ? <StemChannelHeader label={displayName} title={stem.name} /> : <p title={stem.name} className="h-8 max-w-full truncate text-center text-[0.6875rem] font-bold uppercase tracking-[0.1em] text-zinc-300">{displayName}</p>}<input type="range" min={0} max={1} step={0.01} value={mix.volume} onChange={(event) => updateMix(index, { volume: Number(event.target.value) })} aria-label={`Volumen de ${stem.name}`} className="my-3 h-40 w-5 cursor-pointer accent-emerald-400 [direction:rtl] [writing-mode:vertical-lr]" /><span className="font-mono text-[0.6875rem] text-zinc-500">{volumeToDb(mix.volume)}</span><div className="mt-3 flex gap-1.5"><button type="button" onClick={() => updateMix(index, { solo: !mix.solo })} aria-pressed={mix.solo} className={`grid size-8 place-items-center rounded-md text-[0.6875rem] font-bold ${mix.solo ? "bg-amber-300 text-black" : "bg-white/[0.05] text-zinc-500"}`}>S</button><button type="button" onClick={() => updateMix(index, { muted: !mix.muted })} aria-pressed={mix.muted} className={`grid size-8 place-items-center rounded-md text-[0.6875rem] font-bold ${mix.muted ? "bg-rose-400 text-black" : "bg-white/[0.05] text-zinc-500"}`}>M</button></div></div>})}{failures.map((failure) => { const displayName = compactStemName(failure.stem.name, title); return <div key={failure.stem.id} className="flex w-[76px] shrink-0 flex-col items-center border-r border-white/[0.06] px-2 py-4 opacity-50">{layout === "playback" ? <StemChannelHeader label={displayName} title={failure.stem.name} /> : <p className="h-8 max-w-full truncate text-center text-[0.6875rem] font-bold uppercase text-zinc-500">{displayName}</p>}<div className="my-3 grid h-40 place-items-center text-xs text-rose-300 [writing-mode:vertical-lr]">No disponible</div></div>})}<div className={`flex shrink-0 flex-col items-center border-l border-emerald-400/20 bg-emerald-950/[0.08] py-4 ${layout === "playback" ? "w-[106px] px-3" : "w-[92px] px-2"}`}>{layout === "playback" ? <StemChannelHeader label="Master" title="Master" master /> : <p className="h-8 text-center text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-emerald-300">Master</p>}<input type="range" min={0} max={1} step={0.01} value={masterVolume} onChange={(event) => setMasterVolume(Number(event.target.value))} aria-label="Volumen general del multitrack" className="my-3 h-40 w-5 cursor-pointer accent-emerald-400 [direction:rtl] [writing-mode:vertical-lr]" /><span className="font-mono text-[0.6875rem] text-emerald-300/70">{volumeToDb(masterVolume)}</span></div></div></div>
-      <div className="mt-4 border-t border-white/[0.06] pt-3"><button type="button" onClick={() => { const next = !showDiagnostics; setShowDiagnostics(next); if (next) void getAudioCacheDiagnostics().then(setCacheDiagnostics); }} className="text-xs font-semibold text-zinc-500 hover:text-zinc-300">••• Diagnóstico</button>{showDiagnostics ? <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3 text-xs"><Diagnostic label="Estado" value={engineHealth(status, failures.length, durationWarnings.length, partialAccepted, durationAccepted)} /><Diagnostic label="Solicitadas" value={String(diagnostics?.requestedStems ?? stems.length)} /><Diagnostic label="Descargadas" value={String(diagnostics?.fetchedStems ?? 0)} /><Diagnostic label="Decodificadas" value={String(diagnostics?.decodedStems ?? 0)} /><Diagnostic label="Carga" value={formatMilliseconds(diagnostics?.readyMs)} /><Diagnostic label="Descarga" value={formatMilliseconds(diagnostics?.downloadMs)} /><Diagnostic label="Decodificación" value={formatMilliseconds(diagnostics?.decodeMs)} /><Diagnostic label="Cache" value={diagnostics?.cacheHit ? "Sí" : "No"} /><Diagnostic label="Tipo" value={diagnostics?.loadMode ?? "—"} /><Diagnostic label="AudioContext" value={contextState} /><Diagnostic label="Sample rates" value={[...new Set(buffersRef.current.map((buffer) => buffer.sampleRate))].join(", ") || "—"} /><Diagnostic label="Canciones cacheadas" value={String(cacheDiagnostics?.songs ?? "—")} /><Diagnostic label="Stems cacheados" value={String(cacheDiagnostics?.stems ?? "—")} /><Diagnostic label="Audio decodificado" value={formatTime(cacheDiagnostics?.decodedDurationSeconds ?? 0)} /><Diagnostic label="PCM estimado" value={formatBytes(cacheDiagnostics?.approximateBytes)} /></dl> : null}</div>
+      <div className="mt-4 border-t border-white/[0.06] pt-3"><button type="button" onClick={() => { const next = !showDiagnostics; setShowDiagnostics(next); if (next) void getAudioCacheDiagnostics().then(setCacheDiagnostics); }} className="text-xs font-semibold text-zinc-500 hover:text-zinc-300">••• Diagnóstico</button>{showDiagnostics ? <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3 text-xs"><Diagnostic label="Estado" value={engineHealth(status, failures.length, durationWarnings.length, partialAccepted, durationAccepted)} /><Diagnostic label="Solicitadas" value={String(diagnostics?.requestedStems ?? stems.length)} /><Diagnostic label="Descargadas" value={String(diagnostics?.fetchedStems ?? 0)} /><Diagnostic label="Decodificadas" value={String(diagnostics?.decodedStems ?? 0)} /><Diagnostic label="Carga" value={formatMilliseconds(diagnostics?.readyMs)} /><Diagnostic label="Descarga" value={formatMilliseconds(diagnostics?.downloadMs)} /><Diagnostic label="Decodificación" value={formatMilliseconds(diagnostics?.decodeMs)} /><Diagnostic label="Cache" value={diagnostics?.cacheHit ? "Sí" : "No"} /><Diagnostic label="Tipo" value={diagnostics?.loadMode ?? "—"} /><Diagnostic label="AudioContext" value={contextState} /><Diagnostic label="Sample rates" value={engineRef.current?.sampleRates.join(", ") || "—"} /><Diagnostic label="Canciones cacheadas" value={String(cacheDiagnostics?.songs ?? "—")} /><Diagnostic label="Stems cacheados" value={String(cacheDiagnostics?.stems ?? "—")} /><Diagnostic label="Audio decodificado" value={formatTime(cacheDiagnostics?.decodedDurationSeconds ?? 0)} /><Diagnostic label="PCM estimado" value={formatBytes(cacheDiagnostics?.approximateBytes)} /></dl> : null}</div>
       {layout === "song-detail" && showPlaybackAuthoring && stems[0]?.song_key_id ? <div role="presentation" className="fixed inset-0 z-[70] flex items-end justify-center bg-black/75 backdrop-blur-sm sm:items-center sm:p-5"><section role="dialog" aria-modal="true" aria-labelledby="playback-authoring-title" className="flex max-h-[calc(100dvh-env(safe-area-inset-top))] w-full max-w-2xl flex-col rounded-t-3xl border border-white/10 bg-zinc-950 shadow-2xl sm:max-h-[90dvh] sm:rounded-2xl"><header className="flex items-center justify-between border-b border-white/[0.07] px-4 py-3"><div><p className="text-[0.625rem] font-bold uppercase tracking-[0.15em] text-emerald-400">Arreglo</p><h2 id="playback-authoring-title" className="mt-0.5 text-lg font-bold text-white">Configurar Playback</h2></div><button type="button" onClick={() => setShowPlaybackAuthoring(false)} aria-label="Cerrar configuración de Playback" className="grid size-11 place-items-center rounded-lg text-xl text-zinc-500 hover:bg-white/[0.05] hover:text-white">×</button></header><div className="min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]"><MusicalGridEditor currentTime={currentTime} fallbackBpm={bpm ?? null} fallbackTimeSignature={timeSignature ?? null} grid={musicalGrid} onSaved={setMusicalGrid} songKeyId={stems[0].song_key_id} /><section className="border-y border-white/[0.07] bg-white/[0.015]"><div className="flex items-center justify-between gap-3 px-3 py-2.5"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">Secciones</p><p className="mt-0.5 text-[0.6875rem] text-zinc-600">Ordenadas por tiempo</p></div><button type="button" onClick={openNewSection} className="min-h-9 rounded-lg border border-emerald-400/25 px-3 text-xs font-semibold text-emerald-300">+ Agregar sección</button></div>{orderedSections.length ? <div className="divide-y divide-white/[0.06] border-t border-white/[0.06]">{orderedSections.map((section) => <div key={section.id} className="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-2 px-3 py-2"><span className="font-mono text-xs text-zinc-500">{formatSectionTimestamp(section.start_seconds)}</span><div className="min-w-0"><p className="truncate text-sm font-semibold text-zinc-200">{section.label}</p><p className="text-[0.6875rem] text-zinc-600">{sectionTypeLabel(section.section_type)}{musicalGrid ? ` · ${sectionMusicalLabel(section, musicalGrid)}` : ""}</p></div><div className="flex items-center gap-1"><button type="button" onClick={() => openSectionEditor(section)} aria-label={`Editar sección ${section.label}`} className="min-h-9 rounded-md px-2 text-xs font-semibold text-zinc-400 hover:bg-white/[0.05] hover:text-white">Editar</button><button type="button" onClick={() => void deleteSection(section)} aria-label={`Eliminar sección ${section.label}`} className="min-h-9 rounded-md px-2 text-xs font-semibold text-rose-300/75 hover:bg-rose-400/[0.07] hover:text-rose-200">Eliminar</button></div></div>)}</div> : <p className="border-t border-white/[0.06] px-3 py-4 text-sm text-zinc-600">Esta tonalidad todavía no tiene secciones.</p>}</section></div></section></div> : null}
       {sectionEditor ? <SectionEditorDialog editor={sectionEditor} error={sectionEditorError} saving={savingSection} onChange={setSectionEditor} onClose={() => { if (!savingSection) setSectionEditor(null); }} onSave={() => void saveSection()} /> : null}
     </div></SongSectionsProvider></MusicalGridProvider>
