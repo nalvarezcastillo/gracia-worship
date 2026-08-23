@@ -114,6 +114,26 @@ export type ServiceSongSettingRow = {
   updated_at: string;
 };
 
+export type ServicePlaybackStemSettingRow = {
+  service_id: number;
+  service_item_id: string;
+  song_id: string;
+  stem_id: string;
+  volume: number;
+  muted: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SetServicePlaybackStemSettingArgs = {
+  p_service_id: number;
+  p_service_item_id: string;
+  p_song_id: string;
+  p_stem_id: string;
+  p_volume: number;
+  p_muted: boolean;
+};
+
 export type ServiceItemNoteRow = {
   service_id: number;
   service_item_id: string;

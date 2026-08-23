@@ -17,13 +17,15 @@ export default async function PlaybackPage({ params }: { params: Promise<{ id: s
   const serviceId = Number((await params).id);
   if (!Number.isSafeInteger(serviceId) || serviceId < 1 || serviceId > 32767) notFound();
   const supabase = await createSupabaseServerClient();
-  const [{ data: service }, { data: itemRows, error: itemError }, { data: settings, error: settingsError }] = await Promise.all([
+  const [{ data: service }, { data: itemRows, error: itemError }, { data: settings, error: settingsError }, { data: mixRows, error: mixError }, { data: authData }] = await Promise.all([
     supabase.from("active_setlist").select("service_name, service_date, service_time, status").eq("id", serviceId).maybeSingle(),
     supabase.from("service_items").select("id, position, type, title, details, planned_duration_seconds, song_ids, song_id, created_at").eq("service_id", serviceId).order("position"),
     supabase.from("service_song_settings").select("service_id, service_item_id, song_id, key_override").eq("service_id", serviceId),
+    supabase.from("service_playback_stem_settings").select("service_id, service_item_id, song_id, stem_id, volume, muted").eq("service_id", serviceId),
+    supabase.auth.getUser(),
   ]);
-  if (!service || (service.status !== "active" && service.status !== "planned")) notFound();
-  if (itemError || settingsError) throw new Error(itemError?.message ?? settingsError?.message);
+  if (!service) notFound();
+  if (itemError || settingsError || mixError) throw new Error(itemError?.message ?? settingsError?.message ?? mixError?.message);
   const items = (itemRows ?? []).map(normalizeServiceItemSongIds) as ServiceItem[];
   const songIds = [...new Set(items.flatMap((item) => [
     ...(item.song_id ? [item.song_id] : []),
@@ -42,9 +44,12 @@ export default async function PlaybackPage({ params }: { params: Promise<{ id: s
     const keyVariant = entry.song.song_keys.find((variant) => variant.key_name === entry.effectiveKey);
     const stems = (keyVariant?.song_stems ?? []).sort((a, b) => a.sort_order - b.sort_order).map((stem) => ({ id: stem.id, name: stem.name, publicUrl: supabase.storage.from("songs").getPublicUrl(stem.storage_path).data.publicUrl, song_key_id: stem.song_key_id, sort_order: stem.sort_order }));
     const grid = keyVariant?.grid_bpm && keyVariant.grid_beats_per_bar && keyVariant.grid_beat_unit && keyVariant.grid_offset_seconds !== null ? { bpm: keyVariant.grid_bpm, beatsPerBar: keyVariant.grid_beats_per_bar, beatUnit: keyVariant.grid_beat_unit, gridOffsetSeconds: keyVariant.grid_offset_seconds } : null;
-    return { ...base, artist: entry.song.artist, bpm: entry.song.bpm, coverUrl: entry.song.cover_url || null, effectiveKey: entry.effectiveKey, grid, kind: "song", stems, timeSignature: entry.song.time_signature };
+    const stemIds = new Set(stems.map((stem) => stem.id));
+    const initialStemMixes = (mixRows ?? []).filter((mix) => mix.service_item_id === entry.item.id && mix.song_id === entry.song.id && stemIds.has(mix.stem_id)).map((mix) => ({ stemId: mix.stem_id, volume: Number(mix.volume), muted: mix.muted }));
+    return { ...base, artist: entry.song.artist, bpm: entry.song.bpm, coverUrl: entry.song.cover_url || null, effectiveKey: entry.effectiveKey, grid, initialStemMixes, kind: "song", serviceItemId: entry.item.id, songId: entry.song.id, stems, timeSignature: entry.song.time_signature };
   });
-  return <PlaybackWorkspace entries={entries} serviceId={serviceId} serviceName={service.service_name} serviceSchedule={[service.service_date, formatTime(service.service_time)].filter(Boolean).join(" · ")} />;
+  const canEditMix = Boolean(authData.user) && (service.status === "active" || service.status === "planned");
+  return <PlaybackWorkspace canEditMix={canEditMix} entries={entries} serviceId={serviceId} serviceName={service.service_name} serviceSchedule={[service.service_date, formatTime(service.service_time)].filter(Boolean).join(" · ")} />;
 }
 
 function formatTime(value: string | null) { if (!value) return null; const [hour, minute] = value.split(":").map(Number); return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`; }
