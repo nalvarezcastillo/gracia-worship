@@ -9,8 +9,9 @@ import { PrimaryButton, SecondaryButton } from "@/components/ui/action-button";
 import type { ActiveSetlistRow, CompleteLiveServiceAndAdvanceResult } from "@/lib/database.types";
 import { parseAssignmentText } from "@/lib/assignment-text";
 import { formatDuration, getActualRunSeconds, getServiceItemDurationSeconds, getSongDurationSeconds } from "@/lib/duration";
-import type { ServiceItem, ServiceSongSetting, WorshipSongEntry } from "@/lib/service";
+import type { ServiceItem, ServiceItemNote, ServiceSongSetting, WorshipSongEntry } from "@/lib/service";
 import { buildOperationalServiceEntries } from "@/lib/service-entries";
+import { buildServiceSchedule } from "@/lib/service-schedule";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type LiveService = Pick<ActiveSetlistRow, "service_name" | "service_date" | "service_time">;
@@ -27,7 +28,7 @@ export type LiveSong = {
     audio_url: string | null;
     key_name: string;
     sheet_url: string | null;
-    song_stems: { id: string }[];
+    song_stems: { id: string; name: string }[];
   }[];
   time_signature: string | null;
   title: string;
@@ -52,15 +53,17 @@ type LiveModeProps = {
   canControl: boolean;
   initialRuns: LiveRun[];
   initialState: LiveServiceState | null;
+  itemNotes: ServiceItemNote[];
   items: ServiceItem[];
   loadError?: string;
   service: LiveService | null;
   serviceId: number | null;
+  savedMixes: { service_id: number; service_item_id: string; song_id: string; stem_id: string; muted: boolean }[];
   songSettings: ServiceSongSetting[];
   songs: LiveSong[];
 };
 
-export function LiveMode({ canControl, initialRuns, initialState, items, loadError, service, serviceId, songSettings, songs }: LiveModeProps) {
+export function LiveMode({ canControl, initialRuns, initialState, itemNotes, items, loadError, savedMixes, service, serviceId, songSettings, songs }: LiveModeProps) {
   const finishInFlightRef = useRef(false);
   const reopenInFlightRef = useRef(false);
   const entries = useMemo(() => buildLiveEntries(items, songs, songSettings), [items, songSettings, songs]);
@@ -92,6 +95,12 @@ export function LiveMode({ canControl, initialRuns, initialState, items, loadErr
   const isLast = currentIndex >= entries.length - 1;
   const livePhase = !hasLiveState ? "notStarted" : finishedAt ? "finished" : "live";
   const schedule = livePhase === "live" ? getScheduleSummary(service, entries, currentIndex, elapsedSeconds, clockTimestamp) : null;
+  const serviceSchedule = useMemo(() => buildServiceSchedule(items, songs, service?.service_time ?? null), [items, service?.service_time, songs]);
+  const currentPlannedStart = currentEntry ? getLiveEntryScheduleTime(currentEntry, serviceSchedule.times) : "—";
+  const nextPlannedStart = nextEntry ? getLiveEntryScheduleTime(nextEntry, serviceSchedule.times) : "—";
+  const currentPlannedEnd = nextEntry ? nextPlannedStart : schedule?.plannedEnd ?? "—";
+  const currentNote = currentEntry ? itemNotes.find((note) => note.service_item_id === currentEntry.item.id)?.notes.trim() ?? "" : "";
+  const mutedStemNames = currentEntry?.kind === "song" ? getMutedStemNames(currentEntry, savedMixes) : [];
 
   const refreshRuns = useCallback(async () => {
     if (serviceId === null) return;
@@ -285,7 +294,7 @@ export function LiveMode({ canControl, initialRuns, initialState, items, loadErr
   return (
     <div className="pb-24 lg:pb-8">
       <header className="border-b border-white/[0.07] pb-4 sm:pb-6">
-        <p className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-400">En Vivo</p>
+        <div className="flex items-center justify-between gap-4"><p className="text-xs font-bold uppercase tracking-[0.22em] text-zinc-500 lg:text-zinc-300">Gracia Worship</p><p className="shrink-0 text-xs font-bold uppercase tracking-[0.18em] text-emerald-400">● En Vivo</p></div>
         <div className="mt-3 flex items-end justify-between gap-4">
           <div className="min-w-0">
             <h1 className="truncate text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
@@ -296,8 +305,7 @@ export function LiveMode({ canControl, initialRuns, initialState, items, loadErr
             </p>
             {schedule ? (
               <p className="mt-1 text-xs text-zinc-500">
-                Duración {formatPlannedTotal(schedule.totalSeconds)} · Final planeado {schedule.plannedEnd} · Final estimado {schedule.estimatedEnd}
-                {schedule.varianceMinutes !== 0 ? <span className={schedule.varianceMinutes > 0 ? "text-amber-400/80" : "text-emerald-400/80"}> · {schedule.varianceMinutes > 0 ? "+" : ""}{schedule.varianceMinutes} min</span> : null}
+                Plan {formatPlannedTotal(schedule.totalSeconds)} · Final planificado {schedule.plannedEnd}
               </p>
             ) : null}
           </div>
@@ -322,15 +330,15 @@ export function LiveMode({ canControl, initialRuns, initialState, items, loadErr
       ) : currentEntry ? (
         <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-8">
           <div className="min-w-0">
-            <CurrentEntryCard entry={currentEntry} elapsedSeconds={elapsedSeconds} />
+            <CurrentEntryCard currentIndex={currentIndex} elapsedSeconds={elapsedSeconds} entry={currentEntry} mutedStemNames={mutedStemNames} note={currentNote} plannedEnd={currentPlannedEnd} plannedStart={currentPlannedStart} serviceId={serviceId} totalEntries={entries.length} />
 
             <section className="mt-4 border-y border-white/[0.07] px-1 py-4" aria-labelledby="next-entry-title">
               <p id="next-entry-title" className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">Siguiente</p>
               {nextEntry ? (
-                <div className="mt-2">
-                  <p className="text-lg font-semibold text-zinc-100">{nextEntry.title}</p>
+                <div className="mt-2 lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end lg:gap-5">
+                  <div className="min-w-0"><p className="hidden text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-zinc-600 lg:block">{getEntryTypeLabel(nextEntry)}</p><p className="truncate text-lg font-semibold text-zinc-100 lg:mt-1 lg:text-2xl">{nextEntry.title}</p>
                   <EntrySupportingText entry={nextEntry} compact />
-                  <EntryDuration entry={nextEntry} />
+                  </div><div className="mt-2 shrink-0 text-left lg:mt-0 lg:text-right"><EntryDuration entry={nextEntry} /><p className="mt-1 hidden text-xs text-zinc-500 lg:block">Inicio planificado {nextPlannedStart}</p></div>
                 </div>
               ) : (
                 <p className="mt-2 text-base font-semibold text-zinc-400">Fin del servicio</p>
@@ -339,7 +347,7 @@ export function LiveMode({ canControl, initialRuns, initialState, items, loadErr
 
             {!(isLast && !canControl) ? <nav aria-label="Navegación de elementos del servicio" className="mt-4 grid grid-cols-2 gap-3">
               <button type="button" disabled={!canControl || isChanging || isFirst} onClick={() => void selectEntry(currentIndex - 1)} className={secondaryButtonStyles}>
-                <ArrowLeft aria-hidden="true" className="size-5" /> Anterior
+                <ArrowLeft aria-hidden="true" className="size-5" /><span className="min-w-0"><span className="block">Anterior</span><span className="hidden truncate text-xs font-normal text-zinc-500 lg:block">{entries[currentIndex - 1]?.title ?? "—"}</span></span>
               </button>
               {isLast && canControl ? (
                 <button type="button" disabled={isChanging || isFinishing} onClick={() => setIsFinishOpen(true)} className={primaryButtonStyles}>
@@ -347,7 +355,7 @@ export function LiveMode({ canControl, initialRuns, initialState, items, loadErr
                 </button>
               ) : (
                 <button type="button" disabled={!canControl || isChanging || isLast} onClick={() => void selectEntry(currentIndex + 1)} className={primaryButtonStyles}>
-                  Siguiente <ArrowRight aria-hidden="true" className="size-5" />
+                  <span className="min-w-0"><span className="block">Completar y avanzar</span><span className="hidden truncate text-xs font-normal opacity-70 lg:block">{nextEntry?.title ?? "—"}</span></span><ArrowRight aria-hidden="true" className="size-5" />
                 </button>
               )}
             </nav> : null}
@@ -409,28 +417,29 @@ function formatReopenError(message: string, lifecycleReopen: boolean) {
   return lifecycleReopen ? `No se pudo reabrir el servicio completado: ${message}` : `No se pudo reabrir el servicio: ${message}`;
 }
 
-function CurrentEntryCard({ elapsedSeconds, entry }: { elapsedSeconds: number; entry: LiveEntry }) {
+function CurrentEntryCard({ currentIndex, elapsedSeconds, entry, mutedStemNames, note, plannedEnd, plannedStart, serviceId, totalEntries }: { currentIndex: number; elapsedSeconds: number; entry: LiveEntry; mutedStemNames: string[]; note: string; plannedEnd: string; plannedStart: string; serviceId: number | null; totalEntries: number }) {
   const plannedSeconds = getEntryPlannedSeconds(entry);
   const remainingSeconds = plannedSeconds === null ? null : plannedSeconds - elapsedSeconds;
   const progress = plannedSeconds ? Math.min(100, (elapsedSeconds / plannedSeconds) * 100) : 0;
-  const timingColor = remainingSeconds !== null && remainingSeconds <= -300 ? "text-rose-300" : remainingSeconds !== null && remainingSeconds < 0 ? "text-amber-300" : "text-emerald-400";
-  const progressColor = remainingSeconds !== null && remainingSeconds <= -300 ? "bg-rose-400" : remainingSeconds !== null && remainingSeconds < 0 ? "bg-amber-400" : "bg-emerald-400";
   return (
-    <article className="rounded-3xl border border-white/[0.08] bg-zinc-900 p-5 shadow-xl shadow-black/20 sm:p-8">
-      <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-400">Ahora</p>
-      <h2 className="mt-4 text-3xl font-bold leading-tight tracking-[-0.04em] text-white sm:text-5xl">{entry.title}</h2>
+    <article className="rounded-3xl border border-white/[0.08] bg-zinc-900 p-5 shadow-xl shadow-black/20 sm:p-8 lg:rounded-none lg:border-x-0 lg:bg-transparent lg:px-1 lg:py-6 lg:shadow-none">
+      <div className="flex items-center justify-between gap-4"><p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-400">Ahora</p><p className="hidden text-base font-semibold tabular-nums text-zinc-500 lg:block">{currentIndex + 1} / {totalEntries}</p></div>
+      <div className="mt-4 flex min-w-0 items-start justify-between gap-4"><h2 className="min-w-0 truncate text-3xl font-bold leading-tight tracking-[-0.04em] text-white sm:text-5xl">{entry.title}</h2>{entry.kind === "song" && entry.effectiveKey ? <span className="hidden min-w-10 shrink-0 place-items-center rounded-full border border-emerald-400/35 px-2 py-1.5 text-sm font-bold text-emerald-300 lg:grid">{entry.effectiveKey}</span> : null}</div>
       <EntrySupportingText entry={entry} />
       {entry.kind === "song" ? <SongResourceLinks entry={entry} /> : null}
-      <div className="mt-8 border-t border-white/[0.07] pt-5 sm:mt-10">
+      <div className="mt-6 border-t border-white/[0.07] pt-5 lg:grid lg:grid-cols-[minmax(12rem,0.7fr)_minmax(0,1fr)] lg:gap-8">
+        <div>
         <p className="whitespace-nowrap text-3xl font-bold tabular-nums tracking-tight text-white sm:text-4xl">{remainingSeconds === null ? formatDuration(elapsedSeconds) : formatLiveTimer(remainingSeconds)}</p>
-        <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">{plannedSeconds ? "Tiempo restante" : "Tiempo transcurrido"}</p>
+        <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">{plannedSeconds ? "Plan · tiempo restante" : "Tiempo transcurrido"}</p>
         {plannedSeconds ? (
           <>
-            <div className="mt-4 h-1 overflow-hidden rounded-full bg-zinc-800" aria-hidden="true"><div className={`h-full ${progressColor} transition-[width] duration-200`} style={{ width: `${progress}%` }} /></div>
-            <p className={`mt-2 text-xs font-semibold ${timingColor}`}>{remainingSeconds !== null && remainingSeconds < 0 ? "OVER RUN" : "A tiempo"}</p>
+            <div className="mt-4 h-1 overflow-hidden rounded-full bg-zinc-800" aria-hidden="true"><div className="h-full bg-emerald-400 transition-[width] duration-200" style={{ width: `${progress}%` }} /></div>
           </>
         ) : null}
+        </div><dl className="hidden grid-cols-2 gap-4 lg:grid"><LiveMetric label="Inicio planificado" value={plannedStart} /><LiveMetric label="Final planificado" value={plannedEnd} /><LiveMetric label="Duración planificada" value={plannedSeconds ? formatDuration(plannedSeconds) : "—"} /></dl>
       </div>
+      {entry.kind === "song" && serviceId !== null && hasPlaybackStems(entry) ? <section className="mt-6 hidden border-t border-white/[0.07] pt-5 lg:block" aria-labelledby="live-playback-title"><div className="flex items-center justify-between gap-3"><h3 id="live-playback-title" className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">Playback</h3><span className="text-xs font-semibold text-emerald-400">● Disponible</span></div>{mutedStemNames.length ? <p className="mt-2 text-sm text-zinc-400"><span className="text-zinc-500">Stems muteados:</span> {mutedStemNames.join(" · ")}</p> : null}<p className="mt-1 text-xs text-zinc-600">Abre Playback para verificar salidas y estado del motor.</p><Link href={`/service/${serviceId}/playback`} className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-400 px-4 text-sm font-semibold text-zinc-950 hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400">Abrir Playback</Link></section> : null}
+      {note ? <section className="mt-6 hidden border-t border-white/[0.07] pt-5 lg:block" aria-labelledby="live-notes-title"><h3 id="live-notes-title" className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">Notas</h3><p className="mt-3 whitespace-pre-wrap text-base leading-7 text-zinc-200">{note}</p></section> : null}
     </article>
   );
 }
@@ -445,6 +454,16 @@ function formatLiveTimer(seconds: number) {
 function EntryDuration({ entry }: { entry: LiveEntry }) {
   const duration = getEntryPlannedSeconds(entry);
   return duration ? <p className="mt-1 text-xs text-zinc-500">{formatDuration(duration)}</p> : null;
+}
+
+function getEntryTypeLabel(entry: LiveEntry) {
+  if (entry.kind === "song") return "Canción";
+  if (entry.item.type === "worship") return "Bloque de adoración";
+  return "Elemento del servicio";
+}
+
+function LiveMetric({ label, value }: { label: string; value: string }) {
+  return <div><dt className="text-[0.6875rem] font-bold uppercase tracking-[0.12em] text-zinc-600">{label}</dt><dd className="mt-1.5 text-sm font-semibold tabular-nums text-zinc-300">{value}</dd></div>;
 }
 
 function EntrySupportingText({ compact = false, entry }: { compact?: boolean; entry: LiveEntry }) {
@@ -567,6 +586,26 @@ function getEntryPlannedSeconds(entry: LiveEntry) {
     : getServiceItemDurationSeconds(entry.item);
 }
 
+function getLiveEntryScheduleTime(entry: LiveEntry, times: Map<string, string>) {
+  const key = entry.kind === "song" && entry.item.type === "worship" ? `${entry.item.id}:${entry.song.id}` : entry.item.id;
+  return times.get(key) ?? "—";
+}
+
+function getMutedStemNames(entry: Extract<LiveEntry, { kind: "song" }>, savedMixes: LiveModeProps["savedMixes"]) {
+  const selectedKey = entry.song.song_keys.find((key) => key.key_name === entry.effectiveKey)
+    ?? entry.song.song_keys.find((key) => key.key_name === entry.song.key)
+    ?? entry.song.song_keys[0];
+  const namesById = new Map((selectedKey?.song_stems ?? []).map((stem) => [stem.id, stem.name]));
+  return savedMixes.filter((mix) => mix.service_item_id === entry.item.id && mix.song_id === entry.song.id && mix.muted).flatMap((mix) => {
+    const name = namesById.get(mix.stem_id);
+    return name ? [name] : [];
+  });
+}
+
+function hasPlaybackStems(entry: Extract<LiveEntry, { kind: "song" }>) {
+  return entry.song.song_keys.some((key) => key.song_stems.length > 0);
+}
+
 function getScheduleSummary(
   service: LiveService | null,
   entries: LiveEntry[],
@@ -639,7 +678,7 @@ function getSongResources(entry: Extract<LiveEntry, { kind: "song" }>) {
 }
 
 function formatDeviceTime(date: Date) {
-  return new Intl.DateTimeFormat("es-419", { hour: "numeric", minute: "2-digit" }).format(date);
+  return new Intl.DateTimeFormat("es-419", { hour: "numeric", minute: "2-digit", second: "2-digit" }).format(date);
 }
 
 function formatServiceDate(value: string) {
@@ -652,5 +691,5 @@ function localizeDefaultServiceName(value: string) {
   return value === "Saturday Service" ? "Servicio del Sábado" : value;
 }
 
-const secondaryButtonStyles = "inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.045] px-3 text-sm font-semibold text-zinc-200 transition-colors duration-200 hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 sm:text-base";
-const primaryButtonStyles = "inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-3 text-sm font-semibold text-zinc-950 transition-colors duration-200 hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 sm:text-base";
+const secondaryButtonStyles = "inline-flex min-h-14 min-w-0 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.045] px-3 text-sm font-semibold text-zinc-200 transition-colors duration-200 hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 sm:text-base";
+const primaryButtonStyles = "inline-flex min-h-14 min-w-0 items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-3 text-sm font-semibold text-zinc-950 transition-colors duration-200 hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 sm:text-base";

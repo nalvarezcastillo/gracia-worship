@@ -3,7 +3,7 @@ import { LiveMode, type LiveRun, type LiveSong } from "@/components/live-mode";
 import { MainContainer } from "@/components/ui/main-container";
 import { hasAuthenticatedUser } from "@/lib/auth";
 import type { ActiveSetlistRow } from "@/lib/database.types";
-import type { ServiceItem, ServiceSongSetting } from "@/lib/service";
+import type { ServiceItem, ServiceItemNote, ServiceSongSetting } from "@/lib/service";
 import { normalizeServiceItemSongIds } from "@/lib/service-item-normalization";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -38,11 +38,11 @@ export default async function LivePage() {
   const { data: songsData, error: songsError } = songIds.length > 0
     ? await supabase
         .from("songs")
-        .select("id, title, key, bpm, duration, time_signature, audio_url, sheet_url, lyrics, song_keys(key_name, audio_url, sheet_url, song_stems(id))")
+        .select("id, title, key, bpm, duration, time_signature, audio_url, sheet_url, lyrics, song_keys(key_name, audio_url, sheet_url, song_stems(id, name))")
         .in("id", songIds)
     : { data: [], error: null };
   const songs = songsError ? [] : (songsData ?? []) as LiveSong[];
-  const [{ data: stateData, error: stateError }, { data: runsData, error: runsError }, canControl] = await Promise.all([
+  const [{ data: stateData, error: stateError }, { data: runsData, error: runsError }, { data: notesData, error: notesError }, { data: mixData, error: mixError }, canControl] = await Promise.all([
     serviceData?.id
       ? supabase
           .from("live_service_state")
@@ -56,6 +56,12 @@ export default async function LivePage() {
           .select("started_at, ended_at")
           .eq("service_id", serviceData.id)
           .order("started_at")
+      : Promise.resolve({ data: [], error: null }),
+    serviceData?.id
+      ? supabase.from("service_item_notes").select("service_id, service_item_id, notes").eq("service_id", serviceData.id)
+      : Promise.resolve({ data: [], error: null }),
+    serviceData?.id
+      ? supabase.from("service_playback_stem_settings").select("service_id, service_item_id, song_id, stem_id, muted").eq("service_id", serviceData.id)
       : Promise.resolve({ data: [], error: null }),
     hasAuthenticatedUser(),
   ]);
@@ -71,10 +77,12 @@ export default async function LivePage() {
           canControl={canControl}
           initialRuns={runsError ? [] : runsData as LiveRun[]}
           initialState={stateError ? null : stateData}
+          itemNotes={notesError ? [] : notesData as ServiceItemNote[]}
           items={items}
           loadError={loadError}
           service={service}
           serviceId={serviceData?.id ?? null}
+          savedMixes={mixError ? [] : mixData ?? []}
           songSettings={songSettings}
           songs={songs}
         />
