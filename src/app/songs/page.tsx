@@ -4,6 +4,7 @@ import { MainContainer } from "@/components/ui/main-container";
 import type { SongSummary } from "@/lib/database.types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { hasAuthenticatedUser } from "@/lib/auth";
+import { getSongCoverSource } from "@/lib/song-cover";
 
 export const metadata: Metadata = { title: "Canciones | Gracia Worship" };
 export const dynamic = "force-dynamic";
@@ -29,7 +30,7 @@ export default async function SongsPage({ searchParams }: { searchParams: Promis
       time_signature: song.time_signature,
       duration: song.duration,
       favorite: false,
-      cover: song.cover_url || "/song-placeholder.svg",
+      cover: getSongCoverSource(song.cover_url),
     }));
 
     return <LibraryView songs={songs} isAdmin={await hasAuthenticatedUser()} notice={deleted === "1" ? "Song deleted successfully." : undefined} />;

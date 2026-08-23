@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { SongDetailContent } from "@/components/song-detail-content";
+import { SongCover } from "@/components/song-cover";
 import { MainContainer } from "@/components/ui/main-container";
 import { hasAuthenticatedUser } from "@/lib/auth";
 import type { SongKeyRow, SongRecord } from "@/lib/database.types";
@@ -13,7 +14,7 @@ type SongPageProps = {
   params: Promise<{ id: string }>;
 };
 
-type SongDetail = Pick<SongRecord, "id" | "title" | "key" | "bpm" | "time_signature" | "audio_url" | "lyrics" | "sheet_url">;
+type SongDetail = Pick<SongRecord, "id" | "title" | "key" | "bpm" | "time_signature" | "audio_url" | "cover_url" | "lyrics" | "sheet_url">;
 
 export default async function SongPage({ params, searchParams }: SongPageProps & { searchParams: Promise<{ service?: string }> }) {
   const { id } = await params;
@@ -28,7 +29,7 @@ export default async function SongPage({ params, searchParams }: SongPageProps &
   try {
     const { data, error } = await supabase
       .from("songs")
-      .select("id, title, key, bpm, time_signature, audio_url, lyrics, sheet_url")
+      .select("id, title, key, bpm, time_signature, audio_url, cover_url, lyrics, sheet_url")
       .eq("id", id)
       .maybeSingle();
 
@@ -56,9 +57,10 @@ export default async function SongPage({ params, searchParams }: SongPageProps &
   return (
     <main className="min-h-screen py-6 sm:py-8">
       <MainContainer className="max-w-3xl lg:max-w-5xl">
-        <header className="border-b border-white/[0.07] pb-5 lg:flex lg:items-end lg:justify-between">
-          <div><p className="mb-2 hidden text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400 lg:block">Biblioteca / Canción</p>
-          <h1 className="text-[1.75rem] font-bold tracking-[-0.035em] text-white sm:text-[2rem]">{song.title}</h1>
+        <header className="flex items-center gap-4 border-b border-white/[0.07] pb-5 sm:gap-5">
+          <SongCover src={song.cover_url} alt={`Portada de ${song.title}`} width={112} height={112} priority className="size-20 shrink-0 rounded-xl object-cover sm:size-24 lg:size-28" />
+          <div className="min-w-0"><p className="mb-2 hidden text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400 lg:block">Biblioteca / Canción</p>
+          <h1 className="truncate text-[1.75rem] font-bold tracking-[-0.035em] text-white sm:text-[2rem]">{song.title}</h1>
           </div>
         </header>
 
