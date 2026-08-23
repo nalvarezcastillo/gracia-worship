@@ -83,6 +83,24 @@ export type ServiceLifecycleRpcArgs = {
   p_service_id: number;
 };
 
+export type ServiceItemRunRow = {
+  id: string;
+  service_id: number;
+  service_item_id: string;
+  song_id: string | null;
+  started_at: string;
+  ended_at: string | null;
+  planned_duration_seconds: number | null;
+  occurrence_index: number | null;
+  created_at: string;
+};
+
+export type AdvanceServiceLiveArgs = ServiceLifecycleRpcArgs & {
+  p_current_service_item_id: string;
+  p_current_song_id: string | null;
+  p_current_occurrence_index: number;
+};
+
 export type ArchiveCompletedServiceArgs = ServiceLifecycleRpcArgs;
 
 export type CompleteLiveServiceAndAdvanceResult = {

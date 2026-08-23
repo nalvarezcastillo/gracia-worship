@@ -382,6 +382,22 @@ begin
   end if;
 end; $$;
 
+-- Live Mode 1B actual timing.
+-- service_item_runs is the occurrence ledger: service_id + service_item_id +
+-- nullable song_id + occurrence_index identifies an operational occurrence,
+-- while id distinguishes a later rerun. Worship uses one-based array order;
+-- direct songs and non-song items use zero. Actual duration is derived.
+-- The canonical, independently deployable definitions and manual verification
+-- queries live in supabase/live_mode_actual_timing.sql:
+--   resolve_live_service_entries(smallint)
+--   resolve_next_live_service_entry(smallint, uuid, uuid, integer)
+--   resolve_previous_live_service_entry(smallint, uuid, uuid, integer)
+--   advance_service_live(smallint, uuid, uuid, integer)
+--   undo_last_live_advance(smallint)
+-- These SECURITY DEFINER transitions use the existing lifecycle/service advisory
+-- locks, database now(), and the one-open-run partial unique index. Direct timing
+-- writes remain unavailable to anon and authenticated roles.
+
 alter table public.service_items enable row level security;
 
 drop policy if exists "Public can read service items" on public.service_items;
@@ -543,6 +559,7 @@ create table if not exists public.live_service_state (
   service_id smallint primary key references public.active_setlist(id) on delete cascade,
   current_item_id uuid not null,
   current_song_id uuid null references public.songs(id) on delete set null,
+  occurrence_index integer not null default 0 check (occurrence_index >= 0),
   started_at timestamptz not null default now(),
   finished_at timestamptz null,
   updated_at timestamptz not null default now(),
@@ -684,6 +701,7 @@ create table if not exists public.service_item_runs (
   service_id smallint not null references public.active_setlist(id) on delete cascade,
   service_item_id uuid not null,
   song_id uuid null references public.songs(id) on delete restrict,
+  occurrence_index integer null check (occurrence_index is null or occurrence_index >= 0),
   started_at timestamptz not null,
   ended_at timestamptz null,
   planned_duration_seconds integer null,

@@ -9,6 +9,7 @@ export type OperationalServiceEntry<Song extends OperationalSong = OperationalSo
       id: string;
       item: ServiceItem;
       kind: "moment";
+      occurrenceIndex: 0;
       plannedDurationSeconds: number | null;
       title: string;
     }
@@ -18,6 +19,7 @@ export type OperationalServiceEntry<Song extends OperationalSong = OperationalSo
       id: string;
       item: ServiceItem;
       kind: "song";
+      occurrenceIndex: number;
       legacyEntry: WorshipSongEntry | null;
       keyOverride: string | null;
       plannedDurationSeconds: number | null;
@@ -39,6 +41,7 @@ export function buildOperationalServiceEntries<Song extends OperationalSong>(ite
         id: `song-item:${item.id}`,
         item,
         kind: "song",
+        occurrenceIndex: 0,
         legacyEntry: null,
         keyOverride,
         plannedDurationSeconds: getSongDurationSeconds({ plannedDurationSeconds: item.planned_duration_seconds }, song.duration),
@@ -49,15 +52,16 @@ export function buildOperationalServiceEntries<Song extends OperationalSong>(ite
     }
 
     if (item.type === "worship") {
-      return (item.song_ids ?? []).flatMap<OperationalServiceEntry<Song>>((entry) => {
+      return (item.song_ids ?? []).flatMap<OperationalServiceEntry<Song>>((entry, songIndex) => {
         const song = songsById.get(entry.songId);
         const keyOverride = song ? settingsByOccurrence.get(`${item.id}:${song.id}`)?.key_override?.trim() || null : null;
         return song ? [{
           assignmentText: entry.notes || null,
           effectiveKey: keyOverride ?? getLegacyServiceSongKey(entry) ?? song.key?.trim() ?? null,
-          id: `legacy-song:${item.id}:${song.id}`,
+          id: `legacy-song:${item.id}:${song.id}:${songIndex + 1}`,
           item,
           kind: "song",
+          occurrenceIndex: songIndex + 1,
           legacyEntry: entry,
           keyOverride,
           plannedDurationSeconds: getSongDurationSeconds(entry, song.duration),
@@ -72,6 +76,7 @@ export function buildOperationalServiceEntries<Song extends OperationalSong>(ite
       id: `moment:${item.id}`,
       item,
       kind: "moment",
+      occurrenceIndex: 0,
       plannedDurationSeconds: item.planned_duration_seconds,
       title: item.title,
     }];

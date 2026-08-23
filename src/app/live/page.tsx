@@ -46,14 +46,14 @@ export default async function LivePage() {
     serviceData?.id
       ? supabase
           .from("live_service_state")
-          .select("service_id, current_item_id, current_song_id, started_at, finished_at, updated_at")
+          .select("service_id, current_item_id, current_song_id, occurrence_index, started_at, finished_at, updated_at")
           .eq("service_id", serviceData.id)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
     serviceData?.id
       ? supabase
           .from("service_item_runs")
-          .select("started_at, ended_at")
+          .select("id, service_id, service_item_id, song_id, occurrence_index, started_at, ended_at, planned_duration_seconds, created_at")
           .eq("service_id", serviceData.id)
           .order("started_at")
       : Promise.resolve({ data: [], error: null }),

@@ -13,9 +13,9 @@ export function buildServiceSchedule(items: ServiceItem[], songs: ScheduledSong[
 
   for (const item of items) {
     if (item.type === "worship") {
-      for (const entry of item.song_ids ?? []) {
+      for (const [songIndex, entry] of (item.song_ids ?? []).entries()) {
         const song = songs.find((candidate) => candidate.id === entry.songId);
-        times.set(`${item.id}:${entry.songId}`, timeKnown ? formatClock(startSeconds + elapsed) : "—");
+        times.set(`${item.id}:${entry.songId}:${songIndex + 1}`, timeKnown ? formatClock(startSeconds + elapsed) : "—");
         const duration = song ? getSongDurationSeconds(entry, song.duration) : null;
         if (duration) elapsed += duration;
         else timeKnown = false;
@@ -38,7 +38,7 @@ export function buildServiceSchedule(items: ServiceItem[], songs: ScheduledSong[
 
 export function getOperationalEntryScheduleKey(entry: OperationalServiceEntry) {
   return entry.kind === "song" && entry.source === "legacy-worship"
-    ? `${entry.item.id}:${entry.song.id}`
+    ? `${entry.item.id}:${entry.song.id}:${entry.occurrenceIndex}`
     : entry.item.id;
 }
 
