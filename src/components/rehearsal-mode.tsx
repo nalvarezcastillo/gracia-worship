@@ -5,14 +5,17 @@ import Link from "next/link";
 import { SongDetailContent } from "@/components/song-detail-content";
 import type { PublicSongKey } from "@/components/song-key-selector";
 import type { ActiveSetlistRow } from "@/lib/database.types";
-import type { ServiceItem, ServiceSongSetting, WorshipSongEntry } from "@/lib/service";
+import { formatDuration } from "@/lib/duration";
+import type { ServiceItem, ServiceItemNote, ServiceSongSetting, WorshipSongEntry } from "@/lib/service";
 import { buildOperationalServiceEntries } from "@/lib/service-entries";
+import { buildServiceSchedule } from "@/lib/service-schedule";
 
 type RehearsalService = Pick<ActiveSetlistRow, "service_name" | "service_date" | "service_time">;
 
 export type RehearsalSong = {
   id: string;
   title: string;
+  artist: string;
   key: string;
   bpm: number;
   duration: string;
@@ -24,6 +27,7 @@ export type RehearsalSong = {
 };
 
 type RehearsalModeProps = {
+  itemNotes: ServiceItemNote[];
   items: ServiceItem[];
   loadError?: string;
   service: RehearsalService | null;
@@ -32,7 +36,7 @@ type RehearsalModeProps = {
   songs: RehearsalSong[];
 };
 
-export function RehearsalMode({ items, loadError, service, serviceId, songSettings, songs }: RehearsalModeProps) {
+export function RehearsalMode({ itemNotes, items, loadError, service, serviceId, songSettings, songs }: RehearsalModeProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedSongIndex, setSelectedSongIndex] = useState<number | null>(null);
   const currentItem = items[currentIndex];
@@ -52,6 +56,13 @@ export function RehearsalMode({ items, loadError, service, serviceId, songSettin
   const progressCurrent = selectedSongIndex === null ? currentIndex + 1 : selectedSongIndex + 1;
   const progressTotal = selectedSongIndex === null ? items.length : blockSongs.length;
   const progressPercent = progressTotal ? (progressCurrent / progressTotal) * 100 : 0;
+  const schedule = buildServiceSchedule(items, songs, service?.service_time ?? null);
+  const currentNote = currentItem ? itemNotes.find((note) => note.service_item_id === currentItem.id)?.notes.trim() ?? "" : "";
+  const currentSong = directSongEntry?.kind === "song" ? directSongEntry.song : selectedBlockSong?.song;
+  const currentSongEntry = directSongEntry?.kind === "song" ? directSongEntry : null;
+  const currentKey = currentSongEntry?.effectiveKey ?? selectedBlockSong?.entry.keyOverride ?? currentSong?.key;
+  const previousItemTitle = currentIndex > 0 ? items[currentIndex - 1]?.title : undefined;
+  const nextItemTitle = currentIndex < items.length - 1 ? items[currentIndex + 1]?.title : undefined;
 
   function moveToServiceItem(nextIndex: number) {
     setSelectedSongIndex(null);
@@ -65,7 +76,7 @@ export function RehearsalMode({ items, loadError, service, serviceId, songSettin
         <div className="flex items-center justify-between gap-3 lg:block"><h1 className="truncate text-xs font-medium text-zinc-500 lg:text-2xl lg:font-bold lg:tracking-[-0.025em] lg:text-white">
           {service ? localizeDefaultServiceName(service.service_name) : "Servicio actual"}
         </h1>{currentItem ? <p className="shrink-0 text-xs font-medium tabular-nums text-zinc-500 lg:hidden">{progressCurrent} / {progressTotal}</p> : null}</div>
-        {currentItem ? <div className="mt-3 hidden items-baseline justify-between gap-4 lg:flex"><p className="min-w-0 truncate text-3xl font-bold text-white">{directSongEntry?.kind === "song" ? directSongEntry.song.title : selectedBlockSong?.song.title ?? currentItem.title}</p><p className="shrink-0 text-sm font-semibold tabular-nums text-zinc-500">{progressCurrent} / {progressTotal}</p></div> : null}
+        {currentItem ? <div className="mt-3 hidden items-start justify-between gap-5 lg:flex"><div className="min-w-0"><h2 className="truncate text-4xl font-bold tracking-[-0.035em] text-white">{currentSong?.title ?? currentItem.title}</h2>{currentSong ? <div className="mt-3 flex min-w-0 items-center gap-2.5 text-sm text-zinc-400">{currentKey ? <span className="grid min-w-8 shrink-0 place-items-center rounded-full border border-emerald-400/35 px-2 py-1 text-xs font-bold text-emerald-300">{currentKey}</span> : null}<span className="truncate">{[currentSong.bpm ? `${currentSong.bpm} BPM` : null, currentSong.artist, selectedBlockSong?.entry.notes || currentSongEntry?.assignmentText].filter(Boolean).join(" · ")}</span></div> : null}</div><p className="shrink-0 pt-2 text-sm font-semibold tabular-nums text-zinc-500">{progressCurrent} / {progressTotal}</p></div> : null}
         <div className="mt-2 h-0.5 overflow-hidden rounded-full bg-zinc-800 lg:mt-3 lg:h-1" aria-hidden="true"><div className="h-full bg-emerald-400 transition-[width] duration-200" style={{ width: `${progressPercent}%` }} /></div>
       </header>
 
@@ -93,6 +104,8 @@ export function RehearsalMode({ items, loadError, service, serviceId, songSettin
               onContinueService={() => moveToServiceItem(currentIndex + 1)}
               onNextSong={() => undefined}
               onPreviousSong={() => undefined}
+              nextTitle={nextItemTitle}
+              previousTitle={previousItemTitle}
               progressLabel={`${progressCurrent} / ${progressTotal}`}
             />
           ) : selectedBlockSong ? (
@@ -105,19 +118,22 @@ export function RehearsalMode({ items, loadError, service, serviceId, songSettin
               onContinueService={() => moveToServiceItem(currentIndex + 1)}
               onNextSong={() => setSelectedSongIndex((index) => (index ?? 0) + 1)}
               onPreviousSong={() => setSelectedSongIndex((index) => Math.max(0, (index ?? 0) - 1))}
+              nextTitle={(selectedSongIndex ?? 0) < blockSongs.length - 1 ? blockSongs[(selectedSongIndex ?? 0) + 1]?.song.title : nextItemTitle}
+              previousTitle={(selectedSongIndex ?? 0) > 0 ? blockSongs[(selectedSongIndex ?? 0) - 1]?.song.title : previousItemTitle}
               progressLabel={`${progressCurrent} / ${progressTotal}`}
             />
           ) : (
             <>
-              <article className="flex flex-1 flex-col items-start px-0 py-6 text-left lg:min-h-[42dvh] lg:items-center lg:justify-center lg:px-10 lg:py-10 lg:text-center">
-                <h2 className={`text-2xl font-bold leading-tight tracking-[-0.04em] text-white lg:text-6xl ${currentItem.type === "worship" ? "uppercase" : ""}`}>
+              <article className="flex flex-1 flex-col items-start px-0 py-6 text-left lg:min-h-0 lg:py-8">
+                <h2 className={`text-2xl font-bold leading-tight tracking-[-0.04em] text-white lg:hidden ${currentItem.type === "worship" ? "uppercase" : ""}`}>
                   {currentItem.title}
                 </h2>
                 {currentItem.type === "text" && currentItem.details ? (
-                  <p className="mt-3 text-base font-medium leading-7 text-zinc-400 lg:mt-6 lg:text-2xl lg:leading-8">
+                  <p className="mt-3 text-base font-medium leading-7 text-zinc-400 lg:hidden">
                     {currentItem.details}
                   </p>
                 ) : null}
+                {currentItem.type === "text" ? <div className="hidden w-full grid-cols-[minmax(0,1fr)_minmax(18rem,0.8fr)] gap-8 lg:grid"><section className="min-w-0 border-y border-white/[0.07] py-7"><p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Elemento actual</p>{currentItem.details ? <p className="mt-3 text-xl font-medium leading-8 text-zinc-300">{currentItem.details}</p> : null}<dl className="mt-8 grid grid-cols-2 gap-5"><OperationalMetric label="Duración" value={currentItem.planned_duration_seconds ? formatDuration(currentItem.planned_duration_seconds) : "—"} /><OperationalMetric label="Inicio estimado" value={schedule.times.get(currentItem.id) ?? "—"} /></dl></section><section className="min-w-0 border-y border-white/[0.07] py-7"><h3 className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-zinc-500">Notas</h3>{currentNote ? <p className="mt-4 whitespace-pre-wrap text-lg leading-8 text-zinc-200">{currentNote}</p> : <p className="mt-4 text-sm text-zinc-600">Sin notas operacionales.</p>}</section></div> : null}
                 {currentItem.type === "worship" ? (
                   <ul className="mt-4 w-full max-w-xl divide-y divide-white/[0.07] border-y border-white/[0.07] text-left lg:mt-8">
                     {blockSongs.map(({ entry, song }, index) => (
@@ -144,6 +160,8 @@ export function RehearsalMode({ items, loadError, service, serviceId, songSettin
                 isLast={isLast}
                 onPrevious={() => moveToServiceItem(Math.max(0, currentIndex - 1))}
                 onNext={() => moveToServiceItem(Math.min(items.length - 1, currentIndex + 1))}
+                nextTitle={nextItemTitle}
+                previousTitle={previousItemTitle}
               />
             </>
           )}
@@ -169,6 +187,8 @@ function RehearsalSongView({
   onContinueService,
   onNextSong,
   onPreviousSong,
+  nextTitle,
+  previousTitle,
   progressLabel,
 }: {
   blockId: string;
@@ -179,6 +199,8 @@ function RehearsalSongView({
   onContinueService: () => void;
   onNextSong: () => void;
   onPreviousSong: () => void;
+  nextTitle?: string;
+  previousTitle?: string;
   progressLabel: string;
 }) {
   const { entry, song } = blockSong;
@@ -193,9 +215,9 @@ function RehearsalSongView({
         initialKeyName={getSavedKeyName(entry)}
         headerNavigation={(
           <nav aria-label="Navegación de canciones del bloque" className="mt-3 grid grid-cols-2 gap-3 lg:mt-4">
-            <button type="button" onClick={onPreviousSong} disabled={!hasPreviousSong} className={secondaryNavigationStyles}>◀ Canción anterior</button>
-            <button type="button" onClick={hasNextSong ? onNextSong : onContinueService} disabled={!hasNextSong && !canContinueService} className={secondaryNavigationStyles}>
-              {hasNextSong ? "Canción siguiente ▶" : canContinueService ? "Siguiente elemento ▶" : "Canción siguiente ▶"}
+            <button type="button" onClick={hasPreviousSong ? onPreviousSong : undefined} disabled={!hasPreviousSong} aria-label={previousTitle ? `Anterior: ${previousTitle}` : "Canción anterior"} className={secondaryNavigationStyles}><span className="block">← Anterior</span><span className="mt-0.5 hidden truncate text-xs font-normal text-zinc-500 lg:block">{previousTitle ?? "—"}</span></button>
+            <button type="button" onClick={hasNextSong ? onNextSong : onContinueService} disabled={!hasNextSong && !canContinueService} aria-label={nextTitle ? `Siguiente: ${nextTitle}` : "Canción siguiente"} className={secondaryNavigationStyles}>
+              <span className="block">Siguiente →</span><span className="mt-0.5 hidden truncate text-xs font-normal text-zinc-500 lg:block">{nextTitle ?? "—"}</span>
             </button>
           </nav>
         )}
@@ -216,7 +238,7 @@ function RehearsalSongView({
   );
 }
 
-function ServiceItemNavigation({ isFirst, isLast, onNext, onPrevious }: { isFirst: boolean; isLast: boolean; onNext: () => void; onPrevious: () => void }) {
+function ServiceItemNavigation({ isFirst, isLast, nextTitle, onNext, onPrevious, previousTitle }: { isFirst: boolean; isLast: boolean; nextTitle?: string; onNext: () => void; onPrevious: () => void; previousTitle?: string }) {
   return (
     <nav aria-label="Navegación del ensayo" className="grid grid-cols-2 gap-3 border-t border-white/[0.07] pt-3 sm:gap-4 sm:pt-6 lg:pt-5">
             <button
@@ -225,7 +247,7 @@ function ServiceItemNavigation({ isFirst, isLast, onNext, onPrevious }: { isFirs
               onClick={onPrevious}
               className="min-h-11 rounded-xl border border-white/10 bg-white/[0.035] px-3 text-sm font-semibold text-zinc-300 transition-colors hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 lg:min-h-14 lg:rounded-2xl lg:px-4 lg:text-base"
             >
-              ◀ Anterior
+              <span className="block">← Anterior</span><span className="mt-0.5 hidden truncate text-xs font-normal text-zinc-500 lg:block">{previousTitle ?? "—"}</span>
             </button>
             <button
               type="button"
@@ -233,13 +255,17 @@ function ServiceItemNavigation({ isFirst, isLast, onNext, onPrevious }: { isFirs
               onClick={onNext}
               className="min-h-11 rounded-xl border border-white/10 bg-white/[0.035] px-3 text-sm font-semibold text-zinc-300 transition-colors hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 lg:min-h-14 lg:rounded-2xl lg:border-0 lg:bg-emerald-400 lg:px-4 lg:text-base lg:text-zinc-950"
             >
-              Siguiente ▶
+              <span className="block">Siguiente →</span><span className="mt-0.5 hidden truncate text-xs font-normal opacity-70 lg:block">{nextTitle ?? "—"}</span>
             </button>
     </nav>
   );
 }
 
 const secondaryNavigationStyles = "min-h-11 rounded-xl border border-white/10 bg-white/[0.035] px-2 text-xs font-semibold text-zinc-300 transition-colors hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 lg:min-h-14 lg:rounded-2xl lg:bg-white/[0.045] lg:px-4 lg:text-base lg:text-zinc-200";
+
+function OperationalMetric({ label, value }: { label: string; value: string }) {
+  return <div><dt className="text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-zinc-600">{label}</dt><dd className="mt-2 font-mono text-xl text-zinc-200">{value}</dd></div>;
+}
 
 function getSavedKeyName(entry: WorshipSongEntry) {
   const storedEntry = entry as unknown as Record<string, unknown>;

@@ -4,7 +4,7 @@ import { RehearsalMode, type RehearsalSong } from "@/components/rehearsal-mode";
 import type { PublicSongKey } from "@/components/song-key-selector";
 import { MainContainer } from "@/components/ui/main-container";
 import type { ActiveSetlistRow } from "@/lib/database.types";
-import type { ServiceSongSetting } from "@/lib/service";
+import type { ServiceItemNote, ServiceSongSetting } from "@/lib/service";
 import { isRecord, normalizeServiceItemSongIds, normalizeSongIds } from "@/lib/service-item-normalization";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -18,10 +18,11 @@ export default async function ServiceRehearsalPage({ params }: { params: Promise
   if (!Number.isSafeInteger(serviceId) || serviceId < 1 || serviceId > 32767) notFound();
 
   const supabase = await createSupabaseServerClient();
-  const [serviceResult, itemsResult, settingsResult] = await Promise.all([
+  const [serviceResult, itemsResult, settingsResult, notesResult] = await Promise.all([
     supabase.from("active_setlist").select("id, service_name, service_date, service_time").eq("id", serviceId).maybeSingle(),
     supabase.from("service_items").select("id, position, type, title, details, planned_duration_seconds, song_ids, song_id, created_at").eq("service_id", serviceId).order("position", { ascending: true }),
     supabase.from("service_song_settings").select("service_id, service_item_id, song_id, key_override").eq("service_id", serviceId),
+    supabase.from("service_item_notes").select("service_id, service_item_id, notes").eq("service_id", serviceId),
   ]);
 
   const { data: serviceData, error: serviceError } = serviceResult;
@@ -40,7 +41,7 @@ export default async function ServiceRehearsalPage({ params }: { params: Promise
 
   if (songIds.length) {
     const [songsResult, keysResult] = await Promise.all([
-      supabase.from("songs").select("id, title, key, bpm, duration, time_signature, audio_url, sheet_url, lyrics").in("id", songIds),
+      supabase.from("songs").select("id, title, artist, key, bpm, duration, time_signature, audio_url, sheet_url, lyrics").in("id", songIds),
       supabase.from("song_keys").select("id, song_id, key_name, audio_url, sheet_url, grid_bpm, grid_beats_per_bar, grid_beat_unit, grid_offset_seconds, sort_order").in("song_id", songIds).order("sort_order", { ascending: true }).order("created_at", { ascending: true }),
     ]);
     const itemSummaries = rawItems.filter((item) => item.type === "worship").map((item) => ({
@@ -66,8 +67,8 @@ export default async function ServiceRehearsalPage({ params }: { params: Promise
 
   return (
     <main className="min-h-screen py-2 sm:py-10">
-      <MainContainer className="max-w-4xl">
-        <RehearsalMode service={service} serviceId={serviceId} items={items} songSettings={(settingsResult.data ?? []) as ServiceSongSetting[]} songs={songs} loadError={itemsError?.message ?? settingsResult.error?.message} />
+      <MainContainer className="max-w-4xl lg:max-w-6xl">
+        <RehearsalMode service={service} serviceId={serviceId} itemNotes={(notesResult.data ?? []) as ServiceItemNote[]} items={items} songSettings={(settingsResult.data ?? []) as ServiceSongSetting[]} songs={songs} loadError={itemsError?.message ?? settingsResult.error?.message ?? notesResult.error?.message} />
       </MainContainer>
     </main>
   );
