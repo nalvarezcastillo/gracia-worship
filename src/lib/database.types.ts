@@ -61,6 +61,19 @@ export type SetServiceTeamAssignmentResourcesArgs = {
   p_resource_ids: string[];
 };
 
+export type CopyServiceTeamArgs = {
+  p_source_service_id: number;
+  p_target_service_id: number;
+};
+
+export type CopyServiceTeamResult = {
+  assignments_copied: number;
+  people_copied: number;
+  resources_copied: number;
+  source_service_id: number;
+  target_service_id: number;
+};
+
 export type CreateServicePlanArgs = {
   p_service_name: string;
   p_service_date: string;

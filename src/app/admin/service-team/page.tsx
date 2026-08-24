@@ -4,7 +4,7 @@ import { ManageCurrentServiceTeam } from "@/components/manage-current-service-te
 import { AppPage } from "@/components/app-page";
 import { ServiceContextEmptyState } from "@/components/service-context-empty-state";
 import { hasAuthenticatedUser } from "@/lib/auth";
-import { getServiceTeam } from "@/lib/current-service-team";
+import { getServiceTeam, getTeamCopySources } from "@/lib/current-service-team";
 import { getResourceManagerData } from "@/lib/resources";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getTeamMembers } from "@/lib/team";
@@ -23,11 +23,12 @@ export default async function ServiceTeamPage({ searchParams }: { searchParams: 
   if (requestedService && !service) notFound();
   if (!service) return <AppPage title="Equipo del servicio" desktopAdminSidebar><ServiceContextEmptyState message="Selecciona un servicio para administrar su equipo." /></AppPage>;
   if (service.status === "completed" || service.status === "archived") redirect(`/service/${service.id}`);
-  const [assignments, members, resourceData] = await Promise.all([
+  const [assignments, members, resourceData, copySources] = await Promise.all([
     getServiceTeam(service.id),
     getTeamMembers(true),
     getResourceManagerData(service.id),
+    getTeamCopySources(service.id),
   ]);
   const serviceName = service.service_name === "Saturday Service" ? "Servicio del Sábado" : service.service_name;
-  return <AppPage title="Equipo del servicio" maxWidth="max-w-6xl" desktopAdminSidebar hideMobileHeader breadcrumb={<><span>Administración</span><span className="mx-2">›</span><span className="text-zinc-300">Equipo del servicio</span></>}><ManageCurrentServiceTeam initialAssignments={assignments} teamMembers={members} resourceCategories={resourceData.categories} availableResources={resourceData.resources} initialUsages={resourceData.usages} serviceId={service.id} serviceName={serviceName} /></AppPage>;
+  return <AppPage title="Equipo del servicio" maxWidth="max-w-6xl" desktopAdminSidebar hideMobileHeader breadcrumb={<><span>Administración</span><span className="mx-2">›</span><span className="text-zinc-300">Equipo del servicio</span></>}><ManageCurrentServiceTeam copySources={copySources} initialAssignments={assignments} teamMembers={members} resourceCategories={resourceData.categories} availableResources={resourceData.resources} initialUsages={resourceData.usages} serviceId={service.id} serviceName={serviceName} /></AppPage>;
 }

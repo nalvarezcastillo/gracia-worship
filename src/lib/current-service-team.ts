@@ -9,6 +9,15 @@ export type CurrentServiceTeamGroup = {
   resources: string[];
 };
 
+export type TeamCopySource = {
+  assignments: CurrentServiceTeamMember[];
+  serviceDate: string | null;
+  serviceId: number;
+  serviceName: string;
+  serviceTime: string;
+  status: "active" | "planned" | "completed" | "archived";
+};
+
 export function groupCurrentServiceTeam(assignments: CurrentServiceTeamMember[]): CurrentServiceTeamGroup[] {
   const groups = new Map<string, CurrentServiceTeamGroup & { resourceIds: Set<string> }>();
 
@@ -116,6 +125,40 @@ export async function getServiceTeam(serviceId: number): Promise<CurrentServiceT
         return resource ? [resource] : [];
       }),
     })) as CurrentServiceTeamMember[];
+  } catch {
+    return [];
+  }
+}
+
+export async function getTeamCopySources(targetServiceId: number): Promise<TeamCopySource[]> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data: assignmentServices, error: assignmentError } = await supabase
+      .from("service_team_assignments")
+      .select("service_id")
+      .neq("service_id", targetServiceId);
+    if (assignmentError) return [];
+
+    const serviceIds = [...new Set((assignmentServices ?? []).map((row) => row.service_id))];
+    if (!serviceIds.length) return [];
+    const { data: services, error: serviceError } = await supabase
+      .from("active_setlist")
+      .select("id, service_name, service_date, service_time, status")
+      .in("id", serviceIds)
+      .order("service_date", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: false })
+      .limit(12);
+    if (serviceError) return [];
+
+    const teams = await Promise.all((services ?? []).map((service) => getServiceTeam(service.id)));
+    return (services ?? []).flatMap((service, index) => teams[index]?.length ? [{
+      assignments: teams[index],
+      serviceDate: service.service_date,
+      serviceId: service.id,
+      serviceName: service.service_name,
+      serviceTime: service.service_time,
+      status: service.status as TeamCopySource["status"],
+    }] : []);
   } catch {
     return [];
   }
