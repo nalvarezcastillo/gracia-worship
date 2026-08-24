@@ -10,7 +10,7 @@ import type { ServiceItem, ServiceSongSetting } from "@/lib/service";
 import { buildOperationalServiceEntries, type OperationalServiceEntry } from "@/lib/service-entries";
 import { normalizeServiceItemSongIds } from "@/lib/service-item-normalization";
 import { buildServiceSchedule, getOperationalEntryScheduleKey } from "@/lib/service-schedule";
-import { getActiveSetlist } from "@/lib/setlist";
+import { getDashboardServiceSelection, type ActiveSetlist, type DashboardServiceSelection } from "@/lib/setlist";
 import { getAppSettings } from "@/lib/app-settings";
 import { getServiceTeam, groupCurrentServiceTeam, type CurrentServiceTeamGroup } from "@/lib/current-service-team";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -21,7 +21,8 @@ export const dynamic = "force-dynamic";
 type DashboardSong = { duration: string; id: string; key?: string | null; title: string };
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ restored?: string }> }) {
-  const [setlist, appSettings, authenticated] = await Promise.all([getActiveSetlist(), getAppSettings(), hasAuthenticatedUser()]);
+  const [serviceSelection, appSettings, authenticated] = await Promise.all([getDashboardServiceSelection(), getAppSettings(), hasAuthenticatedUser()]);
+  const setlist = serviceSelection.state === "active" || serviceSelection.state === "planned" ? serviceSelection.service : null;
   const serviceTeam = setlist ? await getServiceTeam(setlist.id) : [];
   const operationalData = setlist ? await getOperationalServiceData(setlist.id, setlist.songs) : { hasItemNotes: false, items: [], settings: [], songs: [] };
   const operationalEntries = buildOperationalServiceEntries(operationalData.items, operationalData.songs, operationalData.settings);
@@ -38,7 +39,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
             <Link href={authenticated ? "/profile" : "/login"} aria-label={authenticated ? "Cuenta" : "Iniciar sesión"} className="grid size-10 shrink-0 place-items-center rounded-xl text-zinc-500 transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400"><CircleUserRound aria-hidden="true" className="size-5" /></Link>
           </header>
           <p className="mt-2.5 text-[1.375rem] font-semibold tracking-[-0.025em] text-white">{formatGreeting(new Date())}</p>
-          <MobileHomeContent authenticated={authenticated} entries={operationalEntries} hasItemNotes={operationalData.hasItemNotes} serviceTeamGroups={serviceTeamGroups} setlist={setlist} />
+          <MobileHomeContent authenticated={authenticated} entries={operationalEntries} hasItemNotes={operationalData.hasItemNotes} serviceSelection={serviceSelection} serviceTeamGroups={serviceTeamGroups} setlist={setlist} />
         </div>
 
         <div className="hidden lg:block">
@@ -49,7 +50,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
 
           {setlist ? <>
             <section className="mt-5 grid items-center gap-6 rounded-2xl border border-white/[0.08] border-t-[3px] border-t-emerald-500 bg-zinc-900/60 px-6 py-5 shadow-xl shadow-black/10 lg:grid-cols-[minmax(0,1fr)_auto]">
-              <div className="min-w-0"><p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Próximo servicio</p><h2 className="mt-2 text-2xl font-bold tracking-[-0.025em] text-white">{localizeDefaultServiceName(setlist.serviceName)}</h2><p className="mt-1 text-sm text-zinc-400">{serviceSchedule || "Horario por confirmar"}</p><div className="mt-4 flex flex-wrap gap-2"><PrimaryButton href={`/service/${setlist.id}`} className="min-h-10 rounded-xl px-4 text-sm shadow-none hover:translate-y-0">Abrir servicio</PrimaryButton><SecondaryButton href={`/service/${setlist.id}/rehearsal`} className="min-h-10 rounded-xl px-4 text-sm shadow-none hover:translate-y-0">Ensayo</SecondaryButton><SecondaryButton href="/live" className="min-h-10 rounded-xl px-4 text-sm shadow-none hover:translate-y-0">En Vivo</SecondaryButton></div></div>
+              <div className="min-w-0">{serviceSelection.state === "planned" ? <div className="flex flex-wrap items-center gap-2"><p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Próximo servicio</p><span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[0.625rem] font-bold uppercase tracking-[0.12em] text-zinc-400">Planificado</span></div> : <p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Próximo servicio</p>}<h2 className="mt-2 text-2xl font-bold tracking-[-0.025em] text-white">{localizeDefaultServiceName(setlist.serviceName)}</h2><p className="mt-1 text-sm text-zinc-400">{serviceSchedule || "Horario por confirmar"}</p>{serviceSelection.state === "planned" ? <div className="mt-4 flex flex-wrap gap-2"><PrimaryButton href={`/service/${setlist.id}`} className="min-h-10 rounded-xl px-4 text-sm shadow-none hover:translate-y-0">Abrir servicio</PrimaryButton><SecondaryButton href={`/service/${setlist.id}/preflight`} className="min-h-10 rounded-xl px-4 text-sm shadow-none hover:translate-y-0">Preflight</SecondaryButton><SecondaryButton href={`/service/${setlist.id}/rehearsal`} className="min-h-10 rounded-xl px-4 text-sm shadow-none hover:translate-y-0">Ensayo</SecondaryButton><SecondaryButton href={`/service/${setlist.id}/playback`} className="min-h-10 rounded-xl px-4 text-sm shadow-none hover:translate-y-0">Playback</SecondaryButton></div> : <div className="mt-4 flex flex-wrap gap-2"><PrimaryButton href={`/service/${setlist.id}`} className="min-h-10 rounded-xl px-4 text-sm shadow-none hover:translate-y-0">Abrir servicio</PrimaryButton><SecondaryButton href={`/service/${setlist.id}/rehearsal`} className="min-h-10 rounded-xl px-4 text-sm shadow-none hover:translate-y-0">Ensayo</SecondaryButton><SecondaryButton href="/live" className="min-h-10 rounded-xl px-4 text-sm shadow-none hover:translate-y-0">En Vivo</SecondaryButton></div>}</div>
               <ServiceCountdownCard inline serviceDate={setlist.serviceDate} serviceTime={setlist.serviceTime} serviceName={localizeDefaultServiceName(setlist.serviceName)} serviceSchedule={serviceSchedule} />
             </section>
 
@@ -59,7 +60,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
             </div>
 
             <section className="mt-5"><p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Accesos rápidos</p><div className="mt-2 grid grid-cols-2 gap-2 xl:grid-cols-6"><QuickAccess href="/admin/song/new" icon={Plus} label="Canción" /><QuickAccess href={`/admin/setlist?service=${setlist.id}`} icon={ListMusic} label="Editar Setlist" /><QuickAccess href={`/admin/service-team?service=${setlist.id}`} icon={Users} label="Equipo" /><QuickAccess href={`/admin/resources?service=${setlist.id}`} icon={Cable} label="Recursos" />{operationalData.hasItemNotes || Boolean(setlist.leaderNotes?.trim()) ? <QuickAccess href={`/service/${setlist.id}/notes`} icon={FileText} label="Notas" /> : null}<QuickAccess href="/admin/reports" icon={BarChart3} label="Reportes" /></div></section>
-          </> : <section className="mt-6 border-y border-white/[0.07] py-12 text-center"><p className="text-sm text-zinc-400">No hay un servicio preparado.</p><SecondaryButton href="/admin" className="mt-4 min-h-10 rounded-xl px-4 text-sm">Ir a Administración</SecondaryButton></section>}
+          </> : serviceSelection.state === "error" ? <DashboardServiceError /> : <DashboardServiceEmpty />}
         </div>
 
         {(await searchParams).restored === "1" ? <div role="status" className="fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-sm rounded-2xl border border-emerald-400/20 bg-zinc-900 px-4 py-3 text-center text-sm font-medium text-emerald-300 shadow-2xl">✅ Servicio restaurado correctamente.</div> : null}
@@ -68,16 +69,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   );
 }
 
-function MobileHomeContent({ authenticated, entries, hasItemNotes, serviceTeamGroups, setlist }: { authenticated: boolean; entries: OperationalServiceEntry<DashboardSong>[]; hasItemNotes: boolean; serviceTeamGroups: CurrentServiceTeamGroup[]; setlist: Awaited<ReturnType<typeof getActiveSetlist>> }) {
+function MobileHomeContent({ authenticated, entries, hasItemNotes, serviceSelection, serviceTeamGroups, setlist }: { authenticated: boolean; entries: OperationalServiceEntry<DashboardSong>[]; hasItemNotes: boolean; serviceSelection: DashboardServiceSelection; serviceTeamGroups: CurrentServiceTeamGroup[]; setlist: ActiveSetlist | null }) {
   if (!setlist) {
-    return (
-      <section className="mt-4 rounded-2xl border border-white/[0.08] bg-zinc-900/55 px-4 py-5">
-        <p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Próximo servicio</p>
-        <h1 className="mt-2 text-xl font-bold tracking-[-0.025em] text-white">No hay un servicio próximo seleccionado.</h1>
-        <p className="mt-2 text-sm leading-6 text-zinc-500">Consulta los servicios disponibles y selecciona el próximo desde su workspace.</p>
-        <Link href="/service" className="mt-4 inline-flex min-h-10 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-semibold text-zinc-200 transition-colors hover:bg-white/[0.05] focus-visible:outline-2 focus-visible:outline-emerald-400">Ver servicios</Link>
-      </section>
-    );
+    return serviceSelection.state === "error" ? <DashboardServiceError mobile /> : <DashboardServiceEmpty mobile />;
   }
 
   const songEntries = entries.filter((entry): entry is Extract<OperationalServiceEntry<DashboardSong>, { kind: "song" }> => entry.kind === "song");
@@ -89,16 +83,16 @@ function MobileHomeContent({ authenticated, entries, hasItemNotes, serviceTeamGr
     <div className="mt-4 space-y-5">
       <section className="relative overflow-hidden rounded-2xl border border-white/[0.045] bg-zinc-900/65 px-4 pb-5 pt-3 shadow-lg shadow-black/10">
         <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-14 size-40 rounded-full bg-emerald-400/[0.055] blur-3xl" />
-        <p className="relative text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Próximo servicio</p>
+        {serviceSelection.state === "planned" ? <div className="relative flex flex-wrap items-center gap-2"><p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Próximo servicio</p><span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[0.5625rem] font-bold uppercase tracking-[0.12em] text-zinc-400">Planificado</span></div> : <p className="relative text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Próximo servicio</p>}
         <div className="relative mt-1.5 flex items-start justify-between gap-4">
           {date ? <p className="shrink-0 text-xs font-bold uppercase tracking-[0.12em] text-zinc-400"><span className="block">{date.weekday}</span><span className="mt-0.5 block text-2xl leading-7 tabular-nums text-white">{date.day}</span><span className="block text-zinc-500">{date.month}</span></p> : <p className="text-xs font-semibold text-zinc-500">Fecha pendiente</p>}
           <p className="pt-1 text-right text-sm font-semibold tabular-nums text-zinc-300">{formatServiceTime(setlist.serviceTime)}</p>
         </div>
         <h1 className="relative mt-1.5 truncate text-[1.375rem] font-bold leading-7 tracking-[-0.025em] text-white">{localizeDefaultServiceName(setlist.serviceName)}</h1>
         <p className="relative mt-1 text-[0.8125rem] text-zinc-500">{entries.length} {entries.length === 1 ? "elemento" : "elementos"} · {songEntries.length} {songEntries.length === 1 ? "canción" : "canciones"}</p>
-        <div className="relative mt-4 flex gap-2.5">
+        <div className={`relative mt-4 flex gap-2.5 ${serviceSelection.state === "planned" ? "flex-wrap" : ""}`}>
           <Link href={`/service/${setlist.id}`} className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-xl bg-emerald-400 px-3 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400">Abrir servicio</Link>
-          <Link href="/live" className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-xl border border-emerald-400/20 bg-white/[0.035] px-3 text-[0.8125rem] font-semibold text-emerald-300 transition-colors hover:bg-emerald-400/[0.08] focus-visible:outline-2 focus-visible:outline-emerald-400"><span aria-hidden="true" className="mr-1.5 text-[0.5rem]">●</span>En Vivo</Link>
+          {serviceSelection.state === "planned" ? <><Link href={`/service/${setlist.id}/preflight`} className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-xl border border-white/10 px-3 text-[0.8125rem] font-semibold text-zinc-300 hover:bg-white/[0.05]">Preflight</Link><Link href={`/service/${setlist.id}/rehearsal`} className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-xl border border-white/10 px-3 text-[0.8125rem] font-semibold text-zinc-300 hover:bg-white/[0.05]">Ensayo</Link><Link href={`/service/${setlist.id}/playback`} className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-xl border border-white/10 px-3 text-[0.8125rem] font-semibold text-zinc-300 hover:bg-white/[0.05]">Playback</Link></> : <Link href="/live" className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-xl border border-emerald-400/20 bg-white/[0.035] px-3 text-[0.8125rem] font-semibold text-emerald-300 transition-colors hover:bg-emerald-400/[0.08] focus-visible:outline-2 focus-visible:outline-emerald-400"><span aria-hidden="true" className="mr-1.5 text-[0.5rem]">●</span>En Vivo</Link>}
         </div>
       </section>
 
@@ -116,6 +110,9 @@ function MobileHomeContent({ authenticated, entries, hasItemNotes, serviceTeamGr
     </div>
   );
 }
+
+function DashboardServiceError({ mobile = false }: { mobile?: boolean }) { return <section className={`${mobile ? "mt-4 rounded-2xl border border-rose-300/15 bg-rose-300/[0.035] px-4 py-5" : "mt-6 border-y border-rose-300/15 py-12 text-center"}`}><p className="text-sm font-semibold text-rose-200">No se pudo cargar el servicio.</p><p className="mt-1 text-sm text-zinc-500">Verifica tu conexión e inténtalo nuevamente.</p><SecondaryButton href="/" className="mt-4 min-h-10 rounded-xl px-4 text-sm">Reintentar</SecondaryButton></section>; }
+function DashboardServiceEmpty({ mobile = false }: { mobile?: boolean }) { return <section className={`${mobile ? "mt-4 rounded-2xl border border-white/[0.08] bg-zinc-900/55 px-4 py-5" : "mt-6 border-y border-white/[0.07] py-12 text-center"}`}><p className={`${mobile ? "text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400" : "text-sm text-zinc-400"}`}>{mobile ? "Próximo servicio" : "No hay servicios próximos."}</p>{mobile ? <><h1 className="mt-2 text-xl font-bold tracking-[-0.025em] text-white">No hay servicios próximos.</h1><p className="mt-2 text-sm leading-6 text-zinc-500">Consulta los servicios disponibles o crea un nuevo plan.</p></> : null}<SecondaryButton href="/admin" className="mt-4 min-h-10 rounded-xl px-4 text-sm">Ir a Administración</SecondaryButton></section>; }
 
 function DashboardCard({ aside, children, label }: { aside: string; children: React.ReactNode; label: string }) { return <section className="overflow-hidden rounded-2xl border border-white/[0.08] border-t-[3px] border-t-emerald-500 bg-zinc-900/50 shadow-lg shadow-black/10"><header className="flex items-center justify-between gap-4 border-b border-white/[0.07] px-4 py-3"><h2 className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-400">{label}</h2><p className="text-xs text-zinc-500">{aside}</p></header>{children}</section>; }
 
