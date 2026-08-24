@@ -197,7 +197,7 @@ export function ManageCurrentServiceTeam({ availableResources, copySources, init
       await refreshUsages();
       if (closeForm) setOpen(false);
     }
-    else setMessage(error.message);
+    else setMessage(error.code === "23503" ? "Esta asignación es responsable de uno o más elementos del servicio. Quita esas responsabilidades antes de eliminarla." : error.message);
   }
 
   async function move(index: number, direction: -1 | 1) {

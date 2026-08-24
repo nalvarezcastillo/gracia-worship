@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ServiceItems } from "@/components/service-items";
 import { MainContainer } from "@/components/ui/main-container";
-import type { ActiveSetlistRow } from "@/lib/database.types";
+import type { ActiveSetlistRow, ServiceItemResponsibilityRow } from "@/lib/database.types";
 import type { ServiceItem, ServiceItemNote, ServiceSong, ServiceSongSetting } from "@/lib/service";
 import { normalizeServiceItemSongIds } from "@/lib/service-item-normalization";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -19,7 +19,7 @@ export default async function ServiceWorkspacePage({ params, searchParams }: { p
 
   const supabase = await createSupabaseServerClient();
   const authenticated = await hasAuthenticatedUser();
-  const [{ data, error }, { data: songsData, error: songsError }, { data: settingsData, error: settingsError }, { data: notesData, error: notesError }, { data: serviceData, error: serviceError }, { data: activeService }, teamMembers, serviceTeamAssignments] = await Promise.all([
+  const [{ data, error }, { data: songsData, error: songsError }, { data: settingsData, error: settingsError }, { data: notesData, error: notesError }, { data: responsibilityData, error: responsibilityError }, { data: serviceData, error: serviceError }, { data: activeService }, teamMembers, serviceTeamAssignments] = await Promise.all([
     supabase
       .from("service_items")
       .select("id, position, type, title, details, planned_duration_seconds, song_ids, song_id, created_at")
@@ -31,6 +31,7 @@ export default async function ServiceWorkspacePage({ params, searchParams }: { p
       .order("title", { ascending: true }),
     supabase.from("service_song_settings").select("service_id, service_item_id, song_id, key_override").eq("service_id", serviceId),
     authenticated ? supabase.from("service_item_notes").select("service_id, service_item_id, notes").eq("service_id", serviceId) : Promise.resolve({ data: [], error: null }),
+    supabase.from("service_item_responsibilities").select("id, service_id, service_item_id, service_team_assignment_id, sort_order, created_at").eq("service_id", serviceId).order("sort_order").order("created_at"),
     supabase.from("active_setlist").select("service_name, service_date, service_time, leader_notes, status").eq("id", serviceId).maybeSingle(),
     supabase.from("active_setlist").select("id").eq("status", "active").maybeSingle(),
     getTeamMembers(true),
@@ -42,7 +43,7 @@ export default async function ServiceWorkspacePage({ params, searchParams }: { p
   const songs = songsError ? [] : (songsData ?? []) as ServiceSong[];
   const settings = settingsError ? [] : (settingsData ?? []) as ServiceSongSetting[];
   const itemNotes = notesError ? [] : (notesData ?? []) as ServiceItemNote[];
-  const loadError = error?.message ?? songsError?.message ?? settingsError?.message ?? notesError?.message;
+  const loadError = error?.message ?? songsError?.message ?? settingsError?.message ?? notesError?.message ?? responsibilityError?.message;
   const service = serviceData as Pick<ActiveSetlistRow, "service_name" | "service_date" | "service_time" | "leader_notes" | "status">;
   const isEditable = service.status === "active" || service.status === "planned";
   const serviceSchedule = [
@@ -57,7 +58,7 @@ export default async function ServiceWorkspacePage({ params, searchParams }: { p
   return (
     <main className="min-h-screen pb-[calc(5rem+env(safe-area-inset-bottom))] pt-3 sm:py-10 lg:py-0">
       <MainContainer className="max-w-3xl lg:max-w-none lg:px-0">
-        <ServiceItems initialItems={items} initialItemNotes={itemNotes} initialSongSettings={settings} songs={songs} isAdmin={authenticated && isEditable} authenticated={authenticated} lifecycleStatus={service.status} hasCurrentActive={Boolean(activeService)} canDeleteService={authenticated && service.status === "planned"} loadError={loadError} mobileServiceSchedule={mobileServiceSchedule} serviceId={serviceId} serviceName={localizeDefaultServiceName(service.service_name)} serviceSchedule={serviceSchedule} serviceTime={service.service_time} showPreparedToast={(await searchParams).prepared === "1"} teamMembers={teamMembers} serviceTeamAssignments={serviceTeamAssignments} />
+        <ServiceItems initialItems={items} initialItemNotes={itemNotes} initialResponsibilities={(responsibilityData ?? []) as ServiceItemResponsibilityRow[]} initialSongSettings={settings} songs={songs} isAdmin={authenticated && isEditable} authenticated={authenticated} lifecycleStatus={service.status} hasCurrentActive={Boolean(activeService)} canDeleteService={authenticated && service.status === "planned"} loadError={loadError} mobileServiceSchedule={mobileServiceSchedule} serviceId={serviceId} serviceName={localizeDefaultServiceName(service.service_name)} serviceSchedule={serviceSchedule} serviceTime={service.service_time} showPreparedToast={(await searchParams).prepared === "1"} teamMembers={teamMembers} serviceTeamAssignments={serviceTeamAssignments} />
         {authenticated && service.leader_notes?.trim() ? (
           <section className="mt-6 overflow-hidden rounded-3xl border border-white/[0.07] bg-zinc-900/60 shadow-xl shadow-black/10 sm:mt-8">
             <div className="border-b border-white/[0.06] p-5 sm:p-6">

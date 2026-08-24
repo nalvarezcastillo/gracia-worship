@@ -56,6 +56,21 @@ export type ServiceTeamAssignmentResourceRow = {
   created_at: string;
 };
 
+export type ServiceItemResponsibilityRow = {
+  created_at: string;
+  id: string;
+  service_id: number;
+  service_item_id: string;
+  service_team_assignment_id: string;
+  sort_order: number;
+};
+
+export type SetServiceItemResponsibilitiesArgs = {
+  p_assignment_ids: string[];
+  p_service_id: number;
+  p_service_item_id: string;
+};
+
 export type SetServiceTeamAssignmentResourcesArgs = {
   p_assignment_id: string;
   p_resource_ids: string[];
