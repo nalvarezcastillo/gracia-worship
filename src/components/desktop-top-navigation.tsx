@@ -5,13 +5,11 @@ import { usePathname } from "next/navigation";
 import { UserRound } from "lucide-react";
 
 const navigationItems = [
-  { href: "/service", label: "Servicio", active: (path: string) => path.startsWith("/service") || path === "/setlist" || path === "/archive" },
+  { href: "/service", label: "Servicios", active: (path: string) => path.startsWith("/service") || path === "/setlist" || path === "/archive" },
   { href: "/songs", label: "Canciones", active: (path: string) => path.startsWith("/songs") || path.startsWith("/song/") || path.startsWith("/admin/song") },
   { href: "/admin/service-team", label: "Equipo", active: (path: string) => path.startsWith("/admin/service-team") || path.startsWith("/admin/team") },
-  { href: "/admin/resources", label: "Recursos", active: (path: string) => path.startsWith("/admin/resources") || path.startsWith("/admin/microphones") },
   { href: "/live", label: "En Vivo", active: (path: string) => path.startsWith("/live") },
-  { href: "/admin/reports", label: "Reportes", active: (path: string) => path.startsWith("/admin/reports") || /^\/service\/\d+\/report$/.test(path) },
-  { href: "/admin", label: "Admin", active: (path: string) => path.startsWith("/admin") && !path.startsWith("/admin/song") && !path.startsWith("/admin/team") && !path.startsWith("/admin/service-team") && !path.startsWith("/admin/resources") && !path.startsWith("/admin/microphones") && !path.startsWith("/admin/reports") },
+  { href: "/admin", label: "Más", active: (path: string) => path.startsWith("/admin") && !path.startsWith("/admin/song") && !path.startsWith("/admin/team") && !path.startsWith("/admin/service-team") },
 ];
 
 export function DesktopTopNavigation() {

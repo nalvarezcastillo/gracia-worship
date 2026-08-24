@@ -5,11 +5,11 @@ import { usePathname } from "next/navigation";
 import { AdminIcon, HomeIcon, LiveIcon, MusicIcon, ServiceIcon } from "@/components/icons";
 
 const items = [
-  { href: "/", label: "Home", icon: HomeIcon, active: (path: string) => path === "/" },
-  { href: "/songs", label: "Songs", icon: MusicIcon, active: (path: string) => path.startsWith("/songs") || path.startsWith("/song/") },
-  { href: "/service", label: "Service", icon: ServiceIcon, active: (path: string) => path.startsWith("/service") },
+  { href: "/", label: "Inicio", icon: HomeIcon, active: (path: string) => path === "/" },
+  { href: "/songs", label: "Canciones", icon: MusicIcon, active: (path: string) => path.startsWith("/songs") || path.startsWith("/song/") },
+  { href: "/service", label: "Servicios", icon: ServiceIcon, active: (path: string) => path.startsWith("/service") },
   { href: "/live", label: "En Vivo", icon: LiveIcon, active: (path: string) => path.startsWith("/live") },
-  { href: "/admin", label: "Admin", icon: AdminIcon, active: (path: string) => path.startsWith("/admin") },
+  { href: "/admin", label: "Más", icon: AdminIcon, active: (path: string) => path.startsWith("/admin") },
 ];
 
 export function BottomNavigation() {
