@@ -77,6 +77,10 @@ export type DeletePlannedServiceArgs = {
   p_service_id: number;
 };
 
+export type DeleteHistoricalServiceArgs = {
+  p_service_id: number;
+};
+
 export type ServicePlanRpcResult = number;
 
 export type ServiceLifecycleRpcArgs = {

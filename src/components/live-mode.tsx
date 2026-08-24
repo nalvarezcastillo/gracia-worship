@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppActionBar } from "@/components/app-action-bar";
 import { AppConfirmDialog } from "@/components/app-confirm-dialog";
 import { PrimaryButton, SecondaryButton } from "@/components/ui/action-button";
-import type { ActiveSetlistRow, ServiceItemRunRow } from "@/lib/database.types";
+import type { ActiveSetlistRow, CompleteLiveServiceAndAdvanceResult, ServiceItemRunRow } from "@/lib/database.types";
 import { parseAssignmentText } from "@/lib/assignment-text";
 import { formatDuration, getActualRunSeconds, getServiceItemDurationSeconds, getSongDurationSeconds } from "@/lib/duration";
 import type { ServiceItem, ServiceItemNote, ServiceSongSetting, WorshipSongEntry } from "@/lib/service";
@@ -83,6 +83,9 @@ export function LiveMode({ canControl, initialRuns, initialState, itemNotes, ite
   const [isStartOpen, setIsStartOpen] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState("");
+  const [isFinishOpen, setIsFinishOpen] = useState(false);
+  const [finishError, setFinishError] = useState("");
+  const [promotionResult, setPromotionResult] = useState<CompleteLiveServiceAndAdvanceResult | null>(null);
   const displayIndex = inspectionIndex ?? currentIndex;
   const currentEntry = entries[displayIndex];
   const liveEntry = entries[currentIndex];
@@ -182,7 +185,7 @@ export function LiveMode({ canControl, initialRuns, initialState, itemNotes, ite
   }
 
   async function advanceLive() {
-    if (!canControl || serviceId === null || !liveEntry || isChanging) return;
+    if (!canControl || serviceId === null || !liveEntry || isChanging || isLast) return;
     setIsChanging(true);
     setControlError("");
     const { data, error } = await supabase.rpc("advance_service_live", {
@@ -196,6 +199,37 @@ export function LiveMode({ canControl, initialRuns, initialState, itemNotes, ite
       const state = Array.isArray(data) ? data[0] : data;
       if (state) applyAuthoritativeState(state as LiveServiceState, entries, setCurrentIndex, setStartedAt, setFinishedAt, setHasLiveState);
       setInspectionIndex(null);
+      await refreshRuns();
+    }
+    setIsChanging(false);
+  }
+
+  async function finishService() {
+    if (!canControl || serviceId === null || !liveEntry || isChanging || !isLast) return;
+    setIsChanging(true);
+    setControlError("");
+    setFinishError("");
+
+    const { data, error } = await supabase.rpc("complete_live_service_and_advance", { p_service_id: serviceId });
+    if (error) {
+      setFinishError(`No se pudo finalizar el servicio: ${error.message}`);
+      setIsChanging(false);
+      return;
+    }
+
+    const result = (Array.isArray(data) ? data[0] : data) as CompleteLiveServiceAndAdvanceResult | null;
+    setPromotionResult(result);
+    const { data: state, error: stateError } = await supabase
+      .from("live_service_state")
+      .select("service_id, current_item_id, current_song_id, occurrence_index, started_at, finished_at, updated_at")
+      .eq("service_id", serviceId)
+      .maybeSingle();
+    if (stateError || !state) {
+      setFinishError("El servicio se completó, pero no se pudo actualizar esta pantalla. Recarga la página para ver el resumen final.");
+    } else {
+      applyAuthoritativeState(state as LiveServiceState, entries, setCurrentIndex, setStartedAt, setFinishedAt, setHasLiveState);
+      setInspectionIndex(null);
+      setIsFinishOpen(false);
       await refreshRuns();
     }
     setIsChanging(false);
@@ -234,7 +268,7 @@ export function LiveMode({ canControl, initialRuns, initialState, itemNotes, ite
 
   if (livePhase === "finished" && finishedAt) {
     const serviceName = service ? localizeDefaultServiceName(service.service_name) : "Servicio actual";
-    return <FinishedService canControl={canControl && !isChanging} finishedAt={finishedAt} onUndo={() => void undoAdvance()} plannedSeconds={getCompletePlannedDuration(entries)} runs={runs} serviceId={serviceId} serviceName={serviceName} syncStatus={syncStatus} />;
+    return <FinishedService finishedAt={finishedAt} plannedSeconds={getCompletePlannedDuration(entries)} promotionResult={promotionResult} runs={runs} serviceId={serviceId} serviceName={serviceName} syncStatus={syncStatus} />;
   }
 
   if (livePhase === "notStarted") {
@@ -305,8 +339,8 @@ export function LiveMode({ canControl, initialRuns, initialState, itemNotes, ite
               {isInspecting ? (
                 <button type="button" onClick={() => setInspectionIndex(null)} className={primaryButtonStyles}>Volver a Ahora</button>
               ) : (
-                <button type="button" disabled={!canControl || isChanging} onClick={() => void advanceLive()} className={primaryButtonStyles}>
-                  <span className="min-w-0"><span className="block">{isLast ? "Completar servicio" : "Completar y avanzar"}</span><span className="hidden truncate text-xs font-normal opacity-70 lg:block">{nextEntry?.title ?? "Fin del servicio"}</span></span>{isLast ? <CircleCheck className="size-5" /> : <ArrowRight aria-hidden="true" className="size-5" />}
+                <button type="button" disabled={!canControl || isChanging} onClick={() => { if (isLast) { setFinishError(""); setIsFinishOpen(true); } else { void advanceLive(); } }} className={primaryButtonStyles}>
+                  <span className="min-w-0"><span className="block">{isLast ? "Finalizar servicio" : "Completar y avanzar"}</span><span className="hidden truncate text-xs font-normal opacity-70 lg:block">{nextEntry?.title ?? "Cierre definitivo"}</span></span>{isLast ? <CircleCheck className="size-5" /> : <ArrowRight aria-hidden="true" className="size-5" />}
                 </button>
               )}
             </nav> : null}
@@ -322,6 +356,7 @@ export function LiveMode({ canControl, initialRuns, initialState, itemNotes, ite
           No hay elementos en el servicio actual.
         </div>
       )}
+      {isFinishOpen ? <AppConfirmDialog title="Finalizar servicio" titleId="finish-service-title" descriptionId="finish-service-description" actions={<AppActionBar className="sm:justify-end"><SecondaryButton type="button" onClick={() => setIsFinishOpen(false)} disabled={isChanging}>Cancelar</SecondaryButton><PrimaryButton type="button" onClick={() => void finishService()} disabled={isChanging}>{isChanging ? "Finalizando..." : "Finalizar servicio"}</PrimaryButton></AppActionBar>}><p id="finish-service-description" className="mt-3 text-sm leading-6 text-zinc-400">Esto marcará el servicio como completado y cerrará el modo En Vivo.</p><p className="mt-2 text-sm leading-6 text-zinc-500">Si existe un único próximo servicio elegible, quedará preparado automáticamente.</p>{finishError ? <p role="alert" className="mt-3 text-sm leading-6 text-rose-300">{finishError}</p> : null}</AppConfirmDialog> : null}
     </div>
   );
 }
@@ -330,10 +365,17 @@ function NotStartedService({ canControl, entryCount, onStart, plannedSeconds, se
   return <div className="flex min-h-[calc(100dvh-9rem)] items-center justify-center pb-20 sm:pb-8"><section className="w-full max-w-xl rounded-3xl border border-white/[0.08] bg-zinc-900 p-6 text-center shadow-xl shadow-black/20 sm:p-10"><p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">En Vivo</p><h1 className="mt-3 text-2xl font-bold tracking-[-0.03em] text-white sm:text-4xl">{serviceName}</h1>{service ? <p className="mt-2 text-sm text-zinc-400">{[service.service_date ? formatServiceDate(service.service_date) : "", service.service_time].filter(Boolean).join(" · ")}</p> : null}{canControl ? <><dl className="mt-8 grid grid-cols-2 gap-4 border-y border-white/[0.07] py-5"><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Elementos</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{entryCount}</dd></div><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Duración planeada</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{plannedSeconds === null ? "—" : formatDuration(plannedSeconds)}</dd></div></dl><button type="button" onClick={onStart} disabled={entryCount === 0} className={`${primaryButtonStyles} mt-7 w-full`}>▶ Iniciar servicio</button><p className="mt-3 text-xs text-zinc-500">El servicio comenzará en el primer elemento del Run Sheet.</p></> : <p className="mt-8 text-base text-zinc-400">El servicio aún no ha comenzado.</p>}<p className={`mt-5 text-[0.6875rem] ${syncStatus === "connected" ? "text-zinc-600" : "text-amber-400/70"}`}>{syncStatus === "connected" ? "Sincronizado" : "Reconectando..."}</p></section></div>;
 }
 
-function FinishedService({ canControl, finishedAt, onUndo, plannedSeconds, runs, serviceId, serviceName, syncStatus }: { canControl: boolean; finishedAt: string; onUndo: () => void; plannedSeconds: number | null; runs: LiveRun[]; serviceId: number | null; serviceName: string; syncStatus: "connected" | "reconnecting" }) {
+function FinishedService({ finishedAt, plannedSeconds, promotionResult, runs, serviceId, serviceName, syncStatus }: { finishedAt: string; plannedSeconds: number | null; promotionResult: CompleteLiveServiceAndAdvanceResult | null; runs: LiveRun[]; serviceId: number | null; serviceName: string; syncStatus: "connected" | "reconnecting" }) {
   const actualSeconds = runs.reduce((total, run) => total + getActualRunSeconds(run, finishedAt), 0);
   const difference = plannedSeconds === null ? null : actualSeconds - plannedSeconds;
-  return <div className="flex min-h-[calc(100dvh-9rem)] items-center justify-center pb-20 sm:pb-8"><section className="w-full max-w-xl rounded-3xl border border-white/[0.08] bg-zinc-900 p-6 text-center shadow-xl shadow-black/20 sm:p-10"><CircleCheck aria-hidden="true" className="mx-auto size-10 text-emerald-400" /><p className="mt-5 text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">Servicio completado</p><h1 className="mt-3 text-2xl font-bold tracking-[-0.03em] text-white sm:text-4xl">{serviceName}</h1><dl className="mt-8 grid grid-cols-3 gap-4 border-y border-white/[0.07] py-5"><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Plan</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{plannedSeconds === null ? "—" : formatDuration(plannedSeconds)}</dd></div><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Real</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{formatDuration(actualSeconds)}</dd></div><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Diferencia</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{difference === null ? "—" : formatSignedDuration(difference)}</dd></div></dl><p className="mt-5 text-sm text-zinc-400">Finalizado a las {formatDeviceTime(new Date(finishedAt))}</p>{serviceId !== null ? <div className="mt-7 grid gap-3"><Link href={`/service/${serviceId}/report`} className={`${primaryButtonStyles} w-full`}>Ver reporte</Link>{canControl ? <button type="button" onClick={onUndo} className={`${secondaryButtonStyles} w-full`}>Deshacer último avance</button> : null}</div> : null}<p className={`mt-4 text-[0.6875rem] ${syncStatus === "connected" ? "text-zinc-600" : "text-amber-400/70"}`}>{syncStatus === "connected" ? "Sincronizado" : "Reconectando..."}</p></section></div>;
+  return <div className="flex min-h-[calc(100dvh-9rem)] items-center justify-center pb-20 sm:pb-8"><section className="w-full max-w-xl rounded-3xl border border-white/[0.08] bg-zinc-900 p-6 text-center shadow-xl shadow-black/20 sm:p-10"><CircleCheck aria-hidden="true" className="mx-auto size-10 text-emerald-400" /><p className="mt-5 text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">Servicio completado</p><h1 className="mt-3 text-2xl font-bold tracking-[-0.03em] text-white sm:text-4xl">{serviceName}</h1><dl className="mt-8 grid grid-cols-3 gap-4 border-y border-white/[0.07] py-5"><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Plan</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{plannedSeconds === null ? "—" : formatDuration(plannedSeconds)}</dd></div><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Real</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{formatDuration(actualSeconds)}</dd></div><div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Diferencia</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{difference === null ? "—" : formatSignedDuration(difference)}</dd></div></dl><p className="mt-5 text-sm text-zinc-400">Finalizado a las {formatDeviceTime(new Date(finishedAt))}</p>{promotionResult ? <p className="mt-3 text-sm leading-6 text-zinc-400">{getPromotionMessage(promotionResult)}</p> : null}{serviceId !== null ? <div className="mt-7 grid gap-3"><Link href={`/service/${serviceId}/report`} className={`${primaryButtonStyles} w-full`}>Ver reporte</Link></div> : null}<p className={`mt-4 text-[0.6875rem] ${syncStatus === "connected" ? "text-zinc-600" : "text-amber-400/70"}`}>{syncStatus === "connected" ? "Sincronizado" : "Reconectando..."}</p></section></div>;
+}
+
+function getPromotionMessage(result: CompleteLiveServiceAndAdvanceResult) {
+  if (result.promotion_status === "promoted") return "El próximo servicio quedó preparado y activo.";
+  if (result.promotion_status === "ambiguous") return "Hay varios servicios elegibles en el mismo horario. Ninguno fue seleccionado automáticamente.";
+  if (result.promotion_status === "malformed_completed_schedule") return "El servicio quedó completado, pero su fecha u hora no permite seleccionar automáticamente el próximo servicio.";
+  return "No hay un próximo servicio planificado para preparar.";
 }
 
 function EmptyLiveService() {
