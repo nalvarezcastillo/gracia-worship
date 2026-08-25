@@ -15,6 +15,11 @@ export type PersistedOutputDevice = {
 };
 
 export type LogicalStemRoute = { label: string; route: StemOutputRoute };
+export type RememberedStemRouting = {
+  device: PersistedOutputDevice;
+  routes: Record<string, StemOutputRoute>;
+  updatedAt: string;
+};
 export type PlaybackRoutingPreset = {
   createdAt: string;
   device: PersistedOutputDevice;
@@ -28,6 +33,7 @@ export type PlaybackRoutingPreferences = {
   lastSelectedPresetId: string | null;
   preferredDevice: PersistedOutputDevice | null;
   presets: PlaybackRoutingPreset[];
+  rememberedStemRouting: Record<string, RememberedStemRouting>;
   version: 1;
 };
 export type PresetRouteResolution = {
@@ -38,12 +44,12 @@ export type PresetRouteResolution = {
 };
 
 export function emptyPlaybackRoutingPreferences(): PlaybackRoutingPreferences {
-  return { lastSelectedPresetId: null, preferredDevice: null, presets: [], version: PLAYBACK_ROUTING_VERSION };
+  return { lastSelectedPresetId: null, preferredDevice: null, presets: [], rememberedStemRouting: {}, version: PLAYBACK_ROUTING_VERSION };
 }
 
-export function loadPlaybackRoutingPreferences(storage: Pick<Storage, "getItem"> = window.localStorage) {
+export function loadPlaybackRoutingPreferences(storage?: Pick<Storage, "getItem">) {
   try {
-    const raw = storage.getItem(PLAYBACK_ROUTING_STORAGE_KEY);
+    const raw = (storage ?? window.localStorage).getItem(PLAYBACK_ROUTING_STORAGE_KEY);
     if (!raw) return emptyPlaybackRoutingPreferences();
     return parsePreferences(JSON.parse(raw));
   } catch {
@@ -51,8 +57,8 @@ export function loadPlaybackRoutingPreferences(storage: Pick<Storage, "getItem">
   }
 }
 
-export function savePlaybackRoutingPreferences(preferences: PlaybackRoutingPreferences, storage: Pick<Storage, "setItem"> = window.localStorage) {
-  try { storage.setItem(PLAYBACK_ROUTING_STORAGE_KEY, JSON.stringify(preferences)); return true; }
+export function savePlaybackRoutingPreferences(preferences: PlaybackRoutingPreferences, storage?: Pick<Storage, "setItem">) {
+  try { (storage ?? window.localStorage).setItem(PLAYBACK_ROUTING_STORAGE_KEY, JSON.stringify(preferences)); return true; }
   catch { return false; }
 }
 
@@ -65,6 +71,29 @@ export function logicalRoutesFromRuntime(stems: PublicSongStem[], routes: Readon
     if (identity && !logical[identity]) logical[identity] = { label: stem.name, route };
   }
   return logical;
+}
+
+export function getStemRoutingIdentity(stems: PublicSongStem[]) {
+  const identities = new Set(stems.map((stem) => stem.song_key_id).filter(Boolean));
+  return identities.size === 1 ? identities.values().next().value ?? null : null;
+}
+
+export function stemRoutesFromRuntime(stems: PublicSongStem[], routes: ReadonlyMap<string, StemOutputRoute>) {
+  const stemIds = new Set(stems.map((stem) => stem.id));
+  const persisted: Record<string, StemOutputRoute> = {};
+  for (const [stemId, route] of routes) {
+    if (stemIds.has(stemId) && route.mode !== "standard") persisted[stemId] = route;
+  }
+  return persisted;
+}
+
+export function resolveRememberedStemRoutes(remembered: RememberedStemRouting, stems: PublicSongStem[], channelCount: number) {
+  const routes = new Map<string, StemOutputRoute>();
+  const stemIds = new Set(stems.map((stem) => stem.id));
+  for (const [stemId, route] of Object.entries(remembered.routes)) {
+    if (stemIds.has(stemId) && isValidStemOutputRoute(route, channelCount)) routes.set(stemId, route);
+  }
+  return routes;
 }
 
 export function resolvePresetRoutes(preset: PlaybackRoutingPreset, stems: PublicSongStem[], channelCount: number): PresetRouteResolution {
@@ -90,7 +119,24 @@ function parsePreferences(value: unknown): PlaybackRoutingPreferences {
   const presets = Array.isArray(value.presets) ? value.presets.flatMap(parsePreset) : [];
   const preferredDevice = parseDevice(value.preferredDevice);
   const selected = typeof value.lastSelectedPresetId === "string" && presets.some((preset) => preset.id === value.lastSelectedPresetId) ? value.lastSelectedPresetId : null;
-  return { lastSelectedPresetId: selected, preferredDevice, presets, version: PLAYBACK_ROUTING_VERSION };
+  const rememberedStemRouting = parseRememberedStemRouting(value.rememberedStemRouting);
+  return { lastSelectedPresetId: selected, preferredDevice, presets, rememberedStemRouting, version: PLAYBACK_ROUTING_VERSION };
+}
+
+function parseRememberedStemRouting(value: unknown) {
+  const remembered: Record<string, RememberedStemRouting> = {};
+  if (!isRecord(value)) return remembered;
+  for (const [identity, entry] of Object.entries(value)) {
+    if (!identity || !isRecord(entry) || !isRecord(entry.routes)) continue;
+    const device = parseDevice(entry.device);
+    if (!device) continue;
+    const routes: Record<string, StemOutputRoute> = {};
+    for (const [stemId, route] of Object.entries(entry.routes)) {
+      if (stemId && isRoute(route)) routes[stemId] = route;
+    }
+    remembered[identity] = { device, routes, updatedAt: typeof entry.updatedAt === "string" ? entry.updatedAt : "" };
+  }
+  return remembered;
 }
 
 function parsePreset(value: unknown): PlaybackRoutingPreset[] {
