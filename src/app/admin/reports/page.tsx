@@ -74,7 +74,7 @@ export default async function ServiceReportsPage() {
   });
 
   return (
-    <AppPage breadcrumb={<><Link href="/admin" className="transition-colors duration-200 hover:text-emerald-300">Administración</Link><span aria-hidden="true"> &gt; </span><span className="text-zinc-300">Reportes</span></>} description="Resumen de tiempos registrados y acceso al detalle de cada servicio." desktopAdminSidebar maxWidth="max-w-6xl" title="Historial de servicios">
+    <AppPage breadcrumb={<><Link href="/admin" className="transition-colors duration-200 hover:text-emerald-300">Administración</Link><span aria-hidden="true"> &gt; </span><span className="text-zinc-300">Reportes</span></>} eyebrow="Analítica" description="Resumen de tiempos registrados y acceso al detalle de cada servicio." maxWidth="max-w-6xl" title="Historial de servicios">
       <HistoricalTrendsSection trends={trends} />
       <div className="mt-10 flex items-end justify-between gap-4 border-b border-white/[0.07] pb-3"><div><p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-emerald-400">Reportes</p><h2 className="mt-1 text-xl font-bold tracking-tight text-white">Historial de servicios</h2></div><p className="text-xs text-zinc-600">Hasta {REPORT_LIMIT} servicios</p></div>
       {!reports.length ? (

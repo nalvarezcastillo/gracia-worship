@@ -7,7 +7,7 @@ import { PrimaryButton } from "@/components/ui/action-button";
 import type { SongRecord } from "@/lib/database.types";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-const fieldStyles = "min-h-12 w-full rounded-2xl border border-white/8 bg-zinc-950/45 px-4 text-base text-white shadow-inner shadow-black/10 outline-none transition-all duration-200 placeholder:text-zinc-600 hover:border-white/12 focus:border-emerald-400/50 focus:bg-zinc-950/60 focus:ring-4 focus:ring-emerald-400/[0.07]";
+const fieldStyles = "min-h-12 w-full rounded-xl border border-white/[0.09] bg-black/20 px-4 text-base text-white outline-none transition-colors duration-200 placeholder:text-zinc-600 hover:border-white/[0.14] focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]";
 
 export function EditSongForm({ song }: { song: SongRecord }) {
   const router = useRouter();
@@ -136,8 +136,8 @@ export function EditSongForm({ song }: { song: SongRecord }) {
       </div>
 
       {isDeleteDialogOpen ? (
-        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/70 px-4 backdrop-blur-sm" role="presentation">
-          <section role="dialog" aria-modal="true" aria-labelledby="delete-song-title" aria-describedby="delete-song-description" className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-900 p-6 shadow-2xl shadow-black/60 sm:p-7">
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:grid sm:place-items-center sm:px-4" role="presentation">
+          <section role="dialog" aria-modal="true" aria-labelledby="delete-song-title" aria-describedby="delete-song-description" className="max-h-[calc(100dvh-1.5rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-zinc-900 p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl shadow-black/60 sm:rounded-3xl sm:p-7">
             <h2 id="delete-song-title" className="text-2xl font-bold tracking-tight text-white">Delete Song</h2>
             <div id="delete-song-description" className="mt-4 space-y-3 text-base leading-7 text-zinc-400">
               <p>Are you sure you want to permanently delete this song?</p>
@@ -155,7 +155,7 @@ export function EditSongForm({ song }: { song: SongRecord }) {
 }
 
 function FormSection({ title, children }: { title: string; children: ReactNode }) {
-  return <section className="rounded-3xl border border-white/[0.07] bg-zinc-900/60 p-5 shadow-xl shadow-black/10 sm:p-7"><h2 className="mb-5 text-xs font-bold uppercase tracking-[0.2em] text-zinc-200 sm:mb-6 sm:text-sm">{title}</h2>{children}</section>;
+  return <section className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-5 sm:p-7"><h2 className="mb-5 text-xs font-bold uppercase tracking-[0.2em] text-zinc-400 sm:mb-6">{title}</h2>{children}</section>;
 }
 
 function FieldLabel({ label, children, className = "" }: { label: string; children: ReactNode; className?: string }) {

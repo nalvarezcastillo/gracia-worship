@@ -27,7 +27,7 @@ export default async function ServiceWorkspacePage({ params, searchParams }: { p
       .order("position", { ascending: true }),
     supabase
       .from("songs")
-      .select("id, title, artist, key, bpm, duration, time_signature, audio_url, sheet_url, song_keys(key_name, audio_url, sheet_url, song_stems(id))")
+      .select("id, title, artist, key, bpm, duration, time_signature, audio_url, cover_url, sheet_url, song_keys(key_name, audio_url, sheet_url, song_stems(id))")
       .order("title", { ascending: true }),
     supabase.from("service_song_settings").select("service_id, service_item_id, song_id, key_override").eq("service_id", serviceId),
     authenticated ? supabase.from("service_item_notes").select("service_id, service_item_id, notes").eq("service_id", serviceId) : Promise.resolve({ data: [], error: null }),
@@ -56,7 +56,7 @@ export default async function ServiceWorkspacePage({ params, searchParams }: { p
   ].filter(Boolean).join(" • ");
 
   return (
-    <main className="min-h-screen pb-[calc(5rem+env(safe-area-inset-bottom))] pt-3 sm:py-10 lg:py-0">
+    <main className="min-h-screen pb-[calc(6rem+env(safe-area-inset-bottom))] pt-3 sm:py-10 lg:py-0">
       <MainContainer className="max-w-3xl lg:max-w-none lg:px-0">
         <ServiceItems initialItems={items} initialItemNotes={itemNotes} initialResponsibilities={(responsibilityData ?? []) as ServiceItemResponsibilityRow[]} initialSongSettings={settings} songs={songs} isAdmin={authenticated && isEditable} authenticated={authenticated} lifecycleStatus={service.status} hasCurrentActive={Boolean(activeService)} canDeleteService={authenticated && service.status === "planned"} loadError={loadError} mobileServiceSchedule={mobileServiceSchedule} serviceId={serviceId} serviceName={localizeDefaultServiceName(service.service_name)} serviceSchedule={serviceSchedule} serviceTime={service.service_time} showPreparedToast={(await searchParams).prepared === "1"} teamMembers={teamMembers} serviceTeamAssignments={serviceTeamAssignments} />
         {authenticated && service.leader_notes?.trim() ? (

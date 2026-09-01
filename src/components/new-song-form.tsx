@@ -7,7 +7,7 @@ import { PrimaryButton } from "@/components/ui/action-button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const fieldStyles =
-  "min-h-12 w-full rounded-2xl border border-white/8 bg-zinc-950/45 px-4 text-base text-white shadow-inner shadow-black/10 outline-none transition-all duration-200 placeholder:text-zinc-600 hover:border-white/12 focus:border-emerald-400/50 focus:bg-zinc-950/60 focus:ring-4 focus:ring-emerald-400/[0.07]";
+  "min-h-12 w-full rounded-xl border border-white/[0.09] bg-black/20 px-4 text-base text-white outline-none transition-colors duration-200 placeholder:text-zinc-600 hover:border-white/[0.14] focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]";
 
 export function NewSongForm() {
   const router = useRouter();
@@ -131,7 +131,7 @@ export function NewSongForm() {
 }
 
 function FormSection({ title, children }: { title: string; children: ReactNode }) {
-  return <section className="rounded-3xl border border-white/[0.07] bg-zinc-900/60 p-5 shadow-xl shadow-black/10 sm:p-7"><h2 className="mb-5 text-xs font-bold uppercase tracking-[0.2em] text-zinc-200 sm:mb-6 sm:text-sm">{title}</h2>{children}</section>;
+  return <section className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-5 sm:p-7"><h2 className="mb-5 text-xs font-bold uppercase tracking-[0.2em] text-zinc-400 sm:mb-6">{title}</h2>{children}</section>;
 }
 
 function FieldLabel({ label, children, className = "" }: { label: string; children: ReactNode; className?: string }) {

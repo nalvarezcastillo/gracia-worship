@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { EditSongForm } from "@/components/edit-song-form";
 import { ManageSongKeys } from "@/components/manage-song-keys";
-import { MainContainer } from "@/components/ui/main-container";
-import { PageHeader } from "@/components/ui/page-header";
+import { AppPage } from "@/components/app-page";
 import type { SongRecord } from "@/lib/database.types";
 import type { SongKeyRow, SongStemRow } from "@/lib/database.types";
 import { hasAuthenticatedUser } from "@/lib/auth";
@@ -59,12 +58,9 @@ export default async function EditSongPage({ params }: { params: Promise<{ id: s
   if (!song) notFound();
 
   return (
-    <main className="min-h-screen py-8 sm:py-12">
-      <MainContainer className="max-w-3xl">
-        <PageHeader title="Editar canción" description="Actualiza los datos de la canción o reemplaza sus archivos." />
-        <EditSongForm song={song} />
-        <ManageSongKeys songId={song.id} initialKeys={songKeys} initialStems={songStems} />
-      </MainContainer>
-    </main>
+      <AppPage maxWidth="max-w-4xl" eyebrow="Biblioteca / Edición" title="Editar canción" description="Actualiza los datos de la canción y administra sus tonalidades y archivos.">
+        <div className="pb-16 sm:pb-0"><EditSongForm song={song} />
+        <ManageSongKeys songId={song.id} initialKeys={songKeys} initialStems={songStems} /></div>
+      </AppPage>
   );
 }

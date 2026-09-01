@@ -5,7 +5,7 @@ import Link from "next/link";
 import { SecondaryButton } from "@/components/ui/action-button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-export function AddSongToServiceButton({ serviceId, songId, songTitle }: { serviceId?: number; songId: string; songTitle: string }) {
+export function AddSongToServiceButton({ primary = false, serviceId, songId, songTitle }: { primary?: boolean; serviceId?: number; songId: string; songTitle: string }) {
   const savingRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
   const [notice, setNotice] = useState<"success" | "no-service" | "error" | null>(null);
@@ -69,7 +69,7 @@ export function AddSongToServiceButton({ serviceId, songId, songTitle }: { servi
 
   return (
     <>
-      <SecondaryButton type="button" onClick={() => void addToService()} disabled={isSaving} className="min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100">
+      <SecondaryButton type="button" onClick={() => void addToService()} disabled={isSaving} className={`min-h-11 rounded-xl px-4 text-sm shadow-none hover:translate-y-0 hover:shadow-none active:scale-100 ${primary ? "border-emerald-400 bg-emerald-400 text-zinc-950 hover:border-emerald-300 hover:bg-emerald-300 max-sm:!border-emerald-400 max-sm:!bg-emerald-400 max-sm:!text-zinc-950 max-sm:hover:!border-emerald-300 max-sm:hover:!bg-emerald-300" : ""}`}>
         {isSaving ? "Agregando..." : "+ Agregar al servicio"}
       </SecondaryButton>
       {notice === "success" ? <div role="status" aria-live="polite" className="fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-sm rounded-2xl border border-emerald-400/20 bg-zinc-900 px-4 py-3 text-center text-sm font-medium text-emerald-300 shadow-2xl">✅ Canción agregada al servicio.</div> : null}

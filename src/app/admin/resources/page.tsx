@@ -20,9 +20,9 @@ export default async function ResourcesPage({ searchParams }: { searchParams: Pr
     ? await query.eq("id", requestedServiceId).maybeSingle()
     : await query.eq("status", "active").maybeSingle();
   if (requestedService && !service) notFound();
-  if (!service) return <AppPage title="Recursos" desktopAdminSidebar><ServiceContextEmptyState message="Selecciona un servicio para administrar sus recursos." /></AppPage>;
+  if (!service) return <AppPage eyebrow="Operaciones" title="Recursos" description="Recursos disponibles para la planificación del servicio."><ServiceContextEmptyState message="Selecciona un servicio para administrar sus recursos." /></AppPage>;
   if (service.status === "completed" || service.status === "archived") redirect(`/service/${service.id}`);
   const { categories, resources, usages, loadError } = await getResourceManagerData(service.id);
 
-  return <AppPage title="Recursos" maxWidth="max-w-6xl" desktopAdminSidebar hideMobileHeader><ManageResources initialCategories={categories} initialResources={resources} initialUsages={usages} loadError={loadError} /></AppPage>;
+  return <AppPage eyebrow="Operaciones" title="Recursos" description="Inventario y asignaciones del servicio actual." maxWidth="max-w-6xl" hideMobileHeader><ManageResources initialCategories={categories} initialResources={resources} initialUsages={usages} loadError={loadError} /></AppPage>;
 }

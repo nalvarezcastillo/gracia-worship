@@ -20,8 +20,8 @@ export function BottomNavigation() {
   }
 
   return (
-    <nav aria-label="Main navigation" className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.07] bg-zinc-950/85 pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_32px_rgba(0,0,0,0.28)] backdrop-blur-2xl lg:hidden">
-      <div className="mx-auto grid h-18 max-w-lg grid-cols-5 gap-1 px-2 py-1.5 sm:px-3">
+    <nav aria-label="Navegación principal" className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.055] bg-[#050a0e]/94 pb-[env(safe-area-inset-bottom)] shadow-[0_-14px_36px_rgba(0,0,0,0.3)] backdrop-blur-2xl lg:hidden">
+      <div className="mx-auto grid h-18 max-w-lg grid-cols-5 gap-0.5 px-2 py-1.5 sm:px-3">
         {items.map((item) => {
           const isActive = item.active(pathname);
           const Icon = item.icon;
@@ -31,9 +31,10 @@ export function BottomNavigation() {
               key={item.href}
               href={item.href}
               aria-current={isActive ? "page" : undefined}
-              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs font-semibold transition-all duration-200 ease-out active:scale-95 ${isActive ? "bg-emerald-400/[0.08] text-emerald-400" : "text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-200"}`}
+              className={`relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[0.625rem] font-semibold transition-[background-color,color,transform] duration-200 ease-out active:scale-95 ${isActive ? "bg-white/[0.035] text-emerald-400" : "text-zinc-600 hover:bg-white/[0.025] hover:text-zinc-300"}`}
             >
-              <Icon className="size-6" />
+              {isActive ? <span aria-hidden="true" className="absolute inset-x-5 top-0 h-px rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.45)]" /> : null}
+              <Icon className="size-5" />
               {item.label}
             </Link>
           );

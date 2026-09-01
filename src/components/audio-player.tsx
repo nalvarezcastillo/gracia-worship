@@ -117,14 +117,23 @@ export function useAudioPlayer() {
   return value;
 }
 
-export function AudioPlayer() {
-  const { currentTime, duration, hasError, hasSource, isPlaying, seek, title, togglePlayback } = useAudioPlayer();
+export function AudioPlayer({ premium = false, subtitle }: { premium?: boolean; subtitle?: string }) {
+  const { currentTime, duration, hasError, hasSource, isPlaying, seek, skip, title, togglePlayback } = useAudioPlayer();
 
   if (!hasSource || hasError) {
     return <p role="status" className="py-4 text-center text-base font-medium text-zinc-400">No hay audio disponible</p>;
   }
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  if (premium) {
+    return (
+      <div>
+        <div className="text-center"><p className="truncate text-lg font-semibold tracking-tight text-white sm:text-xl">{title}</p>{subtitle ? <p className="mt-1 truncate text-sm text-zinc-500">{subtitle}</p> : null}</div>
+        <div className="mt-6 flex items-center justify-center gap-4 sm:gap-7"><AudioControlButton ariaLabel="Retroceder 10 segundos" onClick={() => skip(-10)}><span className="text-lg">−</span><span>10</span></AudioControlButton><button type="button" onClick={togglePlayback} aria-label={`${isPlaying ? "Pausar" : "Reproducir"} ${title}`} className="grid size-16 shrink-0 place-items-center rounded-full border border-emerald-300/70 bg-emerald-400/[0.08] text-emerald-300 shadow-[0_0_28px_rgba(40,215,160,0.1)] transition-all hover:scale-[1.03] hover:bg-emerald-400/[0.14] active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-emerald-400 sm:size-[4.5rem]">{isPlaying ? <PauseIcon /> : <PlayIcon />}</button><AudioControlButton ariaLabel="Avanzar 10 segundos" onClick={() => skip(10)}><span>10</span><span className="text-lg">+</span></AudioControlButton></div>
+        <div className="mx-auto mt-6 max-w-4xl"><div className="flex items-center gap-4"><span className="w-10 shrink-0 font-mono text-xs tabular-nums text-zinc-400">{formatTime(currentTime)}</span><ProgressSlider currentTime={currentTime} duration={duration} onSeek={seek} progress={progress} title={title} /><span className="w-10 shrink-0 text-right font-mono text-xs tabular-nums text-zinc-500">{formatTime(duration)}</span></div></div>
+      </div>
+    );
+  }
   return (
     <div className="flex items-center gap-3 sm:gap-5">
       <button

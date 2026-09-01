@@ -34,6 +34,7 @@ export type ServiceSong = {
   artist: string;
   audio_url: string;
   bpm: number;
+  cover_url: string | null;
   duration: string;
   id: string;
   key: string;

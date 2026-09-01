@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { BottomNavigation } from "@/components/bottom-navigation";
-import { DesktopTopNavigation } from "@/components/desktop-top-navigation";
+import { ApplicationShell } from "@/components/application-shell";
 import { LegacyRecentSongCleanup } from "@/components/legacy-recent-song-cleanup";
 import "./globals.css";
 
@@ -18,9 +17,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <LegacyRecentSongCleanup />
-        <DesktopTopNavigation />
-        {children}
-        <BottomNavigation />
+        <ApplicationShell>{children}</ApplicationShell>
       </body>
     </html>
   );

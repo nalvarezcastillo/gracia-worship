@@ -93,14 +93,14 @@ export function FullscreenPdfReader({ fileName, headerAudioControls, onClose, ti
           type="button"
           data-close-button
           onClick={close}
-          aria-label="Close PDF reader"
-          className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] px-4 text-sm font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+          aria-label="Cerrar lector de partitura"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] px-3 text-sm font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 sm:px-4"
         >
-          Close
+          Cerrar
         </button>
         <div className="min-w-0 flex-1 text-center sm:text-left">
           <h2 id="pdf-reader-title" className="truncate font-semibold text-white">{title}</h2>
-          <p id="pdf-reader-description" className="truncate text-xs text-zinc-500">Sheet music · {fileName}</p>
+          <p id="pdf-reader-description" className="truncate text-xs text-zinc-500">Partitura · {fileName}</p>
         </div>
         <span className="min-w-14 shrink-0 text-right text-sm tabular-nums text-zinc-400" aria-live="polite">
           {hasReadablePages ? `${pageNumber} / ${numPages}` : ""}
@@ -117,9 +117,9 @@ export function FullscreenPdfReader({ fileName, headerAudioControls, onClose, ti
         <div ref={pageContainerRef} className="mx-auto flex w-full max-w-6xl justify-center">
           <Document
             file={url}
-            loading={<ReaderStatus>Loading PDF…</ReaderStatus>}
-            error={<ReaderError>Failed to load PDF. The file may be invalid or unavailable.</ReaderError>}
-            noData={<ReaderError>The PDF URL is invalid or unavailable.</ReaderError>}
+            loading={<ReaderStatus>Cargando PDF…</ReaderStatus>}
+            error={<ReaderError>No se pudo cargar el PDF. El archivo puede ser inválido o no estar disponible.</ReaderError>}
+            noData={<ReaderError>La dirección del PDF es inválida o no está disponible.</ReaderError>}
             onLoadSuccess={({ numPages: loadedPageCount }) => {
               setPageError(false);
               setNumPages(loadedPageCount);
@@ -130,10 +130,10 @@ export function FullscreenPdfReader({ fileName, headerAudioControls, onClose, ti
             }}
           >
             {numPages === 0 ? (
-              <ReaderError>This PDF has zero readable pages.</ReaderError>
+              <ReaderError>Este PDF no contiene páginas legibles.</ReaderError>
             ) : hasReadablePages && pageWidth ? (
               pageError ? (
-                <ReaderError>This PDF page could not be rendered.</ReaderError>
+                <ReaderError>No se pudo mostrar esta página del PDF.</ReaderError>
               ) : (
                 <Page
                   key={pageNumber}
@@ -141,7 +141,7 @@ export function FullscreenPdfReader({ fileName, headerAudioControls, onClose, ti
                   width={pageWidth}
                   renderAnnotationLayer={false}
                   renderTextLayer={false}
-                  loading={<ReaderStatus>Loading page {pageNumber}…</ReaderStatus>}
+                  loading={<ReaderStatus>Cargando página {pageNumber}…</ReaderStatus>}
                   onRenderError={() => setPageError(true)}
                   canvasRef={(canvas) => {
                     if (canvas) canvas.style.height = "auto";
@@ -163,13 +163,13 @@ export function FullscreenPdfReader({ fileName, headerAudioControls, onClose, ti
             setPageNumber((current) => Math.max(1, current - 1));
           }}
           disabled={!hasReadablePages || pageNumber === 1}
-          aria-label="Previous PDF page"
-          className="min-h-12 justify-self-start rounded-full border border-white/10 bg-white/[0.055] px-5 font-semibold text-white transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+          aria-label="Página anterior"
+          className="min-h-12 justify-self-start rounded-full border border-white/10 bg-white/[0.055] px-3 text-sm font-semibold text-white transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 sm:px-5 sm:text-base"
         >
-          Previous
+          <span className="sm:hidden">Ant.</span><span className="hidden sm:inline">Anterior</span>
         </button>
         <p className="text-center text-sm font-semibold tabular-nums text-zinc-300" aria-live="polite">
-          {hasReadablePages ? `Page ${pageNumber} of ${numPages}` : "—"}
+          {hasReadablePages ? <><span className="sm:hidden">Pág. {pageNumber}/{numPages}</span><span className="hidden sm:inline">Página {pageNumber} de {numPages}</span></> : "—"}
         </p>
         <button
           type="button"
@@ -178,10 +178,10 @@ export function FullscreenPdfReader({ fileName, headerAudioControls, onClose, ti
             setPageNumber((current) => Math.min(numPages ?? current, current + 1));
           }}
           disabled={!hasReadablePages || pageNumber === numPages}
-          aria-label="Next PDF page"
-          className="min-h-12 justify-self-end rounded-full bg-emerald-400 px-5 font-semibold text-zinc-950 transition-colors hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+          aria-label="Página siguiente"
+          className="min-h-12 justify-self-end rounded-full bg-emerald-400 px-3 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 sm:px-5 sm:text-base"
         >
-          Next
+          <span className="sm:hidden">Sig.</span><span className="hidden sm:inline">Siguiente</span>
         </button>
         </div>
       </footer>
