@@ -28,20 +28,20 @@ export function NewSongForm() {
 
     if (!title || !artist || !key || !duration || !lyrics || !Number.isFinite(bpm) || bpm <= 0) {
       setIsError(true);
-      setMessage("Please complete all required fields.");
+      setMessage("Completa todos los campos obligatorios.");
       return;
     }
 
     setIsSaving(true);
     setIsError(false);
-    setMessage("Saving song...");
+    setMessage("Guardando canción...");
 
     try {
       const supabase = createSupabaseBrowserClient();
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError || !sessionData.session) {
-        throw new Error("Your session has expired. Please sign in again.");
+        throw new Error("Tu sesión ha vencido. Inicia sesión nuevamente.");
       }
 
       const folder = crypto.randomUUID();
@@ -59,7 +59,7 @@ export function NewSongForm() {
         });
 
         if (error) {
-          throw new Error(`Unable to upload ${name}.`);
+          throw new Error(`No se pudo subir el archivo de ${name === "audio" ? "audio" : "partitura"}.`);
         }
         return supabase.storage.from("songs").getPublicUrl(path).data.publicUrl;
       }
@@ -83,10 +83,10 @@ export function NewSongForm() {
       });
 
       if (error) {
-        throw new Error("Unable to save song details.");
+        throw new Error("No se pudieron guardar los datos de la canción.");
       }
 
-      setMessage("Song saved successfully");
+      setMessage("Canción guardada correctamente.");
       window.setTimeout(() => {
         router.push("/songs");
         router.refresh();
@@ -94,36 +94,36 @@ export function NewSongForm() {
     } catch (error) {
       setIsSaving(false);
       setIsError(true);
-      setMessage(error instanceof Error ? error.message : "Unable to save song. Please try again.");
+      setMessage(error instanceof Error ? error.message : "No se pudo guardar la canción. Intenta nuevamente.");
     }
   }
 
   return (
     <form onSubmit={handleSubmit} className="mt-8 space-y-7 sm:mt-10 sm:space-y-8">
-      <FormSection title="Song Details">
+      <FormSection title="Datos de la canción">
         <div className="grid gap-5 sm:grid-cols-2 sm:gap-6">
-          <TextField label="Title" name="title" className="sm:col-span-2" />
-          <TextField label="Artist" name="artist" className="sm:col-span-2" />
-          <TextField label="Key" name="key" />
+          <TextField label="Título" name="title" className="sm:col-span-2" />
+          <TextField label="Artista" name="artist" className="sm:col-span-2" />
+          <TextField label="Tonalidad" name="key" />
           <TextField label="BPM" name="bpm" type="number" inputMode="numeric" />
           <TimeSignatureField />
-          <TextField label="Duration" name="duration" placeholder="5:18" className="sm:col-span-2" />
+          <TextField label="Duración" name="duration" placeholder="5:18" className="sm:col-span-2" />
         </div>
       </FormSection>
 
-      <FormSection title="Files">
+      <FormSection title="Archivos">
         <div className="space-y-5 sm:space-y-6">
           <FileField label="Audio" name="audio" accept="audio/*" />
-          <FileField label="Sheet Music (.pdf)" name="sheet" accept="application/pdf,.pdf" />
+          <FileField label="Partitura (.pdf)" name="sheet" accept="application/pdf,.pdf" />
         </div>
       </FormSection>
 
-      <FormSection title="Content">
+      <FormSection title="Contenido">
         <TextAreaField label="Letra" name="lyrics" rows={9} />
       </FormSection>
 
       <div>
-        <PrimaryButton type="submit" disabled={isSaving} className="min-h-14 w-full">{isSaving ? "Saving..." : "Save Song"}</PrimaryButton>
+        <PrimaryButton type="submit" disabled={isSaving} className="min-h-14 w-full">{isSaving ? "Guardando..." : "Guardar canción"}</PrimaryButton>
         <p role="status" aria-live="polite" className={`mt-4 min-h-6 text-center text-sm font-medium ${isError ? "text-rose-400" : "text-emerald-400"}`}>{message}</p>
       </div>
     </form>
@@ -171,6 +171,6 @@ function getFile(formData: FormData, name: string) {
 
 function validateAudioFile(file: File | null) {
   if (file && !file.type.startsWith("audio/")) {
-    throw new Error("Please select a valid audio file.");
+    throw new Error("Selecciona un archivo de audio válido.");
   }
 }

@@ -73,7 +73,7 @@ export function ManageSetlist({ allSongs, initialSongIds, serviceId }: ManageSet
   async function saveSetlist() {
     setIsSaving(true);
     setIsError(false);
-    setMessage("Saving setlist...");
+    setMessage("Guardando Setlist...");
 
     try {
       const supabase = createSupabaseBrowserClient();
@@ -81,23 +81,25 @@ export function ManageSetlist({ allSongs, initialSongIds, serviceId }: ManageSet
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) {
         logSupabaseError("Session verification", sessionError);
-        throw new Error("Unable to verify your session. Please sign in again.");
+        throw new Error("No se pudo verificar tu sesión. Inicia sesión nuevamente.");
       }
-      if (!sessionData.session) throw new Error("You must be signed in to save the setlist.");
+      if (!sessionData.session) throw new Error("Debes iniciar sesión para guardar el Setlist.");
 
       const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError) {
         logSupabaseError("User verification", userError);
-        throw new Error("Unable to verify your user. Please sign in again.");
+        throw new Error("No se pudo verificar tu usuario. Inicia sesión nuevamente.");
       }
-      if (!userData.user) throw new Error("You must be signed in to save the setlist.");
+      if (!userData.user) throw new Error("Debes iniciar sesión para guardar el Setlist.");
 
       const savedAt = new Date().toISOString();
-      console.info("[Setlist] Supabase operation", {
-        SUPABASE_URL: url,
-        table: "active_setlist",
-        operation: "update",
-      });
+      if (process.env.NODE_ENV === "development") {
+        console.info("[Setlist] Supabase operation", {
+          SUPABASE_URL: url,
+          table: "active_setlist",
+          operation: "update",
+        });
+      }
       const { data, error, status } = await supabase
         .from("active_setlist")
         .update({ song_ids: songIds, updated_at: savedAt })
@@ -107,15 +109,17 @@ export function ManageSetlist({ allSongs, initialSongIds, serviceId }: ManageSet
 
       if (error) {
         logSupabaseError("Save", error, status);
-        throw new Error(error.message || "Unable to save the setlist.");
+        throw new Error(error.message || "No se pudo guardar el Setlist.");
       }
-      if (!data) throw new Error("Supabase did not return the saved setlist.");
+      if (!data) throw new Error("Supabase no devolvió el Setlist guardado.");
 
-      console.info("[Setlist] Supabase operation", {
-        SUPABASE_URL: url,
-        table: "active_setlist",
-        operation: "select",
-      });
+      if (process.env.NODE_ENV === "development") {
+        console.info("[Setlist] Supabase operation", {
+          SUPABASE_URL: url,
+          table: "active_setlist",
+          operation: "select",
+        });
+      }
       const { data: persisted, error: reloadError, status: reloadStatus } = await supabase
         .from("active_setlist")
         .select("song_ids")
@@ -124,7 +128,7 @@ export function ManageSetlist({ allSongs, initialSongIds, serviceId }: ManageSet
 
       if (reloadError) {
         logSupabaseError("Reload after save", reloadError, reloadStatus);
-        throw new Error(reloadError.message || "Unable to confirm the saved setlist.");
+        throw new Error(reloadError.message || "No se pudo confirmar el Setlist guardado.");
       }
 
       const persistedSongIds = (persisted?.song_ids ?? []) as string[];
@@ -133,13 +137,13 @@ export function ManageSetlist({ allSongs, initialSongIds, serviceId }: ManageSet
           expectedSongIds: songIds,
           persistedSongIds,
         });
-        throw new Error("The setlist order could not be confirmed after saving.");
+        throw new Error("No se pudo confirmar el orden del Setlist después de guardarlo.");
       }
 
-      setMessage("Setlist saved successfully");
+      setMessage("Setlist guardado correctamente.");
     } catch (error) {
       setIsError(true);
-      setMessage(error instanceof Error ? error.message : "Unable to save the setlist.");
+      setMessage(error instanceof Error ? error.message : "No se pudo guardar el Setlist.");
     } finally {
       setIsSaving(false);
     }
@@ -148,7 +152,7 @@ export function ManageSetlist({ allSongs, initialSongIds, serviceId }: ManageSet
   return (
     <div className="mt-8 space-y-7 sm:mt-10">
       <section className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 p-4 shadow-xl shadow-black/10 sm:p-5">
-        <label htmlFor="setlist-song" className="text-sm font-semibold text-zinc-300">Add from library</label>
+        <label htmlFor="setlist-song" className="text-sm font-semibold text-zinc-300">Agregar desde la biblioteca</label>
         <div className="mt-3 flex flex-col gap-3 sm:flex-row">
           <select
             id="setlist-song"
@@ -156,17 +160,17 @@ export function ManageSetlist({ allSongs, initialSongIds, serviceId }: ManageSet
             onChange={(event) => setSelectedSongId(event.target.value)}
             className="min-h-12 min-w-0 flex-1 rounded-2xl border border-white/8 bg-zinc-950/60 px-4 text-base text-white outline-none transition-all duration-200 hover:border-white/12 focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-400/[0.07]"
           >
-            <option value="">Select a song</option>
+            <option value="">Seleccionar canción</option>
             {availableSongs.map((song) => <option key={song.id} value={song.id}>{song.title}</option>)}
           </select>
-          <PrimaryButton type="button" onClick={addSong} disabled={!selectedSongId} className="sm:shrink-0">Add Song</PrimaryButton>
+          <PrimaryButton type="button" onClick={addSong} disabled={!selectedSongId} className="sm:shrink-0">Agregar canción</PrimaryButton>
         </div>
       </section>
 
       <section>
         <div className="flex items-end justify-between gap-4">
-          <h2 className="text-lg font-bold tracking-tight text-white">Songs</h2>
-          <p className="text-xs text-zinc-500">Drag to reorder</p>
+          <h2 className="text-lg font-bold tracking-tight text-white">Canciones</h2>
+          <p className="text-xs text-zinc-500">Arrastra para reordenar</p>
         </div>
 
         {songIds.length > 0 ? (
@@ -189,18 +193,18 @@ export function ManageSetlist({ allSongs, initialSongIds, serviceId }: ManageSet
                   <span className="w-5 shrink-0 text-xs tabular-nums text-zinc-600">{index + 1}</span>
                   <MusicIcon className="size-4 shrink-0 text-emerald-400/65" />
                   <span className="min-w-0 flex-1 truncate font-semibold text-white">{song.title}</span>
-                  <button type="button" onClick={() => removeSong(id)} className="min-h-10 shrink-0 rounded-full px-3 text-sm font-semibold text-rose-300 transition-colors duration-200 hover:bg-rose-400/10 focus-visible:outline-2 focus-visible:outline-rose-400">Remove</button>
+                  <button type="button" onClick={() => removeSong(id)} className="min-h-10 shrink-0 rounded-full px-3 text-sm font-semibold text-rose-300 transition-colors duration-200 hover:bg-rose-400/10 focus-visible:outline-2 focus-visible:outline-rose-400">Quitar</button>
                 </div>
               );
             })}
           </div>
         ) : (
-          <div className="mt-3 rounded-2xl border border-dashed border-white/10 py-10 text-center text-sm text-zinc-500">No songs in the setlist.</div>
+          <div className="mt-3 rounded-2xl border border-dashed border-white/10 py-10 text-center text-sm text-zinc-500">No hay canciones en el Setlist.</div>
         )}
       </section>
 
       <div>
-        <PrimaryButton type="button" onClick={saveSetlist} disabled={isSaving} className="min-h-14 w-full">{isSaving ? "Saving..." : "Save Setlist"}</PrimaryButton>
+        <PrimaryButton type="button" onClick={saveSetlist} disabled={isSaving} className="min-h-14 w-full">{isSaving ? "Guardando..." : "Guardar Setlist"}</PrimaryButton>
         <p role="status" aria-live="polite" className={`mt-4 min-h-6 text-center text-sm font-medium ${isError ? "text-rose-400" : "text-emerald-400"}`}>{message}</p>
       </div>
     </div>

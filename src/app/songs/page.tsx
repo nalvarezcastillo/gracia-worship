@@ -33,7 +33,7 @@ export default async function SongsPage({ searchParams }: { searchParams: Promis
       cover: getSongCoverSource(song.cover_url),
     }));
 
-    return <LibraryView songs={songs} isAdmin={await hasAuthenticatedUser()} notice={deleted === "1" ? "Song deleted successfully." : undefined} />;
+    return <LibraryView songs={songs} isAdmin={await hasAuthenticatedUser()} notice={deleted === "1" ? "Canción eliminada correctamente." : undefined} />;
   } catch {
     return (
       <main className="min-h-screen py-8 sm:py-12">

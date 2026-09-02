@@ -7,7 +7,7 @@ import { BarChart3, CalendarDays, FolderOpen, Music2, Radio, Settings, UserRound
 const navigationItems = [
   { href: "/service", label: "Servicios", icon: CalendarDays, active: (path: string) => path.startsWith("/service") || path === "/setlist" || path === "/archive" || path.startsWith("/admin/setlist") },
   { href: "/songs", label: "Canciones", icon: Music2, active: (path: string) => path.startsWith("/songs") || path.startsWith("/song/") || path.startsWith("/admin/song") },
-  { href: "/admin/service-team", label: "Equipo", icon: UsersRound, active: (path: string) => path.startsWith("/admin/service-team") || path.startsWith("/admin/team") },
+  { href: "/admin/team", label: "Equipo", icon: UsersRound, active: (path: string) => path.startsWith("/admin/team") },
   { href: "/live", label: "En Vivo", icon: Radio, active: (path: string) => path.startsWith("/live") },
   { href: "/admin/reports", label: "Reportes", icon: BarChart3, active: (path: string) => path.startsWith("/admin/reports") },
   { href: "/admin/resources", label: "Recursos", icon: FolderOpen, active: (path: string) => path.startsWith("/admin/resources") || path.startsWith("/admin/microphones") },
