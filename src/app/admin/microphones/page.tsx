@@ -13,5 +13,5 @@ export default async function ManageMicrophonesPage() {
   if (!(await hasAuthenticatedUser())) redirect("/login?next=/admin/microphones");
   const [{ assignments, error }, teamMembers] = await Promise.all([getMicrophoneAssignmentsResult(), getTeamMembers(true)]);
 
-  return <AppPage title="Micrófonos" description="Asigna un micrófono a cada líder de adoración."><ManageMicrophones initialAssignments={assignments} loadError={error} teamMembers={teamMembers} /></AppPage>;
+  return <AppPage eyebrow="Recursos" title="Micrófonos" description="Administra las asignaciones de micrófonos para el equipo." maxWidth="max-w-5xl"><ManageMicrophones initialAssignments={assignments} loadError={error} teamMembers={teamMembers} /></AppPage>;
 }

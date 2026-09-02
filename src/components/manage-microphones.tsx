@@ -178,13 +178,14 @@ export function ManageMicrophones({ initialAssignments, loadError, teamMembers }
   }
 
   return (
-    <div className="mt-8 space-y-6 sm:mt-10">
+    <div className="mt-6 space-y-7 sm:mt-8">
       {loadError ? (
         <p role="alert" className="rounded-2xl border border-rose-400/20 bg-rose-400/[0.08] px-4 py-4 text-sm leading-6 text-rose-200">
           {loadError}
         </p>
       ) : null}
-      <form onSubmit={addAssignment} className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 p-4 shadow-xl shadow-black/10 sm:p-6">
+      <form onSubmit={addAssignment} className="border-y border-white/[0.07] bg-white/[0.018] p-4 sm:p-5">
+        <div className="mb-4"><p className="text-[0.6875rem] font-bold uppercase tracking-[0.17em] text-emerald-400">Nueva asignación</p><p className="mt-1 text-sm text-zinc-500">Relaciona una persona con un micrófono disponible.</p></div>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-sm font-semibold text-zinc-300">
             Líder
@@ -201,11 +202,11 @@ export function ManageMicrophones({ initialAssignments, loadError, teamMembers }
       </form>
 
       <section>
-        <h2 className="text-lg font-bold text-white">Asignaciones actuales</h2>
+        <div className="flex items-end justify-between border-b border-white/[0.07] pb-3"><div><h2 className="text-lg font-bold text-white">Asignaciones actuales</h2><p className="mt-1 text-sm text-zinc-500">Orden operativo del equipo</p></div><span className="text-xs tabular-nums text-zinc-600">{assignments.length}</span></div>
         {assignments.length > 0 ? (
-          <div className="mt-3 space-y-3">
+          <div className="divide-y divide-white/[0.07] border-b border-white/[0.07]">
             {assignments.map((assignment, index) => (
-              <div key={assignment.id} className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 p-4">
+              <div key={assignment.id} className="py-4 sm:px-2">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="text-xs font-bold uppercase tracking-wider text-zinc-500">
                     Líder
@@ -216,7 +217,7 @@ export function ManageMicrophones({ initialAssignments, loadError, teamMembers }
                     <input value={assignment.microphone_name} onChange={(event) => editAssignment(assignment.id, "microphone_name", event.target.value)} className={`mt-2 ${inputStyles}`} />
                   </label>
                 </div>
-                <div className="mt-4 flex gap-2">
+                <div className="mt-3 flex flex-wrap gap-1">
                   <button type="button" aria-label={`Subir ${assignment.leader_name}`} onClick={() => void moveAssignment(index, -1)} disabled={busyId !== null || index === 0} className="min-h-11 rounded-full px-4 text-sm font-semibold text-zinc-300 hover:bg-white/5 disabled:opacity-40">↑</button>
                   <button type="button" aria-label={`Bajar ${assignment.leader_name}`} onClick={() => void moveAssignment(index, 1)} disabled={busyId !== null || index === assignments.length - 1} className="min-h-11 rounded-full px-4 text-sm font-semibold text-zinc-300 hover:bg-white/5 disabled:opacity-40">↓</button>
                   <button type="button" onClick={() => void saveAssignment(assignment)} disabled={busyId !== null} className="min-h-11 rounded-full bg-emerald-400 px-5 text-sm font-semibold text-zinc-950 disabled:opacity-40">Guardar</button>
@@ -226,11 +227,11 @@ export function ManageMicrophones({ initialAssignments, loadError, teamMembers }
             ))}
           </div>
         ) : (
-          <p className="mt-3 rounded-2xl border border-dashed border-white/10 py-10 text-center text-sm text-zinc-500">No hay micrófonos asignados.</p>
+          <p className="border-b border-white/[0.07] py-10 text-center text-sm text-zinc-500">No hay micrófonos asignados.</p>
         )}
       </section>
 
-      <p role="status" aria-live="polite" className={`min-h-6 text-center text-sm font-medium ${isError ? "text-rose-400" : "text-emerald-400"}`}>{message}</p>
+      <p role="status" aria-live="polite" className={`min-h-6 text-sm font-medium ${isError ? "text-rose-400" : "text-emerald-400"}`}>{message}</p>
     </div>
   );
 }

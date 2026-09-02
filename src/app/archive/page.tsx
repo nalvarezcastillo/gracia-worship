@@ -19,5 +19,5 @@ export default async function ArchivePage() {
   const counts = new Map<number, number>();
   for (const item of items ?? []) counts.set(item.service_id, (counts.get(item.service_id) ?? 0) + 1);
   const archive = (services ?? []).map((service) => ({ ...service, itemCount: counts.get(service.id) ?? 0 })) as ArchivedServiceSummary[];
-  return <AppPage title="Archivo de Servicios"><ServiceArchive services={archive} hasCurrentActive={Boolean(activeService)} /></AppPage>;
+  return <AppPage eyebrow="Servicios" title="Archivo de servicios" description="Consulta los servicios archivados y su contenido histórico." maxWidth="max-w-5xl"><ServiceArchive services={archive} hasCurrentActive={Boolean(activeService)} /></AppPage>;
 }
