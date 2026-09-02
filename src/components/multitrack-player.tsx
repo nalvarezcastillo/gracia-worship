@@ -375,7 +375,6 @@ export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canEd
   }, []);
 
   const updateMix = useCallback((index: number, patch: Partial<StemMix>) => {
-    if (!canEditServiceMix && (patch.muted !== undefined || patch.volume !== undefined)) return;
     setMixes((current) => current.map((mix, mixIndex) => {
       if (mixIndex !== index) return mix;
       const next = { ...mix, ...patch };
@@ -383,7 +382,7 @@ export function MultitrackPlayer({ active = true, artist, artworkUrl, bpm, canEd
       if (stemId && (patch.muted !== undefined || patch.volume !== undefined)) scheduleMixSave(stemId, next, patch.muted !== undefined);
       return next;
     }));
-  }, [canEditServiceMix, playableStems, scheduleMixSave]);
+  }, [playableStems, scheduleMixSave]);
 
   async function resumeAudio() { const context = engineRef.current?.context; if (!context || context.state === "closed") return; try { await context.resume(); setContextState(context.state); if (context.state === "running") setEngineMessage(null); } catch (error) { console.error("Unable to recover AudioContext:", error); setEngineMessage("No se pudo reanudar el motor de audio."); } }
 
