@@ -279,51 +279,68 @@ export function LiveMode({ canControl, initialRuns, initialState, itemNotes, ite
   }
 
   return (
-    <div className="pb-24 lg:pb-8">
-      <header className="border-b border-white/[0.07] pb-4 sm:pb-6">
-        <div className="flex items-center justify-between gap-4"><p className="text-xs font-bold uppercase tracking-[0.22em] text-zinc-500 lg:text-zinc-300">Gracia Worship</p><p className="shrink-0 text-xs font-bold uppercase tracking-[0.18em] text-emerald-400">● En Vivo</p></div>
-        <div className="mt-3 flex items-end justify-between gap-4">
+    <div className="pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-8">
+      <header className="border-b border-white/[0.07] pb-2.5 sm:pb-5">
+        <div className="flex items-center justify-between gap-4"><p className="text-[0.6875rem] font-bold uppercase tracking-[0.2em] text-emerald-400">En Vivo</p><p className={`shrink-0 text-[0.6875rem] font-medium ${syncStatus === "connected" ? "text-zinc-600" : "text-amber-400/70"}`}>{syncStatus === "connected" ? "● Sincronizado" : "● Reconectando..."}</p></div>
+        <div className="mt-2 flex items-end justify-between gap-4 sm:mt-2.5">
           <div className="min-w-0">
-            <h1 className="truncate text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
+            <h1 className="line-clamp-2 text-2xl font-bold leading-tight tracking-[-0.035em] text-white sm:text-3xl">
               {service ? localizeDefaultServiceName(service.service_name) : "Servicio actual"}
             </h1>
-            <p className="mt-1 text-sm text-zinc-400">
+            <p className="mt-0.5 text-sm text-zinc-400 sm:mt-1">
               {service?.service_date ? formatServiceDate(service.service_date) : "Fecha no configurada"}
             </p>
             {schedule ? (
-              <p className="mt-1 text-xs text-zinc-500">
+              <p className="mt-0.5 text-xs text-zinc-500 sm:mt-1">
                 Plan {formatPlannedTotal(schedule.totalSeconds)} · Final planificado {schedule.plannedEnd}
               </p>
             ) : null}
           </div>
-          <div className="shrink-0 text-right">
+          <div className="hidden shrink-0 text-right sm:block">
             <p className="text-sm font-semibold tabular-nums text-zinc-400">
               {currentEntry ? `${displayIndex + 1} de ${entries.length}` : `0 de ${entries.length}`}
             </p>
             <time className="mt-1 block text-lg font-semibold tabular-nums text-white" suppressHydrationWarning>
               {currentTime || "--:--"}
             </time>
-            <p className={`mt-1 text-[0.6875rem] ${syncStatus === "connected" ? "text-zinc-600" : "text-amber-400/70"}`}>
-              {syncStatus === "connected" ? "Sincronizado" : "Reconectando..."}
-            </p>
           </div>
         </div>
       </header>
+
+      {currentEntry ? <section aria-label="Estado operacional" className="hidden border-b border-white/[0.07] lg:grid lg:grid-cols-4">
+        <OperationalStatus label="Estado" value={isInspecting ? "Inspección" : "En vivo"} accent={!isInspecting} />
+        <OperationalStatus label="Tiempo transcurrido" value={formatDuration(elapsedSeconds)} numeric />
+        <OperationalStatus label="Elemento actual" value={liveEntry?.title ?? "—"} />
+        <OperationalStatus label="Siguiente" value={nextEntry?.title ?? "Fin del servicio"} />
+      </section> : null}
 
       {loadError ? (
         <p role="alert" className="mt-8 rounded-2xl border border-rose-400/15 bg-rose-400/[0.06] px-5 py-6 text-center text-sm text-rose-300">
           No se pudo cargar el servicio actual.
         </p>
       ) : currentEntry ? (
-        <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-8">
+        <div className="mt-3 grid items-start gap-6 sm:mt-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-8">
           <div className="min-w-0">
             <CurrentEntryCard currentIndex={displayIndex} elapsedSeconds={isInspecting ? timing.actualSeconds ?? 0 : elapsedSeconds} entry={currentEntry} isInspecting={isInspecting} mutedStemNames={mutedStemNames} note={currentNote} plannedEnd={currentPlannedEnd} plannedStart={currentPlannedStart} run={currentRun} serviceId={serviceId} timing={timing} totalEntries={entries.length} />
 
-            <section className="mt-4 border-y border-white/[0.07] px-1 py-4" aria-labelledby="next-entry-title">
+            {!(isLast && !canControl) ? <nav aria-label="Navegación de elementos del servicio" className="mt-3 grid grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)] gap-2.5 sm:mt-4 sm:grid-cols-2 sm:gap-3 lg:max-w-[36rem]">
+              <button type="button" disabled={isChanging || isFirst} onClick={() => inspectEntry(displayIndex - 1)} className={`${secondaryButtonStyles} !min-h-12 !rounded-xl lg:!min-h-12 lg:!rounded-xl`}>
+                <ArrowLeft aria-hidden="true" className="size-5" /><span className="min-w-0"><span className="block">Anterior</span><span className="hidden truncate text-xs font-normal text-zinc-500 lg:block">{entries[displayIndex - 1]?.title ?? "—"}</span></span>
+              </button>
+              {isInspecting ? (
+                <button type="button" onClick={() => setInspectionIndex(null)} className={`${primaryButtonStyles} lg:min-h-12 lg:rounded-xl`}>Volver a Ahora</button>
+              ) : (
+                <button type="button" disabled={!canControl || isChanging} onClick={() => { if (isLast) { setFinishError(""); setIsFinishOpen(true); } else { void advanceLive(); } }} className={`${primaryButtonStyles} lg:min-h-12 lg:rounded-xl`}>
+                  <span className="min-w-0"><span className="block">{isLast ? "Finalizar servicio" : "Completar y avanzar"}</span><span className="hidden truncate text-xs font-normal opacity-70 lg:block">{nextEntry?.title ?? "Cierre definitivo"}</span></span>{isLast ? <CircleCheck className="size-5" /> : <ArrowRight aria-hidden="true" className="size-5" />}
+                </button>
+              )}
+            </nav> : null}
+
+            <section className="mt-4 border-y border-white/[0.07] px-1 py-3.5 sm:py-4 lg:mt-3 lg:py-3.5" aria-labelledby="next-entry-title">
               <p id="next-entry-title" className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">Siguiente</p>
               {nextEntry ? (
                 <div className="mt-2 lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end lg:gap-5">
-                  <div className="min-w-0"><p className="hidden text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-zinc-600 lg:block">{getEntryTypeLabel(nextEntry)}</p><p className="truncate text-lg font-semibold text-zinc-100 lg:mt-1 lg:text-2xl">{nextEntry.title}</p>
+                  <div className="min-w-0"><p className="hidden text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-zinc-600 lg:block">{getEntryTypeLabel(nextEntry)}</p><p className="line-clamp-2 text-lg font-semibold leading-snug text-zinc-100 lg:mt-1 lg:text-2xl">{nextEntry.title}</p>
                   <EntrySupportingText entry={nextEntry} compact />
                   </div><div className="mt-2 shrink-0 text-left lg:mt-0 lg:text-right"><EntryDuration entry={nextEntry} /><p className="mt-1 text-xs text-zinc-500">Planificado {nextPlannedStart}</p>{liveTiming.estimatedNextStart ? <p className="mt-1 text-xs font-semibold text-emerald-300">Estimado ahora {liveTiming.estimatedNextStart}</p> : null}</div>
                 </div>
@@ -332,18 +349,6 @@ export function LiveMode({ canControl, initialRuns, initialState, itemNotes, ite
               )}
             </section>
 
-            {!(isLast && !canControl) ? <nav aria-label="Navegación de elementos del servicio" className="mt-4 grid grid-cols-2 gap-3">
-              <button type="button" disabled={isChanging || isFirst} onClick={() => inspectEntry(displayIndex - 1)} className={secondaryButtonStyles}>
-                <ArrowLeft aria-hidden="true" className="size-5" /><span className="min-w-0"><span className="block">Anterior</span><span className="hidden truncate text-xs font-normal text-zinc-500 lg:block">{entries[displayIndex - 1]?.title ?? "—"}</span></span>
-              </button>
-              {isInspecting ? (
-                <button type="button" onClick={() => setInspectionIndex(null)} className={primaryButtonStyles}>Volver a Ahora</button>
-              ) : (
-                <button type="button" disabled={!canControl || isChanging} onClick={() => { if (isLast) { setFinishError(""); setIsFinishOpen(true); } else { void advanceLive(); } }} className={primaryButtonStyles}>
-                  <span className="min-w-0"><span className="block">{isLast ? "Finalizar servicio" : "Completar y avanzar"}</span><span className="hidden truncate text-xs font-normal opacity-70 lg:block">{nextEntry?.title ?? "Cierre definitivo"}</span></span>{isLast ? <CircleCheck className="size-5" /> : <ArrowRight aria-hidden="true" className="size-5" />}
-                </button>
-              )}
-            </nav> : null}
             {canControl && runs.length > 1 && !isInspecting ? <button type="button" disabled={isChanging} onClick={() => void undoAdvance()} className="mt-3 text-sm font-medium text-zinc-500 hover:text-zinc-300 disabled:opacity-40">Deshacer último avance</button> : null}
             {!canControl ? <p className="mt-2 text-center text-xs text-zinc-600">Modo solo lectura</p> : null}
             {controlError ? <p role="alert" className="mt-2 text-center text-sm text-rose-300">{controlError}</p> : null}
@@ -388,26 +393,30 @@ function CurrentEntryCard({ currentIndex, elapsedSeconds, entry, isInspecting, m
   const remainingSeconds = plannedSeconds === null ? null : plannedSeconds - elapsedSeconds;
   const progress = plannedSeconds ? Math.min(100, (elapsedSeconds / plannedSeconds) * 100) : 0;
   return (
-    <article className="rounded-3xl border border-white/[0.08] bg-zinc-900 p-5 shadow-xl shadow-black/20 sm:p-8 lg:rounded-none lg:border-x-0 lg:bg-transparent lg:px-1 lg:py-6 lg:shadow-none">
-      <div className="flex items-center justify-between gap-4"><p className={`text-xs font-bold uppercase tracking-[0.18em] ${isInspecting ? "text-zinc-400" : "text-emerald-400"}`}>{isInspecting ? run?.ended_at ? "Completado" : "Inspección" : "Ahora"}</p><p className="hidden text-base font-semibold tabular-nums text-zinc-500 lg:block">{currentIndex + 1} / {totalEntries}</p></div>
-      <div className="mt-4 flex min-w-0 items-start justify-between gap-4"><h2 className="min-w-0 truncate text-3xl font-bold leading-tight tracking-[-0.04em] text-white sm:text-5xl">{entry.title}</h2>{entry.kind === "song" && entry.effectiveKey ? <span className="hidden min-w-10 shrink-0 place-items-center rounded-full border border-emerald-400/35 px-2 py-1.5 text-sm font-bold text-emerald-300 lg:grid">{entry.effectiveKey}</span> : null}</div>
+    <article className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-3.5 shadow-xl shadow-black/10 sm:rounded-3xl sm:p-7 lg:rounded-none lg:border-x-0 lg:bg-transparent lg:px-1 lg:py-5 lg:shadow-none">
+      <div className="flex items-center justify-between gap-4"><div><p className={`text-[0.6875rem] font-bold uppercase tracking-[0.18em] ${isInspecting ? "text-zinc-400" : "text-emerald-400"}`}>{isInspecting ? run?.ended_at ? "Completado" : "Inspección" : entry.kind === "song" ? "Canción actual" : "Elemento actual"}</p>{isInspecting ? <p className="mt-1 hidden text-xs text-zinc-600 lg:block">Estás revisando otro elemento del servicio</p> : null}</div><p className="text-xs font-semibold tabular-nums text-zinc-600 lg:text-base">{currentIndex + 1} / {totalEntries}</p></div>
+      <div className="mt-2 flex min-w-0 items-start justify-between gap-4 sm:mt-3"><h2 className="min-w-0 break-words text-[1.75rem] font-bold leading-[1.08] tracking-[-0.04em] text-white sm:text-5xl">{entry.title}</h2>{entry.kind === "song" && entry.effectiveKey ? <span className="hidden min-w-10 shrink-0 place-items-center rounded-full border border-emerald-400/35 px-2 py-1.5 text-sm font-bold text-emerald-300 lg:grid">{entry.effectiveKey}</span> : null}</div>
       <EntrySupportingText entry={entry} />
       {entry.kind === "song" ? <SongResourceLinks entry={entry} /> : null}
-      <div className="mt-6 border-t border-white/[0.07] pt-5 lg:grid lg:grid-cols-[minmax(12rem,0.7fr)_minmax(0,1fr)] lg:gap-8">
+      <div className="mt-3 border-t border-white/[0.07] pt-3 sm:mt-5 sm:pt-4 lg:grid lg:max-w-[42rem] lg:grid-cols-[11.5rem_minmax(0,23rem)] lg:gap-6 lg:pt-5">
         <div>
         <p className="whitespace-nowrap text-3xl font-bold tabular-nums tracking-tight text-white sm:text-4xl">{remainingSeconds === null ? formatDuration(elapsedSeconds) : formatLiveTimer(remainingSeconds)}</p>
         <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">{plannedSeconds ? "Plan · tiempo restante" : "Tiempo transcurrido"}</p>
         {plannedSeconds ? (
           <>
-            <div className="mt-4 h-1 overflow-hidden rounded-full bg-zinc-800" aria-hidden="true"><div className="h-full bg-emerald-400 transition-[width] duration-200" style={{ width: `${progress}%` }} /></div>
+            <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-zinc-800 sm:mt-4" aria-hidden="true"><div className="h-full bg-emerald-400 transition-[width] duration-200" style={{ width: `${progress}%` }} /></div>
           </>
         ) : null}
-        </div><dl className="mt-5 grid grid-cols-2 gap-4 lg:mt-0"><LiveMetric label="Plan" value={plannedSeconds ? formatDuration(plannedSeconds) : "—"} /><LiveMetric label="Real" value={timing.actualSeconds === null ? (isInspecting ? "—" : formatDuration(elapsedSeconds)) : formatDuration(timing.actualSeconds)} /><LiveMetric label="Inicio real" value={run ? formatDeviceTime(new Date(run.started_at)) : "—"} /><LiveMetric label="Planificado" value={plannedStart} /><LiveMetric label={timing.driftSeconds !== null && timing.driftSeconds < 0 ? "Adelanto" : "Atraso"} value={timing.driftSeconds === null ? "—" : formatSignedDuration(timing.driftSeconds)} /><LiveMetric label="Diferencia" value={timing.differenceSeconds === null ? "—" : formatSignedDuration(timing.differenceSeconds)} />{run?.ended_at ? <LiveMetric label="Final real" value={formatDeviceTime(new Date(run.ended_at))} /> : null}<LiveMetric label="Final planificado" value={plannedEnd} /></dl>
+        </div><dl className="mt-5 hidden grid-cols-2 gap-x-6 gap-y-3 lg:mt-0 lg:grid"><LiveMetric label="Plan" value={plannedSeconds ? formatDuration(plannedSeconds) : "—"} /><LiveMetric label="Real" value={timing.actualSeconds === null ? (isInspecting ? "—" : formatDuration(elapsedSeconds)) : formatDuration(timing.actualSeconds)} /><LiveMetric label="Inicio real" value={run ? formatDeviceTime(new Date(run.started_at)) : "—"} /><LiveMetric label="Planificado" value={plannedStart} /><LiveMetric label={timing.driftSeconds !== null && timing.driftSeconds < 0 ? "Adelanto" : "Atraso"} value={timing.driftSeconds === null ? "—" : formatSignedDuration(timing.driftSeconds)} /><LiveMetric label="Diferencia" value={timing.differenceSeconds === null ? "—" : formatSignedDuration(timing.differenceSeconds)} />{run?.ended_at ? <LiveMetric label="Final real" value={formatDeviceTime(new Date(run.ended_at))} /> : null}<LiveMetric label="Final planificado" value={plannedEnd} /></dl>
       </div>
-      {entry.kind === "song" && serviceId !== null && hasPlaybackStems(entry) ? <section className="mt-6 hidden border-t border-white/[0.07] pt-5 lg:block" aria-labelledby="live-playback-title"><div className="flex items-center justify-between gap-3"><h3 id="live-playback-title" className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">Playback</h3><span className="text-xs font-semibold text-emerald-400">● Disponible</span></div>{mutedStemNames.length ? <p className="mt-2 text-sm text-zinc-400"><span className="text-zinc-500">Stems muteados:</span> {mutedStemNames.join(" · ")}</p> : null}<p className="mt-1 text-xs text-zinc-600">Abre Playback para verificar salidas y estado del motor.</p><Link href={`/service/${serviceId}/playback`} className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-400 px-4 text-sm font-semibold text-zinc-950 hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400">Abrir Playback</Link></section> : null}
-      {note ? <section className="mt-6 hidden border-t border-white/[0.07] pt-5 lg:block" aria-labelledby="live-notes-title"><h3 id="live-notes-title" className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">Notas</h3><p className="mt-3 whitespace-pre-wrap text-base leading-7 text-zinc-200">{note}</p></section> : null}
+      {entry.kind === "song" && serviceId !== null && hasPlaybackStems(entry) ? <section className="mt-6 hidden border-t border-white/[0.07] pt-5 lg:flex lg:items-center lg:justify-between lg:gap-5 lg:pt-3.5" aria-labelledby="live-playback-title"><div className="min-w-0"><div className="flex items-center gap-3"><h3 id="live-playback-title" className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-zinc-500">Playback</h3><span className="text-xs font-semibold text-emerald-400">● Disponible</span></div>{mutedStemNames.length ? <p className="mt-1 truncate text-xs text-zinc-500"><span className="text-zinc-600">Stems muteados:</span> {mutedStemNames.join(" · ")}</p> : null}</div><Link href={`/service/${serviceId}/playback`} className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-400/[0.08] px-4 text-sm font-semibold text-emerald-300 hover:bg-emerald-400/[0.14] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400">Abrir Playback</Link></section> : null}
+      {note ? <section className="mt-5 border-t border-white/[0.07] pt-4 lg:mt-6 lg:pt-5" aria-labelledby="live-notes-title"><h3 id="live-notes-title" className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-zinc-500">Notas operacionales</h3><p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-zinc-300 lg:mt-3 lg:line-clamp-none lg:text-base lg:leading-7 lg:text-zinc-200">{note}</p></section> : null}
     </article>
   );
+}
+
+function OperationalStatus({ accent = false, label, numeric = false, value }: { accent?: boolean; label: string; numeric?: boolean; value: string }) {
+  return <div className="min-w-0 border-r border-white/[0.07] px-4 py-4 first:pl-1 last:border-r-0"><p className="text-[0.625rem] font-bold uppercase tracking-[0.14em] text-zinc-600">{label}</p><p className={`mt-1.5 truncate font-semibold ${numeric ? "font-mono text-xl tabular-nums" : "text-sm"} ${accent ? "text-emerald-300" : "text-zinc-200"}`}>{value}</p></div>;
 }
 
 function formatLiveTimer(seconds: number) {
@@ -437,16 +446,16 @@ function EntrySupportingText({ compact = false, entry }: { compact?: boolean; en
     const assignment = parseAssignmentText(entry.entry.notes);
     const metadata = getSongMetadata(entry);
     return (
-      <div className={compact ? "mt-1" : "mt-4"}>
+      <div className={compact ? "mt-1" : "mt-2.5 sm:mt-4"}>
         {metadata ? <p className="text-sm font-medium text-zinc-400">{metadata}</p> : null}
-        {!compact && assignment.name.trim() ? <p className="mt-3 text-sm font-medium text-zinc-300">{assignment.name.trim()}</p> : null}
-        {!compact && assignment.role.trim() ? <p className="mt-1 text-sm text-zinc-500">{assignment.role.trim()}</p> : null}
+        {!compact && assignment.name.trim() ? <p className="mt-2 text-sm font-medium text-zinc-300 sm:mt-3">{assignment.name.trim()}</p> : null}
+        {!compact && assignment.role.trim() ? <p className="mt-0.5 text-sm text-zinc-500 sm:mt-1">{assignment.role.trim()}</p> : null}
       </div>
     );
   }
 
   if (!entry.item.details) return null;
-  return <p className={`${compact ? "mt-1 line-clamp-2 text-sm leading-5" : "mt-4 whitespace-pre-wrap text-base leading-7"} text-zinc-400`}>{entry.item.details}</p>;
+  return <p className={`${compact ? "mt-1 line-clamp-2 text-sm leading-5" : "mt-2.5 whitespace-pre-wrap text-base leading-7 sm:mt-4"} text-zinc-400`}>{entry.item.details}</p>;
 }
 
 function SongResourceLinks({ entry }: { entry: Extract<LiveEntry, { kind: "song" }> }) {
@@ -454,7 +463,7 @@ function SongResourceLinks({ entry }: { entry: Extract<LiveEntry, { kind: "song"
   if (!resources.audioUrl && !resources.sheetUrl && !resources.hasAdditionalResources) return null;
 
   return (
-    <div className="mt-5 flex flex-wrap gap-2" aria-label="Recursos de la canción">
+    <div className="mt-3 flex flex-wrap gap-1 sm:mt-5 sm:gap-2" aria-label="Recursos de la canción">
       {resources.audioUrl ? <ResourceLink href={resources.audioUrl} label="Audio"><Headphones className="size-4" /></ResourceLink> : null}
       {resources.sheetUrl ? <ResourceLink href={resources.sheetUrl} label="Partitura"><FileText className="size-4" /></ResourceLink> : null}
       {resources.hasAdditionalResources ? <ResourceLink href={`/song/${entry.song.id}`} label="Recursos"><Music2 className="size-4" /></ResourceLink> : null}
@@ -465,7 +474,7 @@ function SongResourceLinks({ entry }: { entry: Extract<LiveEntry, { kind: "song"
 function ResourceLink({ children, href, label }: { children: React.ReactNode; href: string; label: string }) {
   const external = href.startsWith("http");
   return (
-    <Link href={href} target={external ? "_blank" : undefined} rel={external ? "noreferrer" : undefined} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-zinc-300 transition-colors duration-200 hover:border-emerald-400/25 hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400">
+    <Link href={href} target={external ? "_blank" : undefined} rel={external ? "noreferrer" : undefined} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] px-2 text-xs font-semibold text-zinc-300 transition-colors duration-200 hover:border-emerald-400/25 hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 sm:gap-2 sm:px-3 sm:text-sm">
       {children}{label}
     </Link>
   );

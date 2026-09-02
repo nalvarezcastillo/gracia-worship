@@ -71,7 +71,7 @@ export default async function LivePage() {
   const loadError = serviceError?.message ?? itemsError?.message ?? songsError?.message ?? settingsError?.message;
 
   return (
-    <main className="min-h-screen py-6 sm:py-10">
+    <main className="min-h-screen pb-6 pt-4 sm:py-8 lg:py-10">
       <MainContainer className="max-w-6xl">
         <LiveMode
           canControl={canControl}
